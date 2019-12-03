@@ -53,12 +53,14 @@ public final class TDSMessageDecoder: ByteToMessageDecoder {
             return .needMoreData
         }
         
-//        let message = TDSMessage(packets: packets)
+        guard let message = TDSMessage(packets: packets) else {
+            throw TDSError.protocol("Message Decoding Error: Unable to create a copmlete message from packets.")
+        }
         
         // there is sufficient data, use this buffer
         buffer = bufferCopy
         
-//        context.fireChannelRead(wrapInboundOut(message))
+        context.fireChannelRead(wrapInboundOut(message))
         return .continue
     }
     

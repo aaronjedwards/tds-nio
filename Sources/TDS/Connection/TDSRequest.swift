@@ -1,6 +1,17 @@
 import NIO
 import Logging
 
+extension TDSConnection: TDSClient {
+    public func send(_ request: TDSRequest) -> EventLoopFuture<Void> {
+        request.log(to: self.logger)
+        let promise = self.channel.eventLoop.makePromise(of: Void.self)
+        let request = TDSRequestContext(delegate: request, promise: promise)
+        self.channel.write(request).cascadeFailure(to: promise)
+        self.channel.flush()
+        return promise.futureResult
+    }
+}
+
 public protocol TDSRequest {
     // nil value ends the request
     func respond(to message: TDSMessage) throws -> [TDSMessage]?
@@ -38,6 +49,7 @@ final class TDSRequestHandler: ChannelDuplexHandler {
             // discard packet
             return
         }
+        
         let request = self.queue[0]
         
         if let responses = try request.delegate.respond(to: message) {

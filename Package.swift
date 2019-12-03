@@ -5,6 +5,7 @@ let package = Package(
     name: "swift-tds",
     products: [
         .library(name: "TDS", targets: ["TDS"]),
+        .executable(name: "TDSVersionCheck", targets: ["TDSVersionCheck"]),
     ],
     dependencies: [
         .package(url: "https://github.com/apple/swift-nio.git", from: "2.0.0"),
@@ -14,6 +15,7 @@ let package = Package(
     ],
     targets: [
         .target(name: "TDS", dependencies: ["Logging", "Metrics", "NIO", "NIOSSL"]),
+        .target(name: "TDSVersionCheck", dependencies: ["TDS"]),
         .testTarget(name: "TDSTests", dependencies: ["TDS"]),
     ]
 )

@@ -1,24 +1,27 @@
 import NIO
 
-/// `PRELOGIN`
-/// https://docs.microsoft.com/en-us/openspecs/windows_protocols/ms-tds/60f56408-0188-4cd5-8b90-25c6f2423868
-import NIO
-
 extension TDSMessage {
-    /// Authentication request returned by the server.
-    public struct Prelogin: TDSMessageType {
+    /// `PRELOGIN`
+    /// https://docs.microsoft.com/en-us/openspecs/windows_protocols/ms-tds/60f56408-0188-4cd5-8b90-25c6f2423868
+    public struct PreloginMessage: TDSMessageType {
         public static var headerType: TDSPacket.HeaderType {
-            return .preLogin
+            return .prelogin
         }
         
-        public static let messageLength: Byte = 0x14 // (20 bytes)
+        public static let messageLength: Byte = 0x1A // (26 bytes)
+        
+        public var body: Prelogin
+        
+        public init(version: String, encryption: PreloginEncryption?) {
+            body = Prelogin(version: version, encryption: encryption)
+        }
         
         public func serialize(into buffer: inout ByteBuffer) throws {
             // Packet Header: 0x00 - 0x08 (8 bytes)
             buffer.writeBytes([
-                Prelogin.headerType.value,                             // Type
+                PreloginMessage.headerType.value,              // Type
                 0x01,                                   // Status
-                0x00, Prelogin.messageLength,    // Length
+                0x00, PreloginMessage.messageLength,           // Length
                 0x00, 0x00,                             // SPID
                 0x00,                                   // PacketID (Unused)
                 0x00                                    // Window (Unused)
@@ -30,22 +33,102 @@ extension TDSMessage {
             // - Token (1 byte)
             // - Offset from start of packet (2 btyes)
             // - Length in # of bytes (2 bytes)
+            
+            // Version (Required)
             buffer.writeBytes([
-                // Version (Required)
                 0x00,
+                0x00, 0x0B,
                 0x00, 0x06,
-                0x00, 0x06,
-                // TODO - Add support for other options
+            ])
+            
+            // Encryption
+            if body.encryption != nil {
+                buffer.writeBytes([
+                    0x01,
+                    0x00, 0x11,
+                    0x00, 0x01,
+                ])
+            }
+            
+            // TODO - Add support for other options
+            
+            buffer.writeBytes([
                 0xff // Terminator
             ])
             
-            // Data: 0x0f - 0x14 (6 bytes)
+            // Data
+            
+            // Version Data
             buffer.writeBytes([
-                // Version Data
                 0x09, 0x00, 0x00, 0x00,     // UL_VERSION (9.0.0)
-                0x00, 0x00                  // US_SUBBUILD (0)
-                // TODO - Add support for other options
+                0x00, 0x00,                 // US_SUBBUILD (0)
             ])
+            
+            // Encryption Data
+            if let enc = body.encryption {
+                buffer.writeBytes([
+                    enc.rawValue
+                ])
+            }
         }
+    }
+}
+
+extension TDSMessage {
+    public struct Prelogin {
+        public var version: String
+        public var encryption: PreloginEncryption?
+    }
+}
+
+public struct PreloginOption {
+    /// `PL_OPTION_TOKEN`
+    var token: TDSMessage.PreloginToken
+    /// `PL_OFFSET`
+    var offset: UShort
+    /// `PL_OPTION_LENGTH`
+    var length: UShort
+}
+
+extension TDSMessage {
+    public enum PreloginToken: Byte {
+        /// VERSION
+        case version = 0x00
+        
+        /// ENCRYPTION
+        case encryption = 0x01
+        
+        /// INSTOPT
+        case instOpt = 0x02
+        
+        /// THREADID
+        case threadId = 0x03
+        
+        /// MARS
+        case mars = 0x04
+        
+        /// TRACEID
+        case traceId = 0x05
+        
+        // FEDAUTHREQUIRED
+        case fedAuthRequired = 0x06
+        
+        // NONCEOPT
+        case nonceOpt = 0x07
+        
+        // TERMINATOR
+        case terminator = 0xFF
+    }
+}
+
+extension TDSMessage {
+    public enum PreloginEncryption: Byte {
+        case encryptOff = 0x00
+        case encryptOn = 0x01
+        case encryptNotSup = 0x02
+        case encryptReq = 0x03
+        case encryptClientCertOff = 0x80
+        case encryptClientCertOn = 0x81
+        case encryptClientCertReq = 0x83
     }
 }

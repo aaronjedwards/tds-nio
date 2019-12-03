@@ -4,7 +4,7 @@ extension TDSMessage {
     /// Authentication request returned by the server.
     public struct PreloginSSLHandshakeMessage: TDSMessageType {
         public static var headerType: TDSPacket.HeaderType {
-            return .preLoginResponse
+            return .prelogin
         }
         
         public var sslPayload: ByteBuffer

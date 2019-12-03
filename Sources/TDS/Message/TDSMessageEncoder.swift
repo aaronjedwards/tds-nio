@@ -6,7 +6,11 @@ public final class TDSMessageEncoder: MessageToByteEncoder {
     
     /// See `MessageToByteEncoder`.
     public func encode(data message: TDSMessage, out: inout ByteBuffer) throws {
+        // print("TDSMessage.ChannelEncoder.encode(\(message))")
+        var message = message
         
+        // serialize the message data
+        out.writeBuffer(&message.data)
     }
 }
 

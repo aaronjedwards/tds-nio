@@ -26,7 +26,6 @@ extension TDSConnection {
     }
 }
 
-
 private final class TDSErrorHandler: ChannelInboundHandler {
     typealias InboundIn = Never
     

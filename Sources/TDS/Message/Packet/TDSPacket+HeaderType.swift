@@ -35,10 +35,10 @@ extension TDSPacket {
         public static let sspi: HeaderType = 0x11
         
         /// Pre-Login
-        public static let preLogin: HeaderType = 0x12
+        public static let prelogin: HeaderType = 0x12
         
         /// Pre-Login Response
-        public static let preLoginResponse: HeaderType = 0x04
+        public static let preloginResponse: HeaderType = 0x04
         
         public let value: Byte
         
