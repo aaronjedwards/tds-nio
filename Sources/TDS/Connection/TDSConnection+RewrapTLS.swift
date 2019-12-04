@@ -1,27 +1,22 @@
 import NIO
 import NIOSSL
 
-public final class PipelineOrganizationHandler: ChannelDuplexHandler {
+public final class PipelineOrganizationHandler: ChannelDuplexHandler, RemovableChannelHandler {
     public typealias InboundIn = TDSMessage
     public typealias InboundOut = ByteBuffer
     public typealias OutboundIn = ByteBuffer
     public typealias OutboundOut = TDSMessage
     
-    /// `TDSMessage` decoders
+    /// `TDSMessage` decoders/encoders
     var firstDecoder: ByteToMessageHandler<TDSMessageDecoder>
-    var secondDecoder: ByteToMessageHandler<TDSMessageDecoder>
-    
-    /// `TDSMessage` encoders
     var firstEncoder: MessageToByteHandler<TDSMessageEncoder>
-    var secondEncoder: MessageToByteHandler<TDSMessageEncoder>
-    
+    var secondEncoder: MessageToByteHandler<TDSMessageEncoder>?
+    var secondDecoder: ByteToMessageHandler<TDSMessageDecoder>?
     var sslClientHandler: NIOSSLClientHandler
     
     enum State {
         case start
-        case sentInitialTDSPreLogin
-        case receivedTDSPreLoginResponse
-        case sslHandlerAdded(SSLHandlerAddedState)
+        case sslHandshake(SSLHandshakeState)
         case allDone
     }
     
@@ -29,15 +24,11 @@ public final class PipelineOrganizationHandler: ChannelDuplexHandler {
     
     public init(
         _ firstDecoder: ByteToMessageHandler<TDSMessageDecoder>,
-        _ secondDecoder: ByteToMessageHandler<TDSMessageDecoder>,
         _ firstEncoder: MessageToByteHandler<TDSMessageEncoder>,
-        _ secondEncoder: MessageToByteHandler<TDSMessageEncoder>,
         _ sslClientHandler: NIOSSLClientHandler
     ) {
         self.firstDecoder = firstDecoder
-        self.secondDecoder = secondDecoder
         self.firstEncoder = firstEncoder
-        self.secondEncoder = secondEncoder
         self.sslClientHandler = sslClientHandler
     }
     
@@ -45,25 +36,26 @@ public final class PipelineOrganizationHandler: ChannelDuplexHandler {
     // Inbound
     private func _channelRead(context: ChannelHandlerContext, data: NIOAny) throws {
         switch self.state {
-        case .sentInitialTDSPreLogin:
-            let message = self.unwrapInboundIn(data)
-            switch message.headerType {
-            case .prelogin:
-                self.state = .receivedTDSPreLoginResponse
-                context.channel.pipeline.addHandler(self.sslClientHandler, position: .after(self)).whenComplete { _ in
-                    let sslHandlerAddedState = SSLHandlerAddedState(inputBuffer: context.channel.allocator.buffer(capacity: 1024), outputBuffer: context.channel.allocator.buffer(capacity: 1024), outputPromise: context.eventLoop.makePromise())
-                    self.state = .sslHandlerAdded(sslHandlerAddedState)
-                }
-            default:
-                throw TDSError.protocol("Expected PRELOGIN SSL Handshake Response")
-            }
-        case .sslHandlerAdded(var sslHandlerAddedState):
+        case .sslHandshake(var sslHandshakeState):
             let message = self.unwrapInboundIn(data)
             switch message.headerType {
             case .prelogin:
                 let message = try TDSMessage.PreloginSSLHandshakeMessage.init(message: message)
-                sslHandlerAddedState.addReceivedData(message.sslPayload)
-                self.state = .sslHandlerAdded(sslHandlerAddedState)
+                sslHandshakeState.addReceivedData(message.sslPayload)
+                self.state = .sslHandshake(sslHandshakeState)
+                context.fireChannelRead(self.wrapInboundOut(sslHandshakeState.inputBuffer))
+                sslHandshakeState.inputBuffer.clear()
+                
+                switch sslHandshakeState.state {
+                case .clientHelloSent:
+                    sslHandshakeState.state = .serverHelloRecieved
+                case .keyExchangeSent:
+                    sslHandshakeState.state = .keyExchangeRecieved
+                default:
+                    throw TDSError.protocol("PRELOGIN TLS Exchange Error: Out of order")
+                }
+                
+                state = .sslHandshake(sslHandshakeState)
             default:
                 throw TDSError.protocol("Expected PRELOGIN SSL Handshake Response")
             }
@@ -76,12 +68,10 @@ public final class PipelineOrganizationHandler: ChannelDuplexHandler {
     private func _write(context: ChannelHandlerContext, data: NIOAny, promise: EventLoopPromise<Void>?) throws {
         switch self.state {
         case .start:
-            self.state = .sentInitialTDSPreLogin
-        case .sslHandlerAdded(var sslHandlerAddedState):
-            let recievedBuffer = self.unwrapOutboundIn(data)
-            sslHandlerAddedState.addPendingOutputData(recievedBuffer)
-            sslHandlerAddedState.outputPromise.futureResult.cascade(to: promise)
-            self.state = .sslHandlerAdded(sslHandlerAddedState)
+            let sslHandshakeState = SSLHandshakeState(inputBuffer: context.channel.allocator.buffer(capacity: 1024), outputBuffer: context.channel.allocator.buffer(capacity: 1024), outputPromise: context.eventLoop.makePromise())
+            updateSSLHandshakeState(sslHandshakeState, data: data, promise: promise)
+        case .sslHandshake(let sslHandshakeState):
+            updateSSLHandshakeState(sslHandshakeState, data: data, promise: promise)
         default:
             break
         }
@@ -89,12 +79,32 @@ public final class PipelineOrganizationHandler: ChannelDuplexHandler {
     
     private func _flush(context: ChannelHandlerContext) throws {
         switch self.state {
-        case .sslHandlerAdded(let sslHandlerAddedState):
-            let message = try TDSMessage.PreloginSSLHandshakeMessage(sslPayload: sslHandlerAddedState.outputBuffer).message()
-            context.writeAndFlush(self.wrapOutboundOut(message), promise: sslHandlerAddedState.outputPromise)
+        case .sslHandshake(var sslHandshakeState):
+            let message = try TDSMessage.PreloginSSLHandshakeMessage(sslPayload: sslHandshakeState.outputBuffer).message()
+            context.writeAndFlush(self.wrapOutboundOut(message), promise: sslHandshakeState.outputPromise)
+            sslHandshakeState.outputBuffer.clear()
+            
+            switch sslHandshakeState.state {
+            case .start:
+                sslHandshakeState.state = .clientHelloSent
+            case .serverHelloRecieved:
+                sslHandshakeState.state = .keyExchangeSent
+            default:
+                throw TDSError.protocol("PRELOGIN TLS Exchange Error: Out of order")
+            }
+            
+            state = .sslHandshake(sslHandshakeState)
         default:
-            break
+            context.flush()
         }
+    }
+    
+    private func updateSSLHandshakeState(_ sslHandshakeState: SSLHandshakeState, data: NIOAny, promise: EventLoopPromise<Void>?) {
+        let recievedBuffer = self.unwrapOutboundIn(data)
+        var handshakeState = sslHandshakeState
+        handshakeState.addPendingOutputData(recievedBuffer)
+        handshakeState.outputPromise.futureResult.cascade(to: promise)
+        self.state = .sslHandshake(handshakeState)
     }
     
     public func channelRead(context: ChannelHandlerContext, data: NIOAny) {
@@ -122,10 +132,20 @@ public final class PipelineOrganizationHandler: ChannelDuplexHandler {
     }
 }
 
-public struct SSLHandlerAddedState {
+public struct SSLHandshakeState {
     var inputBuffer: ByteBuffer
     var outputBuffer: ByteBuffer
     var outputPromise: EventLoopPromise<Void>
+    
+    enum State {
+        case start
+        case clientHelloSent
+        case serverHelloRecieved
+        case keyExchangeSent
+        case keyExchangeRecieved
+    }
+    
+    var state = State.start
     
     mutating func addReceivedData(_ buffer: ByteBuffer) {
         var buffer = buffer

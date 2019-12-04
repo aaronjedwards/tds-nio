@@ -16,7 +16,7 @@ private final class PreloginRequest: TDSRequest {
         logger.debug("Sending Prelogin Packet)")
     }
     
-    func respond(to message: TDSMessage) throws -> [TDSMessage]? {
+    func respond(to message: TDSMessage) throws -> TDSMessage? {
         switch message.headerType {
         case .preloginResponse:
             let message = try TDSMessage.PreloginResponse.init(message: message)
@@ -28,9 +28,7 @@ private final class PreloginRequest: TDSRequest {
         return nil
     }
     
-    func start() throws -> [TDSMessage] {
-        return try [
-            TDSMessage.PreloginMessage(version: "9.0.0", encryption: .encryptOff).message()
-        ]
+    func start() throws -> TDSMessage {
+        return try TDSMessage.PreloginMessage(version: "9.0.0", encryption: .encryptOn).message()
     }
 }

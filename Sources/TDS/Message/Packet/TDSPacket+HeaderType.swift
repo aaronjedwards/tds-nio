@@ -40,6 +40,9 @@ extension TDSPacket {
         /// Pre-Login Response
         public static let preloginResponse: HeaderType = 0x04
         
+        /// Non-Protocol SSL kickoff
+        public static let sslKickoff: HeaderType = 0x99
+        
         public let value: Byte
         
         /// See `CustomStringConvertible`.

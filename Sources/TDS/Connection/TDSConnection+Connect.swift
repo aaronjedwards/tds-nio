@@ -1,9 +1,11 @@
 import Logging
 import NIO
+import NIOSSL
 
 extension TDSConnection {
     public static func connect(
         to socketAddress: SocketAddress,
+        tlsConfiguration: TLSConfiguration? = nil,
         serverHostname: String? = nil,
         on eventLoop: EventLoop
     ) -> EventLoopFuture<TDSConnection> {
@@ -11,11 +13,16 @@ extension TDSConnection {
             .channelOption(ChannelOptions.socket(SocketOptionLevel(SOL_SOCKET), SO_REUSEADDR), value: 1)
         
         let logger = Logger(label: "swift-tds")
+        
+        // TDSMessage decoders
+        let firstDecoder = ByteToMessageHandler(TDSMessageDecoder())
+        let firstEncoder = MessageToByteHandler(TDSMessageEncoder())
+        
         return bootstrap.connect(to: socketAddress).flatMap { channel in
             return channel.pipeline.addHandlers([
-                ByteToMessageHandler(TDSMessageDecoder()),
-                MessageToByteHandler(TDSMessageEncoder()),
-                TDSRequestHandler(logger: logger),
+                firstDecoder,
+                firstEncoder,
+                TDSRequestHandler(logger: logger, firstDecoder, firstEncoder, tlsConfiguration, serverHostname),
                 TDSErrorHandler(logger: logger)
             ]).map {
                 return TDSConnection(channel: channel, logger: logger)
@@ -38,6 +45,7 @@ private final class TDSErrorHandler: ChannelInboundHandler {
         self.logger.error("Uncaught error: \(error)")
         context.close(promise: nil)
         context.fireErrorCaught(error)
+        
     }
 }
 

@@ -5,13 +5,15 @@ import NIO
 func testRemoteServer() throws {
     let elg = MultiThreadedEventLoopGroup(numberOfThreads: 1)
     defer { try! elg.syncShutdownGracefully() }
-    
+    let hostname = "ajedwards.database.windows.net"
     let conn = try TDSConnection.connect(
-        to: SocketAddress.makeAddressResolvingHost("carbondb.twc.systems", port: 1433),
-        serverHostname: "carbondb.twc.systems",
+        to: SocketAddress.makeAddressResolvingHost(hostname, port: 1433),
+        tlsConfiguration: .forClient(),
+        serverHostname: hostname,
         on: elg.next()
     ).wait()
     try conn.prelogin().wait()
+    try conn.sslKickoff().wait()
     try conn.close().wait()
 }
 

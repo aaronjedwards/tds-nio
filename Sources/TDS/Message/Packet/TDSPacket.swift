@@ -9,3 +9,8 @@ public struct TDSPacket {
     /// Packet Data
     var data: ByteBuffer
 }
+
+extension TDSPacket {
+    public static let defaultPacketLength = 4096
+    public static let maximumPacketDataLength = TDSPacket.defaultPacketLength - 8
+}
