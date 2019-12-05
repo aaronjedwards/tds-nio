@@ -18,3 +18,5 @@ protocol ByteBufferSerializable {
     func serialize(into buffer: inout ByteBuffer)
 }
 
+extension MessageToByteHandler: RemovableChannelHandler {}
+

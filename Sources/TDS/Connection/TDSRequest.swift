@@ -1,5 +1,6 @@
 import NIO
 import NIOSSL
+import NIOTLS
 import Logging
 
 extension TDSConnection: TDSClient {
@@ -42,12 +43,9 @@ final class TDSRequestHandler: ChannelDuplexHandler {
     var tlsConfiguration: TLSConfiguration?
     var serverHostname: String?
     
-//    let secondDecoder = ByteToMessageHandler(TDSMessageDecoder())
-//    let secondEncoder = MessageToByteHandler(TDSMessageEncoder())
+    var sslClientHandler: NIOSSLClientHandler!
     
-    var sslClientHandler: NIOSSLClientHandler?
-    
-    var pipelineCoordinator: PipelineOrganizationHandler?
+    var pipelineCoordinator: PipelineOrganizationHandler!
     
     enum State {
         case start
@@ -177,5 +175,23 @@ final class TDSRequestHandler: ChannelDuplexHandler {
         }
         self.queue = []
         context.close(mode: mode, promise: promise)
+    }
+    
+    func userInboundEventTriggered(context: ChannelHandlerContext, event: Any) {
+        if let sslHandshakeComplete = event as? TLSUserEvent, case .handshakeCompleted = sslHandshakeComplete {
+            // SSL Handshake complete
+            // Remove pipeline coordinator and rearrange message encoder/decoder
+            context.channel.pipeline.removeHandler(self.pipelineCoordinator).flatMap {
+                return context.channel.pipeline.removeHandler(self.firstDecoder)
+            }.flatMap { (Void) -> EventLoopFuture<Void> in
+                return context.channel.pipeline.removeHandler(self.firstEncoder)
+            }.flatMap {
+                return context.channel.pipeline.addHandler(ByteToMessageHandler(TDSMessageDecoder()), position: .after(self.sslClientHandler))
+            }.flatMap {
+                return context.channel.pipeline.addHandler(MessageToByteHandler(TDSMessageEncoder()), position: .after(self.sslClientHandler))
+            }.whenComplete { _ in
+                print("Done w/ SSL Handshake and pipeline organization")
+            }
+        }
     }
 }

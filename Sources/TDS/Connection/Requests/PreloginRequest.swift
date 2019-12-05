@@ -22,6 +22,14 @@ private final class PreloginRequest: TDSRequest {
             let message = try TDSMessage.PreloginResponse.init(message: message)
             print("Prelogin Response Version: \(message.body.version)")
             print("Prelogin Response Encrytion: \(message.body.encryption)")
+            if let enc = message.body.encryption {
+                switch enc {
+                case .encryptOn, .encryptReq, .encryptClientCertOn, .encryptClientCertReq:
+                    return try TDSMessage.SSLKickoff().message()
+                default:
+                    throw TDSError.protocol("PRELOGIN Error: Server does not supprt encryption.")
+                }
+            }
         default:
             break
         }

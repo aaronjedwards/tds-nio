@@ -46,14 +46,14 @@ public final class PipelineOrganizationHandler: ChannelDuplexHandler, RemovableC
                 context.fireChannelRead(self.wrapInboundOut(sslHandshakeState.inputBuffer))
                 sslHandshakeState.inputBuffer.clear()
                 
-                switch sslHandshakeState.state {
-                case .clientHelloSent:
-                    sslHandshakeState.state = .serverHelloRecieved
-                case .keyExchangeSent:
-                    sslHandshakeState.state = .keyExchangeRecieved
-                default:
-                    throw TDSError.protocol("PRELOGIN TLS Exchange Error: Out of order")
-                }
+//                switch sslHandshakeState.state {
+//                case .clientHelloSent:
+//                    sslHandshakeState.state = .serverHelloRecieved
+//                case .keyExchangeSent:
+//                    sslHandshakeState.state = .keyExchangeRecieved
+//                default:
+//                    throw TDSError.protocol("PRELOGIN TLS Exchange Error: Out of order")
+//                }
                 
                 state = .sslHandshake(sslHandshakeState)
             default:
@@ -84,14 +84,14 @@ public final class PipelineOrganizationHandler: ChannelDuplexHandler, RemovableC
             context.writeAndFlush(self.wrapOutboundOut(message), promise: sslHandshakeState.outputPromise)
             sslHandshakeState.outputBuffer.clear()
             
-            switch sslHandshakeState.state {
-            case .start:
-                sslHandshakeState.state = .clientHelloSent
-            case .serverHelloRecieved:
-                sslHandshakeState.state = .keyExchangeSent
-            default:
-                throw TDSError.protocol("PRELOGIN TLS Exchange Error: Out of order")
-            }
+//            switch sslHandshakeState.state {
+//            case .start:
+//                sslHandshakeState.state = .clientHelloSent
+//            case .serverHelloRecieved:
+//                sslHandshakeState.state = .keyExchangeSent
+//            default:
+//                throw TDSError.protocol("PRELOGIN TLS Exchange Error: Out of order")
+//            }
             
             state = .sslHandshake(sslHandshakeState)
         default:

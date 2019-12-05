@@ -13,7 +13,6 @@ func testRemoteServer() throws {
         on: elg.next()
     ).wait()
     try conn.prelogin().wait()
-    try conn.sslKickoff().wait()
     try conn.close().wait()
 }
 
