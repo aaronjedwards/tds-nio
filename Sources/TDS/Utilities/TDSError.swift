@@ -17,6 +17,6 @@ public enum TDSError: Error, LocalizedError, CustomStringConvertible {
         case .connectionClosed:
             description = "connection closed"
         }
-        return "NIOPostgres error: \(description)"
+        return "TDS error: \(description)"
     }
 }

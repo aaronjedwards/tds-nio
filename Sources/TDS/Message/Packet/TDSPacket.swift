@@ -11,6 +11,6 @@ public struct TDSPacket {
 }
 
 extension TDSPacket {
-    public static let defaultPacketLength = 4096
+    public static let defaultPacketLength = 1000
     public static let maximumPacketDataLength = TDSPacket.defaultPacketLength - 8
 }

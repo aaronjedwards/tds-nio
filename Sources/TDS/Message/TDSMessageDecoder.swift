@@ -10,7 +10,7 @@ public final class TDSMessageDecoder: ByteToMessageDecoder {
     /// If `true`, the server has asked for authentication.
     public var hasSeenFirstMessage: Bool
     
-    /// Creates a new `PostgresMessageDecoder`.
+    /// Creates a new `TDSMessageDecoder`.
     public init() {
         self.hasSeenFirstMessage = false
     }
@@ -54,7 +54,7 @@ public final class TDSMessageDecoder: ByteToMessageDecoder {
         }
         
         guard let message = TDSMessage(packets: packets) else {
-            throw TDSError.protocol("Message Decoding Error: Unable to create a copmlete message from packets.")
+            throw TDSError.protocol("Message Decoding Error: Unable to create a complete message from packets.")
         }
         
         // there is sufficient data, use this buffer

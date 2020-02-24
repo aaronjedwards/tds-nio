@@ -8,6 +8,8 @@ let package = Package(
         .executable(name: "TDSVersionCheck", targets: ["TDSVersionCheck"]),
     ],
     dependencies: [
+//        .package(url: "https://github.com/aaronjedwards/swift-nio.git", .branch("tls-message-sent-event")),
+//        .package(url: "https://github.com/aaronjedwards/swift-nio-ssl.git", .branch("tls-message-sent-event")),
         .package(url: "https://github.com/apple/swift-nio.git", from: "2.0.0"),
         .package(url: "https://github.com/apple/swift-nio-ssl.git", from: "2.0.0"),
         .package(url: "https://github.com/apple/swift-metrics.git", from: "1.0.0-a"),

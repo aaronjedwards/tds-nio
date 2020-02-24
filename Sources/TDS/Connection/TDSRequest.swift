@@ -52,7 +52,7 @@ final class TDSRequestHandler: ChannelDuplexHandler {
         case sentInitialTDSPreLogin
         case receivedTDSPreLoginResponse
         case sslHandshakeStarted
-        case sslComplete
+        case sslHandshakeComplete
     }
     
     private var state = State.start
@@ -97,15 +97,53 @@ final class TDSRequestHandler: ChannelDuplexHandler {
         }
         
         if let response = try request.delegate.respond(to: message) {
-            context.write(self.wrapOutboundOut(response), promise: nil)
-            context.flush()
-        } else {
-            self.queue.removeFirst()
-            if let error = request.lastError {
-                request.promise.fail(error)
-            } else {
-                request.promise.succeed(())
+            switch state {
+            case .receivedTDSPreLoginResponse:
+                if tlsConfiguration != nil {
+                    guard case .sslKickoff = response.headerType else {
+                        throw TDSError.protocol("PRELOGIN Error: Expected SSL Handshake")
+                    }
+                    
+                    try sslKickoff(context: context)
+                    
+                } else {
+                    fallthrough
+                }
+            default:
+                context.write(self.wrapOutboundOut(response), promise: nil)
+                context.flush()
             }
+            
+        } else {
+            cleanupRequest(request)
+        }
+    }
+    
+    private func sslKickoff(context: ChannelHandlerContext) throws {
+        guard let tlsConfig = tlsConfiguration, let hostname = serverHostname else {
+            throw TDSError.protocol("Encryption was requested but an SSL Configuration was not provided.")
+        }
+        
+        let sslContext = try! NIOSSLContext(configuration: tlsConfig)
+        let sslHandler = try! NIOSSLClientHandler(context: sslContext, serverHostname: hostname)
+        self.sslClientHandler = sslHandler
+        
+        let coordinator = PipelineOrganizationHandler(firstDecoder, firstEncoder, sslHandler)
+        self.pipelineCoordinator = coordinator
+        
+        context.channel.pipeline.addHandler(coordinator, position: .before(self)).whenComplete { _ in
+            context.channel.pipeline.addHandler(sslHandler, position: .after(coordinator)).whenComplete { _ in
+                self.state = .sslHandshakeStarted
+            }
+        }
+    }
+    
+    private func cleanupRequest(_ request: TDSRequestContext) {
+        self.queue.removeFirst()
+        if let error = request.lastError {
+            request.promise.fail(error)
+        } else {
+            request.promise.succeed(())
         }
     }
     
@@ -114,43 +152,17 @@ final class TDSRequestHandler: ChannelDuplexHandler {
         self.queue.append(request)
         let message = try request.delegate.start()
         
-        switch state {
-        case .receivedTDSPreLoginResponse:
-            // kick off ssl negotiation
-            if case .sslKickoff = message.headerType {
-                self.queue.removeLast()
-                guard let tlsConfig = tlsConfiguration, let hostname = serverHostname else {
-                    throw TDSError.protocol("Encryption was requested but an SSL Configuration was not provided.")
-                }
-                
-                let sslContext = try! NIOSSLContext(configuration: tlsConfig)
-                let sslHandler = try! NIOSSLClientHandler(context: sslContext, serverHostname: hostname)
-                self.sslClientHandler = sslHandler
-                
-                let coordinator = PipelineOrganizationHandler(firstDecoder, firstEncoder, sslHandler)
-                self.pipelineCoordinator = coordinator
-                
-                context.channel.pipeline.addHandler(coordinator, position: .before(self)).whenComplete { _ in
-                    context.channel.pipeline.addHandler(sslHandler, position: .after(coordinator)).whenComplete { _ in
-                        self.state = .sslHandshakeStarted
-                    }
-                }
-            } else {
-                fallthrough
+        switch message.headerType {
+        case .prelogin:
+            if case .start = state {
+                state = .sentInitialTDSPreLogin
             }
         default:
-            switch message.headerType {
-            case .prelogin:
-                if case .start = state {
-                    state = .sentInitialTDSPreLogin
-                }
-            default:
-                break
-            }
-            
-            context.write(self.wrapOutboundOut(message), promise: nil)
-            context.flush()
+            break
         }
+        
+        context.write(self.wrapOutboundOut(message), promise: nil)
+        context.flush()
     }
     
     func channelRead(context: ChannelHandlerContext, data: NIOAny) {
@@ -177,21 +189,43 @@ final class TDSRequestHandler: ChannelDuplexHandler {
         context.close(mode: mode, promise: promise)
     }
     
-    func userInboundEventTriggered(context: ChannelHandlerContext, event: Any) {
+    private func _userInboundEventTriggered(context: ChannelHandlerContext, event: Any) throws {
         if let sslHandshakeComplete = event as? TLSUserEvent, case .handshakeCompleted = sslHandshakeComplete {
             // SSL Handshake complete
             // Remove pipeline coordinator and rearrange message encoder/decoder
-            context.channel.pipeline.removeHandler(self.pipelineCoordinator).flatMap {
-                return context.channel.pipeline.removeHandler(self.firstDecoder)
-            }.flatMap { (Void) -> EventLoopFuture<Void> in
-                return context.channel.pipeline.removeHandler(self.firstEncoder)
-            }.flatMap {
-                return context.channel.pipeline.addHandler(ByteToMessageHandler(TDSMessageDecoder()), position: .after(self.sslClientHandler))
-            }.flatMap {
-                return context.channel.pipeline.addHandler(MessageToByteHandler(TDSMessageEncoder()), position: .after(self.sslClientHandler))
-            }.whenComplete { _ in
+            
+            let future = EventLoopFuture.andAllSucceed([
+                context.channel.pipeline.removeHandler(self.pipelineCoordinator),
+                context.channel.pipeline.removeHandler(self.firstDecoder),
+                context.channel.pipeline.removeHandler(self.firstEncoder),
+                context.channel.pipeline.addHandler(ByteToMessageHandler(TDSMessageDecoder()), position: .after(self.sslClientHandler)),
+                context.channel.pipeline.addHandler(MessageToByteHandler(TDSMessageEncoder()), position: .after(self.sslClientHandler))
+            ], on: context.eventLoop)
+            
+            future.whenSuccess {_ in
                 print("Done w/ SSL Handshake and pipeline organization")
+                if let request = self.queue.first {
+                    self.cleanupRequest(request)
+                }
+                self.state = .sslHandshakeComplete
             }
+            
+            future.whenFailure { error in
+                self.errorCaught(context: context, error: error)
+            }
+
         }
+    }
+    
+    func userInboundEventTriggered(context: ChannelHandlerContext, event: Any) {
+        do {
+            try self._userInboundEventTriggered(context: context, event: event)
+        } catch {
+            self.errorCaught(context: context, error: error)
+        }
+    }
+    
+    func triggerUserOutboundEvent(context: ChannelHandlerContext, event: Any, promise: EventLoopPromise<Void>?) {
+        
     }
 }

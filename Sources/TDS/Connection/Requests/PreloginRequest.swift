@@ -1,5 +1,7 @@
 import Logging
 import NIO
+import Foundation
+
 extension TDSConnection {
     public func prelogin() -> EventLoopFuture<Void> {
         let auth = PreloginRequest()
@@ -10,6 +12,11 @@ extension TDSConnection {
 // MARK: Private
 
 private final class PreloginRequest: TDSRequest {
+    
+    enum State {
+        case start
+    }
+    
     init() {}
     
     func log(to logger: Logger) {

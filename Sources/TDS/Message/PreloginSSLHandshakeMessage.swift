@@ -26,7 +26,7 @@ extension TDSMessage {
                 
                 buffer.writeBytes([
                     0x00, 0x00,                                     // SPID
-                    UInt8(packetNumber),                                           // PacketID (Unused)
+                    UInt8(packetNumber),                            // PacketID (Unused)
                     0x00                                            // Window (Unused)
                 ])
                 
