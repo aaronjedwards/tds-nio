@@ -18,7 +18,6 @@ extension TDSConnection {
         // TDSMessage decoders
         let firstDecoder = ByteToMessageHandler(TDSMessageDecoder())
         let firstEncoder = MessageToByteHandler(TDSMessageEncoder())
-        print(FileManager.default.currentDirectoryPath)
         return bootstrap.connect(to: socketAddress).flatMap { channel in
             return channel.pipeline.addHandlers([
                 firstDecoder,
