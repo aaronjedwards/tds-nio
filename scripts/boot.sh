@@ -19,7 +19,7 @@ echo "Done.\n";
 
 # Copy self-signed certificate and private key
 echo "Copying SSL cert and key...";
-docker cp certificate.pem swift-tds-inst:/etc/ssl/certs/mssql.pem && docker cp key.pem swift-tds-inst:/etc/ssl/private/mssql.key;
+docker cp ./certificate.pem swift-tds-inst:/etc/ssl/certs/mssql.pem && docker cp ./key.pem swift-tds-inst:/etc/ssl/private/mssql.key;
 echo "Done.\n";
 
 # Set path to self-signed certificate and key
