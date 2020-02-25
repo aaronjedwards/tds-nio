@@ -1,14 +1,15 @@
 import Foundation
 import TDS
 import NIO
+import NIOSSL
 
 func testRemoteServer() throws {
     let elg = MultiThreadedEventLoopGroup(numberOfThreads: 1)
     defer { try! elg.syncShutdownGracefully() }
-    let hostname = "ajedwards.database.windows.net"
+    let hostname = "localhost"
     let conn = try TDSConnection.connect(
         to: SocketAddress.makeAddressResolvingHost(hostname, port: 1433),
-        tlsConfiguration: .forClient(),
+        tlsConfiguration: .forClient(trustRoots: .file("/Users/aaronjedwards/Desktop/certificate.pem")),
         serverHostname: hostname,
         on: elg.next()
     ).wait()
