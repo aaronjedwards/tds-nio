@@ -9,7 +9,7 @@ func testRemoteServer() throws {
     let hostname = "localhost"
     let conn = try TDSConnection.connect(
         to: SocketAddress.makeAddressResolvingHost(hostname, port: 1433),
-        tlsConfiguration: .forClient(trustRoots: .file("/Users/aaronjedwards/Desktop/certificate.pem")),
+        tlsConfiguration: .forClient(trustRoots: .file("/path/to/cert")),
         serverHostname: hostname,
         on: elg.next()
     ).wait()
