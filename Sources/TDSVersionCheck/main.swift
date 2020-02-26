@@ -19,6 +19,7 @@ func testPrelogin() throws {
         on: elg.next()
     ).wait()
     try conn.prelogin().wait()
+//    try conn.login(password: "<YourStrong@Passw0rd>")
     try conn.close().wait()
 }
 

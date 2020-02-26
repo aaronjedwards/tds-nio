@@ -1,5 +1,19 @@
+import Logging
 import NIO
 import Foundation
+
+//extension TDSConnection {
+//    public func login(username; String, password: String) -> EventLoopFuture<Void> {
+//        let auth = TDSMessage.Login7Message(
+//            hostname: <#T##String#>,
+//            username: username,
+//            password: password,
+//            appName: "TDSTester",
+//            serverName: <#T##String#>,
+//            clientInterfaceName: "SwiftTDS", language: <#T##String#>, database: <#T##String#>, sspiData: <#T##String#>)
+//        return self.send(auth)
+//    }
+//}
 
 extension TDSMessage {
     /// `LOGIN7`
@@ -23,9 +37,35 @@ extension TDSMessage {
         var language: String
         var database: String
         var sspiData: String
-        
+        var atchDBFile: String = "" // TODO: What is this?
+        var changePassword: String = ""
         
         public func serialize(into buffer: inout ByteBuffer) throws {
+            // Each basic field needs to serialize the length & offset
+            let basicFields = [
+                hostname,
+                username,
+                password,
+                appName,
+                serverName,
+                "", // unused field
+                clientInterfaceName,
+                language,
+                database
+            ]
+            
+            // ClientID serializes inbetween `basicFields` and `extendedFields`
+            let clientId = [UInt8](repeating: 0, count: 6)
+            
+            // Each extended field needs to serialize the length & offset
+            let extendedFields = [
+                sspiData,
+                atchDBFile,
+                changePassword
+            ]
+            
+            let sspiLong: UInt32 = 0
+            
             // Packet Header: 0x00 - 0x08 (8 bytes)
             buffer.writeBytes([
                 Login7Message.headerType.value,         // Type
@@ -35,6 +75,35 @@ extension TDSMessage {
                 0x00,                                   // PacketID (Unused)
                 0x00                                    // Window (Unused)
             ])
+            
+            let login7HeaderPosition = buffer.writerIndex
+            // TODO: Login7 header
+            
+            var offsetLengthsPosition = buffer.writerIndex
+            buffer.moveWriterIndex(forwardBy: basicFields.count * 4)
+            buffer.writeBytes(clientId)
+            buffer.moveWriterIndex(forwardBy: extendedFields.count * 4)
+            
+            func writeField(_ string: String) {
+                let stringOffset = buffer.writerIndex
+                buffer.writeString(string)
+                let stringLength = buffer.writerIndex - stringOffset
+                
+                // TODO: Will someone realistically add 64KB of data in a string here?
+                // Is that a risk?
+                buffer.setInteger(UInt16(stringLength), at: offsetLengthsPosition)
+                offsetLengthsPosition += 2
+            }
+            
+            for field in basicFields {
+                writeField(field)
+            }
+            
+            offsetLengthsPosition += clientId.count
+            
+            for field in extendedFields {
+                writeField(field)
+            }
         }
     }
 }

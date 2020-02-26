@@ -12,7 +12,6 @@ extension TDSConnection {
 // MARK: Private
 
 private final class PreloginRequest: TDSRequest {
-    
     enum State {
         case start
     }
@@ -28,7 +27,7 @@ private final class PreloginRequest: TDSRequest {
         case .preloginResponse:
             let message = try TDSMessage.PreloginResponse.init(message: message)
             print("Prelogin Response Version: \(message.body.version)")
-            print("Prelogin Response Encrytion: \(message.body.encryption)")
+            print("Prelogin Response Encryption: \(message.body.encryption)")
             if let enc = message.body.encryption {
                 switch enc {
                 case .encryptOn, .encryptReq, .encryptClientCertOn, .encryptClientCertReq:
