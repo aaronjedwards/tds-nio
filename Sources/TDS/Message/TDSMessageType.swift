@@ -1,12 +1,12 @@
 import NIO
 
-public protocol TDSMessage {
+public protocol TDSPacketType {
     static var headerType: TDSPacket.HeaderType { get }
     static func parse(from buffer: inout ByteBuffer) throws -> Self
     func serialize(into buffer: inout ByteBuffer) throws
 }
 
-extension TDSMessage {
+extension TDSPacketType {
     public init(packet: TDSPacket) throws {
         var messageBuffer = packet.messageBuffer
         self = try Self.parse(from: &messageBuffer)

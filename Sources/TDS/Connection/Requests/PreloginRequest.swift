@@ -22,9 +22,10 @@ private final class PreloginRequest: TDSRequest {
         logger.debug("Sending Prelogin Packet)")
     }
     
-    func respond(to packet: TDSPacket, allocator: ByteBufferAllocator) throws -> TDSPacket? {
-        var messageBuffer = packet.messageBuffer
-        switch packet.headerType {
+    func respond(to message: [TDSPacket], allocator: ByteBufferAllocator) throws -> [TDSPacket]? {
+        let inbound = message[0]
+        var messageBuffer = inbound.messageBuffer
+        switch inbound.headerType {
         case .preloginResponse:
             let message = try TDSMessages.PreloginResponse.parse(from: &messageBuffer)
             print("Prelogin Response Version: \(message.body.version)")
@@ -32,7 +33,8 @@ private final class PreloginRequest: TDSRequest {
             if let enc = message.body.encryption {
                 switch enc {
                 case .encryptOn, .encryptReq, .encryptClientCertOn, .encryptClientCertReq:
-                    return try TDSPacket(message: TDSMessages.SSLKickoff(), allocator: allocator)
+                    let outbound = try TDSPacket(message: TDSMessages.SSLKickoff(), isLastPacket: true, allocator: allocator)
+                    return [outbound]
                 default:
                     throw TDSError.protocol("PRELOGIN Error: Server does not supprt encryption.")
                 }
@@ -40,11 +42,14 @@ private final class PreloginRequest: TDSRequest {
         default:
             break
         }
+        
         return nil
     }
     
-    func start(allocator: ByteBufferAllocator) throws -> TDSPacket {
-        let message = TDSMessages.PreloginMessage(version: "9.0.0", encryption: .encryptOn)
-        return try TDSPacket(message: message, allocator: allocator)
+    func start( allocator: ByteBufferAllocator) throws -> [TDSPacket] {
+        let message = TDSMessages.PreloginPacket(version: "9.0.0", encryption: .encryptOn)
+        let packet = try TDSPacket(message: message, isLastPacket: true, allocator: allocator)
+        
+        return [packet]
     }
 }

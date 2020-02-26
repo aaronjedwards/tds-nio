@@ -8,16 +8,15 @@ extension TDSConnection: TDSClient {
         request.log(to: self.logger)
         let promise = self.channel.eventLoop.makePromise(of: Void.self)
         let request = TDSRequestContext(delegate: request, promise: promise)
-        self.channel.write(request).cascadeFailure(to: promise)
-        self.channel.flush()
+        self.channel.writeAndFlush(request).cascadeFailure(to: promise)
         return promise.futureResult
     }
 }
 
 public protocol TDSRequest {
     // nil value ends the request
-    func respond(to message: TDSPacket, allocator: ByteBufferAllocator) throws -> TDSPacket?
-    func start(allocator: ByteBufferAllocator) throws -> TDSPacket
+    func respond(to message: [TDSPacket], allocator: ByteBufferAllocator) throws -> [TDSPacket]?
+    func start(allocator: ByteBufferAllocator) throws -> [TDSPacket]
     func log(to logger: Logger)
 }
 
@@ -33,9 +32,9 @@ final class TDSRequestContext {
 }
 
 final class TDSRequestHandler: ChannelDuplexHandler {
-    typealias InboundIn = TDSPacket
+    typealias InboundIn = [TDSPacket]
     typealias OutboundIn = TDSRequestContext
-    typealias OutboundOut = TDSPacket
+    typealias OutboundOut = [TDSPacket]
     
     /// `TDSMessage` handlers
     var firstDecoder: ByteToMessageHandler<TDSMessageDecoder>
@@ -76,7 +75,7 @@ final class TDSRequestHandler: ChannelDuplexHandler {
     }
     
     private func _channelRead(context: ChannelHandlerContext, data: NIOAny) throws {
-        let packet = self.unwrapInboundIn(data)
+        let message = self.unwrapInboundIn(data)
         guard self.queue.count > 0 else {
             // discard packet
             return
@@ -86,7 +85,7 @@ final class TDSRequestHandler: ChannelDuplexHandler {
         
         switch state {
         case .sentInitialTDSPreLogin:
-            switch packet.headerType {
+            switch message[0].headerType {
             case .preloginResponse:
                 state = .receivedTDSPreLoginResponse
             default:
@@ -96,11 +95,11 @@ final class TDSRequestHandler: ChannelDuplexHandler {
             break
         }
         
-        if let response = try request.delegate.respond(to: packet, allocator: context.channel.allocator) {
+        if let response = try request.delegate.respond(to: message, allocator: context.channel.allocator) {
             switch state {
             case .receivedTDSPreLoginResponse:
                 if tlsConfiguration != nil {
-                    guard case .sslKickoff = response.headerType else {
+                    guard case .sslKickoff = response[0].headerType else {
                         throw TDSError.protocol("PRELOGIN Error: Expected SSL Handshake")
                     }
                     
@@ -150,9 +149,9 @@ final class TDSRequestHandler: ChannelDuplexHandler {
     private func _write(context: ChannelHandlerContext, data: NIOAny, promise: EventLoopPromise<Void>?) throws {
         let request = self.unwrapOutboundIn(data)
         self.queue.append(request)
-        let packet = try request.delegate.start(allocator: context.channel.allocator)
+        let message = try request.delegate.start(allocator: context.channel.allocator)
         
-        switch packet.headerType {
+        switch message[0].headerType {
         case .prelogin:
             if case .start = state {
                 state = .sentInitialTDSPreLogin
@@ -161,8 +160,7 @@ final class TDSRequestHandler: ChannelDuplexHandler {
             break
         }
         
-        context.write(self.wrapOutboundOut(packet), promise: nil)
-        context.flush()
+        context.writeAndFlush(self.wrapOutboundOut(message), promise: promise)
     }
     
     func channelRead(context: ChannelHandlerContext, data: NIOAny) {
@@ -199,7 +197,6 @@ final class TDSRequestHandler: ChannelDuplexHandler {
                 context.channel.pipeline.removeHandler(self.firstDecoder),
                 context.channel.pipeline.removeHandler(self.firstEncoder),
                 context.channel.pipeline.addHandler(ByteToMessageHandler(TDSMessageDecoder()), position: .after(self.sslClientHandler)),
-                context.channel.pipeline.addHandler(MessageToByteHandler(TDSMessageEncoder()), position: .after(self.sslClientHandler))
             ], on: context.eventLoop)
             
             future.whenSuccess {_ in

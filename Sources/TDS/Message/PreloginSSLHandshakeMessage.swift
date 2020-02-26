@@ -2,7 +2,7 @@ import NIO
 
 extension TDSMessages {
     /// Authentication request returned by the server.
-    public struct PreloginSSLHandshakeMessage: TDSMessage {
+    public struct PreloginSSLHandshakeMessage: TDSPacketType {
         public static var headerType: TDSPacket.HeaderType {
             return .prelogin
         }

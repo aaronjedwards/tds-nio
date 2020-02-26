@@ -4,7 +4,7 @@ import Foundation
 extension TDSMessages {
     /// `LOGIN7`
     /// https://docs.microsoft.com/en-us/openspecs/windows_protocols/ms-tds/773a62b6-ee89-4c02-9e5e-344882630aac
-    public struct Login7Message: TDSMessage {
+    public struct Login7Message: TDSPacketType {
         public static var headerType: TDSPacket.HeaderType {
             return .tds7Login
         }
@@ -30,7 +30,7 @@ extension TDSMessages {
             buffer.writeBytes([
                 Login7Message.headerType.value,         // Type
                 0x01,                                   // Status
-                0x00, PreloginMessage.messageLength,    // Length
+                0x00, PreloginPacket.messageLength,    // Length
                 0x00, 0x00,                             // SPID
                 0x00,                                   // PacketID (Unused)
                 0x00                                    // Window (Unused)

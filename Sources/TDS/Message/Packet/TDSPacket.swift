@@ -18,7 +18,7 @@ public struct TDSPacket {
     }
     
     /// Packet Data
-    private var buffer: ByteBuffer
+    internal var buffer: ByteBuffer
     
     init?(from buffer: inout ByteBuffer) {
         guard
@@ -33,11 +33,11 @@ public struct TDSPacket {
         self.buffer = slice
     }
     
-    init<M: TDSMessage>(message: M, allocator: ByteBufferAllocator) throws {
+    init<M: TDSPacketType>(message: M, isLastPacket: Bool, allocator: ByteBufferAllocator) throws {
         var buffer = allocator.buffer(capacity: 4_096)
         
         buffer.writeInteger(M.headerType.value)
-        buffer.writeInteger(0 as UInt8)
+        buffer.writeInteger(isLastPacket ? 0x01 : 0x00 as UInt8) // status
         
         // Skip length, it will be set later
         buffer.moveWriterIndex(forwardBy: 2)
@@ -45,13 +45,13 @@ public struct TDSPacket {
         buffer.writeInteger(0x00 as UInt8) // TODO: PacketID is incremental
         buffer.writeInteger(0x00 as UInt8) // Window
         
-        buffer.moveWriterIndex(forwardBy: Header.length)
         try message.serialize(into: &buffer)
         
         // Update length
         if buffer.writerIndex >= Int(UInt16.max) {
             fatalError("This shouldn't happen, crash for now")
         }
+        
         buffer.setInteger(UInt16(buffer.writerIndex), at: 2)
         
         self.buffer = buffer
