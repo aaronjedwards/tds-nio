@@ -16,8 +16,8 @@ extension TDSConnection: TDSClient {
 
 public protocol TDSRequest {
     // nil value ends the request
-    func respond(to message: TDSMessage) throws -> TDSMessage?
-    func start() throws -> TDSMessage
+    func respond(to message: TDSPacket, allocator: ByteBufferAllocator) throws -> TDSPacket?
+    func start(allocator: ByteBufferAllocator) throws -> TDSPacket
     func log(to logger: Logger)
 }
 
@@ -33,9 +33,9 @@ final class TDSRequestContext {
 }
 
 final class TDSRequestHandler: ChannelDuplexHandler {
-    typealias InboundIn = TDSMessage
+    typealias InboundIn = TDSPacket
     typealias OutboundIn = TDSRequestContext
-    typealias OutboundOut = TDSMessage
+    typealias OutboundOut = TDSPacket
     
     /// `TDSMessage` handlers
     var firstDecoder: ByteToMessageHandler<TDSMessageDecoder>
@@ -76,7 +76,7 @@ final class TDSRequestHandler: ChannelDuplexHandler {
     }
     
     private func _channelRead(context: ChannelHandlerContext, data: NIOAny) throws {
-        let message = self.unwrapInboundIn(data)
+        let packet = self.unwrapInboundIn(data)
         guard self.queue.count > 0 else {
             // discard packet
             return
@@ -86,7 +86,7 @@ final class TDSRequestHandler: ChannelDuplexHandler {
         
         switch state {
         case .sentInitialTDSPreLogin:
-            switch message.headerType {
+            switch packet.headerType {
             case .preloginResponse:
                 state = .receivedTDSPreLoginResponse
             default:
@@ -96,7 +96,7 @@ final class TDSRequestHandler: ChannelDuplexHandler {
             break
         }
         
-        if let response = try request.delegate.respond(to: message) {
+        if let response = try request.delegate.respond(to: packet, allocator: context.channel.allocator) {
             switch state {
             case .receivedTDSPreLoginResponse:
                 if tlsConfiguration != nil {
@@ -150,9 +150,9 @@ final class TDSRequestHandler: ChannelDuplexHandler {
     private func _write(context: ChannelHandlerContext, data: NIOAny, promise: EventLoopPromise<Void>?) throws {
         let request = self.unwrapOutboundIn(data)
         self.queue.append(request)
-        let message = try request.delegate.start()
+        let packet = try request.delegate.start(allocator: context.channel.allocator)
         
-        switch message.headerType {
+        switch packet.headerType {
         case .prelogin:
             if case .start = state {
                 state = .sentInitialTDSPreLogin
@@ -161,7 +161,7 @@ final class TDSRequestHandler: ChannelDuplexHandler {
             break
         }
         
-        context.write(self.wrapOutboundOut(message), promise: nil)
+        context.write(self.wrapOutboundOut(packet), promise: nil)
         context.flush()
     }
     

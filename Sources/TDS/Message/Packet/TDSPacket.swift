@@ -8,6 +8,11 @@ public struct TDSPacket {
         Header(from: buffer)
     }
     
+    var headerType: HeaderType {
+        // This could become a stored constant so we don't parse the header unnecessarily
+        header.type
+    }
+    
     public var messageBuffer: ByteBuffer! {
         buffer.getSlice(at: Header.length, length: buffer.readableBytes - Header.length)
     }

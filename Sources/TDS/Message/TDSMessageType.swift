@@ -6,16 +6,10 @@ public protocol TDSMessage {
     func serialize(into buffer: inout ByteBuffer) throws
 }
 
-extension TDSMessages {
-    func message() throws -> TDSMessage {
-        var buffer = ByteBufferAllocator().buffer(capacity: 0)
-        try self.serialize(into: &buffer)
-        return .init(headerType: Self.headerType, data: buffer)
-    }
-    
-    public init(message: TDSMessage) throws {
-        var message = message
-        self = try Self.parse(from: &message.data)
+extension TDSMessage {
+    public init(packet: TDSPacket) throws {
+        var messageBuffer = packet.messageBuffer!
+        self = try Self.parse(from: &messageBuffer)
     }
     
     public static func parse(from buffer: inout ByteBuffer) throws -> Self {
