@@ -3,7 +3,7 @@ import NIO
 import NIO
 
 extension TDSMessage {
-    init(packingDataWith buffer: inout ByteBuffer, headerType: TDSPacket.HeaderType, allocator: ByteBufferAllocator) throws {
+    init(with buffer: inout ByteBuffer, headerType: TDSPacket.HeaderType, allocator: ByteBufferAllocator) throws {
         var packets = [TDSPacket]()
         
         var packetId: UInt8 = 0
@@ -24,7 +24,7 @@ extension TDSMessage {
 }
 
 extension ByteBuffer {
-    init(unpackingDataFrom message: TDSMessage, allocator: ByteBufferAllocator) throws {
+    init(from message: TDSMessage, allocator: ByteBufferAllocator) throws {
         let size = message.packets.reduce(0, { $0 + $1.messageBuffer.readableBytes })
         var buffer = allocator.buffer(capacity: size)
         
