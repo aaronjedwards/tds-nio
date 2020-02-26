@@ -15,7 +15,7 @@ import Foundation
 //    }
 //}
 
-extension TDSMessage {
+extension TDPPacket {
     /// `LOGIN7`
     /// https://docs.microsoft.com/en-us/openspecs/windows_protocols/ms-tds/773a62b6-ee89-4c02-9e5e-344882630aac
     public struct Login7Message: TDSMessageType {
@@ -71,13 +71,22 @@ extension TDSMessage {
                 Login7Message.headerType.value,         // Type
                 0x01,                                   // Status
                 0x00, PreloginMessage.messageLength,    // Length
-                0x00, 0x00,                             // SPID
+                0x00, 0x00,                             // Server ProcessID
                 0x00,                                   // PacketID (Unused)
                 0x00                                    // Window (Unused)
             ])
             
+            // Stores the position and skips an UInt32 so the length can be added later
             let login7HeaderPosition = buffer.writerIndex
-            // TODO: Login7 header
+            buffer.moveWriterIndex(forwardBy: 4)
+            
+            buffer.writeBytes([
+                0x02, 0x00, 0x09, 0x72, // TDS version
+                0x00, 0x10, 0x00, 0x00, // Packet length negotiation
+                0x00, 0x00, 0x00, 0x01, // Client version
+            ])
+            
+            buffer.writeInteger(clientPID)
             
             var offsetLengthsPosition = buffer.writerIndex
             buffer.moveWriterIndex(forwardBy: basicFields.count * 4)
@@ -85,13 +94,14 @@ extension TDSMessage {
             buffer.moveWriterIndex(forwardBy: extendedFields.count * 4)
             
             func writeField(_ string: String) {
-                let stringOffset = buffer.writerIndex
-                buffer.writeString(string)
-                let stringLength = buffer.writerIndex - stringOffset
+                let utf16 = string.utf16
+                for character in utf16 {
+                    buffer.writeInteger(character)
+                }
                 
                 // TODO: Will someone realistically add 64KB of data in a string here?
                 // Is that a risk?
-                buffer.setInteger(UInt16(stringLength), at: offsetLengthsPosition)
+                buffer.setInteger(UInt16(utf16.count), at: offsetLengthsPosition)
                 offsetLengthsPosition += 2
             }
             
