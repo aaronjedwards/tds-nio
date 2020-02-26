@@ -2,7 +2,7 @@ import NIO
 
 public final class TDSMessageDecoder: ByteToMessageDecoder {
     /// See `ByteToMessageDecoder`.
-    public typealias InboundOut = [TDSPacket]
+    public typealias InboundOut = TDSMessage
     
     /// See `ByteToMessageDecoder`.
     private var storedPackets = [TDSPacket]()
@@ -21,7 +21,8 @@ public final class TDSMessageDecoder: ByteToMessageDecoder {
             self.storedPackets.append(packet)
             
             if packet.header.status == .eom {
-                context.fireChannelRead(wrapInboundOut(storedPackets))
+                let message = TDSMessage(packets: storedPackets)
+                context.fireChannelRead(wrapInboundOut(message))
                 storedPackets.removeAll(keepingCapacity: true)
 
                 // Don't check, just set. It's faster that way

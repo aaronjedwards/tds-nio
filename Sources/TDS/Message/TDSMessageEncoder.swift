@@ -2,13 +2,11 @@ import NIO
 
 public final class TDSMessageEncoder: MessageToByteEncoder {
     /// See `MessageToByteEncoder`.
-    public typealias OutboundIn = [TDSPacket]
+    public typealias OutboundIn = TDSMessage
     
     /// See `MessageToByteEncoder`.
-    public func encode(data messages: [TDSPacket], out: inout ByteBuffer) throws {
-        for var message in messages {
-            out.writeBuffer(&message.buffer)
-        }
+    public func encode(data messages: TDSMessage, out: inout ByteBuffer) throws {
+        messages.writeToByteBuffer(&out)
     }
 }
 

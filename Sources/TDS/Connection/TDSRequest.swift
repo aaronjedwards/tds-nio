@@ -15,8 +15,8 @@ extension TDSConnection: TDSClient {
 
 public protocol TDSRequest {
     // nil value ends the request
-    func respond(to message: [TDSPacket], allocator: ByteBufferAllocator) throws -> [TDSPacket]?
-    func start(allocator: ByteBufferAllocator) throws -> [TDSPacket]
+    func respond(to message: TDSMessage, allocator: ByteBufferAllocator) throws -> TDSMessage?
+    func start(allocator: ByteBufferAllocator) throws -> TDSMessage
     func log(to logger: Logger)
 }
 
@@ -32,9 +32,9 @@ final class TDSRequestContext {
 }
 
 final class TDSRequestHandler: ChannelDuplexHandler {
-    typealias InboundIn = [TDSPacket]
+    typealias InboundIn = TDSMessage
     typealias OutboundIn = TDSRequestContext
-    typealias OutboundOut = [TDSPacket]
+    typealias OutboundOut = TDSMessage
     
     /// `TDSMessage` handlers
     var firstDecoder: ByteToMessageHandler<TDSMessageDecoder>
@@ -85,7 +85,7 @@ final class TDSRequestHandler: ChannelDuplexHandler {
         
         switch state {
         case .sentInitialTDSPreLogin:
-            switch message[0].headerType {
+            switch message.headerType {
             case .preloginResponse:
                 state = .receivedTDSPreLoginResponse
             default:
@@ -99,7 +99,7 @@ final class TDSRequestHandler: ChannelDuplexHandler {
             switch state {
             case .receivedTDSPreLoginResponse:
                 if tlsConfiguration != nil {
-                    guard case .sslKickoff = response[0].headerType else {
+                    guard case .sslKickoff = response.headerType else {
                         throw TDSError.protocol("PRELOGIN Error: Expected SSL Handshake")
                     }
                     
@@ -151,7 +151,7 @@ final class TDSRequestHandler: ChannelDuplexHandler {
         self.queue.append(request)
         let message = try request.delegate.start(allocator: context.channel.allocator)
         
-        switch message[0].headerType {
+        switch message.headerType {
         case .prelogin:
             if case .start = state {
                 state = .sentInitialTDSPreLogin
