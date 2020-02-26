@@ -25,7 +25,7 @@ private final class PreloginRequest: TDSRequest {
     func respond(to message: TDSMessage, allocator: ByteBufferAllocator) throws -> TDSMessage? {
         switch message.headerType {
         case .preloginResponse:
-            var messageBuffer = try ByteBuffer(from: message, allocator: allocator)
+            var messageBuffer = try ByteBuffer(unpackingDataFrom: message, allocator: allocator)
             let message = try TDSMessages.PreloginResponse.parse(from: &messageBuffer)
 
             print("Prelogin Response Version: \(message.body.version)")
