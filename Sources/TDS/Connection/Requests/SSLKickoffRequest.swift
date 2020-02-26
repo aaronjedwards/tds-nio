@@ -21,7 +21,7 @@ private final class SSLKickoffRequest: TDSRequest {
     }
     
     func start(allocator: ByteBufferAllocator) throws -> TDSMessage {
-        let message = try TDSMessage.init(packetType: TDSMessages.SSLKickoff(), allocator: allocator)
+        let message = try TDSMessage(packetType: TDSMessages.SSLKickoff(), allocator: allocator)
         return message
     }
 }
