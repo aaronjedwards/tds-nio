@@ -1,10 +1,10 @@
 import NIO
 import Foundation
 
-extension TDSMessage {
+extension TDSMessages {
     /// `LOGIN7`
     /// https://docs.microsoft.com/en-us/openspecs/windows_protocols/ms-tds/773a62b6-ee89-4c02-9e5e-344882630aac
-    public struct Login7Message: TDSMessageType {
+    public struct Login7Message: TDSMessage {
         public static var headerType: TDSPacket.HeaderType {
             return .tds7Login
         }

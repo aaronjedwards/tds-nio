@@ -1,9 +1,9 @@
 import NIO
 
-extension TDSMessage {
+extension TDSMessages {
     /// `PRELOGIN`
     /// https://docs.microsoft.com/en-us/openspecs/windows_protocols/ms-tds/60f56408-0188-4cd5-8b90-25c6f2423868
-    public struct PreloginMessage: TDSMessageType {
+    public struct PreloginMessage: TDSMessage {
         public static var headerType: TDSPacket.HeaderType {
             return .prelogin
         }
@@ -74,7 +74,7 @@ extension TDSMessage {
     }
 }
 
-extension TDSMessage {
+extension TDSMessages {
     public struct Prelogin {
         public var version: String
         public var encryption: PreloginEncryption?
@@ -90,7 +90,7 @@ public struct PreloginOption {
     var length: UShort
 }
 
-extension TDSMessage {
+extension TDSMessages {
     public enum PreloginToken: Byte {
         /// VERSION
         case version = 0x00
@@ -121,7 +121,7 @@ extension TDSMessage {
     }
 }
 
-extension TDSMessage {
+extension TDSMessages {
     public enum PreloginEncryption: Byte {
         case encryptOff = 0x00
         case encryptOn = 0x01
