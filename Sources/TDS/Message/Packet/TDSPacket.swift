@@ -33,7 +33,7 @@ public struct TDSPacket {
         self.buffer = slice
     }
     
-    init<M: TDSPacketType>(message: M, isLastPacket: Bool, packetId: UInt8 = 0, allocator: ByteBufferAllocator) throws {
+    init<M: TDSPacketType>(message: M, isLastPacket: Bool, packetId: UInt8 = 1, allocator: ByteBufferAllocator) throws {
         var buffer = allocator.buffer(capacity: 4_096)
         
         buffer.writeInteger(M.headerType.value)

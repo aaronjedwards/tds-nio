@@ -12,7 +12,7 @@ extension TDSConnection {
             serverName: "",
             clientInterfaceName: "SwiftTDS",
             language: "",
-            database: "test",
+            database: "",
             sspiData: "")
         return self.send(Login7Request(login: auth))
     }
@@ -76,7 +76,7 @@ extension TDSMessages {
             ]
             
             // ClientID serializes inbetween `basicFields` and `extendedFields`
-            let clientId = [UInt8](repeating: 0, count: 6)
+            let clientId: [UInt8] = [0x00, 0x50, 0x8b, 0xe3, 0xb7, 0x8f]
             
             // Each extended field needs to serialize the length & offset
             let extendedFields = [
@@ -94,12 +94,12 @@ extension TDSMessages {
             buffer.writeBytes([
                 0x02, 0x00, 0x09, 0x72, // TDS version
                 0x00, 0x10, 0x00, 0x00, // Packet length negotiation
-                0x00, 0x00, 0x00, 0x01, // Client version
+                0x00, 0x00, 0x00, 0x01, // Client version, 0x07 in example
             ])
             
             buffer.writeInteger(Self.clientPID)
             buffer.writeInteger(0 as UInt32) // Connection ID
-            buffer.writeInteger(0xE3 as UInt8) // Flags1
+            buffer.writeInteger(0xE0 as UInt8) // Flags1
             buffer.writeInteger(0x03 as UInt8) // Flags2
             buffer.writeInteger(0 as UInt8) // Flags
             buffer.writeInteger(0 as UInt8) // Flags3
@@ -109,18 +109,24 @@ extension TDSMessages {
             var offsetLengthsPosition = buffer.writerIndex
             buffer.moveWriterIndex(forwardBy: basicFields.count * 4)
             buffer.writeBytes(clientId)
+            
             buffer.moveWriterIndex(forwardBy: extendedFields.count * 4)
+            
+            buffer.writeInteger(0 as UInt32) // SSPI
             
             func writeField(_ string: String) {
                 let utf16 = string.utf16
-                for character in utf16 {
-                    buffer.writeInteger(character)
-                }
                 
                 // TODO: Will someone realistically add 64KB of data in a string here?
                 // Is that a risk?
-                buffer.setInteger(UInt16(utf16.count), at: offsetLengthsPosition)
+                buffer.setInteger(UInt16(buffer.writerIndex - TDSPacket.Header.length), at: offsetLengthsPosition, endianness: .little)
                 offsetLengthsPosition += 2
+                buffer.setInteger(UInt16(utf16.count), at: offsetLengthsPosition, endianness: .little)
+                offsetLengthsPosition += 2
+                
+                for character in utf16 {
+                    buffer.writeInteger(character, endianness: .little)
+                }
             }
             
             for field in basicFields {
@@ -132,6 +138,9 @@ extension TDSMessages {
             for field in extendedFields {
                 writeField(field)
             }
+            
+            buffer.setInteger(UInt32(buffer.writerIndex - login7HeaderPosition), at: login7HeaderPosition, endianness: .little)
+            return
         }
     }
 }
