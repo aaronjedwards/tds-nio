@@ -8,16 +8,15 @@ extension TDSConnection: TDSClient {
         request.log(to: self.logger)
         let promise = self.channel.eventLoop.makePromise(of: Void.self)
         let request = TDSRequestContext(delegate: request, promise: promise)
-        self.channel.write(request).cascadeFailure(to: promise)
-        self.channel.flush()
+        self.channel.writeAndFlush(request).cascadeFailure(to: promise)
         return promise.futureResult
     }
 }
 
 public protocol TDSRequest {
     // nil value ends the request
-    func respond(to message: TDSMessage) throws -> TDSMessage?
-    func start() throws -> TDSMessage
+    func respond(to message: TDSMessage, allocator: ByteBufferAllocator) throws -> TDSMessage?
+    func start(allocator: ByteBufferAllocator) throws -> TDSMessage
     func log(to logger: Logger)
 }
 
@@ -96,7 +95,7 @@ final class TDSRequestHandler: ChannelDuplexHandler {
             break
         }
         
-        if let response = try request.delegate.respond(to: message) {
+        if let response = try request.delegate.respond(to: message, allocator: context.channel.allocator) {
             switch state {
             case .receivedTDSPreLoginResponse:
                 if tlsConfiguration != nil {
@@ -150,7 +149,7 @@ final class TDSRequestHandler: ChannelDuplexHandler {
     private func _write(context: ChannelHandlerContext, data: NIOAny, promise: EventLoopPromise<Void>?) throws {
         let request = self.unwrapOutboundIn(data)
         self.queue.append(request)
-        let message = try request.delegate.start()
+        let message = try request.delegate.start(allocator: context.channel.allocator)
         
         switch message.headerType {
         case .prelogin:
@@ -161,8 +160,7 @@ final class TDSRequestHandler: ChannelDuplexHandler {
             break
         }
         
-        context.write(self.wrapOutboundOut(message), promise: nil)
-        context.flush()
+        context.writeAndFlush(self.wrapOutboundOut(message), promise: promise)
     }
     
     func channelRead(context: ChannelHandlerContext, data: NIOAny) {

@@ -2,23 +2,44 @@ import Logging
 import NIO
 import Foundation
 
-//extension TDSConnection {
-//    public func login(username; String, password: String) -> EventLoopFuture<Void> {
-//        let auth = TDSMessage.Login7Message(
-//            hostname: <#T##String#>,
-//            username: username,
-//            password: password,
-//            appName: "TDSTester",
-//            serverName: <#T##String#>,
-//            clientInterfaceName: "SwiftTDS", language: <#T##String#>, database: <#T##String#>, sspiData: <#T##String#>)
-//        return self.send(auth)
-//    }
-//}
+extension TDSConnection {
+    public func login(username: String, password: String) -> EventLoopFuture<Void> {
+        let auth = TDSMessages.Login7Message(
+            hostname: "localhost",
+            username: username,
+            password: password,
+            appName: "TDSTester",
+            serverName: "",
+            clientInterfaceName: "SwiftTDS",
+            language: "",
+            database: "test",
+            sspiData: "")
+        return self.send(Login7Request(login: auth))
+    }
+}
 
-extension TDPPacket {
+struct Login7Request: TDSRequest {
+    let login: TDSMessages.Login7Message
+    
+    func respond(to message: TDSMessage, allocator: ByteBufferAllocator) throws -> TDSMessage? {
+        print(message)
+        return nil
+    }
+    
+    func start(allocator: ByteBufferAllocator) throws -> TDSMessage {
+        let packet = try TDSPacket(message: login, isLastPacket: true, allocator: allocator)
+        return TDSMessage(packets: [packet])
+    }
+    
+    func log(to logger: Logger) {
+        logger.log(level: .debug, "Logging in as \(login.username)")
+    }
+}
+
+extension TDSMessages {
     /// `LOGIN7`
     /// https://docs.microsoft.com/en-us/openspecs/windows_protocols/ms-tds/773a62b6-ee89-4c02-9e5e-344882630aac
-    public struct Login7Message: TDSMessageType {
+    public struct Login7Message: TDSPacketType {
         public static var headerType: TDSPacket.HeaderType {
             return .tds7Login
         }
@@ -66,16 +87,6 @@ extension TDPPacket {
             
             let sspiLong: UInt32 = 0
             
-            // Packet Header: 0x00 - 0x08 (8 bytes)
-            buffer.writeBytes([
-                Login7Message.headerType.value,         // Type
-                0x01,                                   // Status
-                0x00, PreloginMessage.messageLength,    // Length
-                0x00, 0x00,                             // Server ProcessID
-                0x00,                                   // PacketID (Unused)
-                0x00                                    // Window (Unused)
-            ])
-            
             // Stores the position and skips an UInt32 so the length can be added later
             let login7HeaderPosition = buffer.writerIndex
             buffer.moveWriterIndex(forwardBy: 4)
@@ -86,7 +97,14 @@ extension TDPPacket {
                 0x00, 0x00, 0x00, 0x01, // Client version
             ])
             
-            buffer.writeInteger(clientPID)
+            buffer.writeInteger(Self.clientPID)
+            buffer.writeInteger(0 as UInt32) // Connection ID
+            buffer.writeInteger(0xE3 as UInt8) // Flags1
+            buffer.writeInteger(0x03 as UInt8) // Flags2
+            buffer.writeInteger(0 as UInt8) // Flags
+            buffer.writeInteger(0 as UInt8) // Flags3
+            buffer.writeInteger(0 as UInt32) // Timezone
+            buffer.writeBytes([0x09, 0x04, 0x00, 0x00]) // ClientLCID
             
             var offsetLengthsPosition = buffer.writerIndex
             buffer.moveWriterIndex(forwardBy: basicFields.count * 4)

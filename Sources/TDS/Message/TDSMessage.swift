@@ -1,27 +1,36 @@
 import NIO
 
+// Use this as a namespace
+enum TDSMessages {}
+
 /// Client or Server Message
 public struct TDSMessage {
-    public var headerType: TDSPacket.HeaderType
-    
-    public var data: ByteBuffer
-    
-    public init(headerType: TDSPacket.HeaderType, data: ByteBuffer) {
-        self.headerType = headerType
-        self.data = data
+    public var headerType: TDSPacket.HeaderType {
+        packets[0].headerType
     }
     
-    public init?(packets: [TDSPacket]) {
-        guard let packet = packets.first else {
-            return nil
+    public internal(set) var packets: [TDSPacket]
+    
+    init(packets: [TDSPacket]) {
+        assert(!packets.isEmpty, "Invalid message")
+        self.packets = packets
+    }
+    
+    public func writeToByteBuffer(_ data: inout ByteBuffer) {
+        for var packet in packets {
+            data.writeBuffer(&packet.buffer)
+        }
+    }
+    
+    public func makeByteBuffer(allocator: ByteBufferAllocator) -> ByteBuffer {
+        let size = packets.reduce(0, { $0 + $1.buffer.readableBytes })
+        
+        var data = allocator.buffer(capacity: size)
+        
+        for var packet in packets {
+            data.writeBuffer(&packet.buffer)
         }
         
-        var data = packet.data
-        for index in packets.indices.dropFirst() {
-            var packet = packets[index]
-            data.writeBuffer(&packet.data)
-        }
-
-        self.init(headerType: packet.header.type, data: data)
+        return data
     }
 }

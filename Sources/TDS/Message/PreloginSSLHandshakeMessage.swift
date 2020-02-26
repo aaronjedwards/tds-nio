@@ -1,59 +1,36 @@
 import NIO
 
 extension TDSMessage {
-    /// Authentication request returned by the server.
-    public struct PreloginSSLHandshakeMessage: TDSMessageType {
-        public static var headerType: TDSPacket.HeaderType {
-            return .prelogin
-        }
+    init(packingSSLPayloadWith sslPayload: inout ByteBuffer, allocator: ByteBufferAllocator) throws {
+        var packets = [TDSPacket]()
         
-        public var sslPayload: ByteBuffer
-        
-        public func serialize(into buffer: inout ByteBuffer) throws {
-            var payloadBuffer = sslPayload
-            var packetNumber = 0
-            while(sslPayload.readableBytes >= TDSPacket.maximumPacketDataLength) {
-                guard var packetData = payloadBuffer.readSlice(length: TDSPacket.maximumPacketDataLength) else {
-                    throw TDSError.protocol("Serialization Error: Expected")
-                }
-                
-                buffer.writeBytes([
-                    PreloginSSLHandshakeMessage.headerType.value,   // Type
-                    0x00,                                           // Status
-                ])
-                
-                buffer.writeInteger(UInt16(TDSPacket.defaultPacketLength)) // Length
-                
-                buffer.writeBytes([
-                    0x00, 0x00,                                     // SPID
-                    UInt8(packetNumber),                            // PacketID (Unused)
-                    0x00                                            // Window (Unused)
-                ])
-                
-                buffer.writeBuffer(&packetData)
-                packetNumber += 1
+        var packetId: UInt8 = 0
+        while sslPayload.readableBytes >= TDSPacket.maximumPacketDataLength {
+            guard var packetData = sslPayload.readSlice(length: TDSPacket.maximumPacketDataLength) else {
+                throw TDSError.protocol("Serialization Error: Expected")
             }
             
-            buffer.writeBytes([
-                PreloginSSLHandshakeMessage.headerType.value,   // Type
-                0x01                                            // Status
-            ])
-            
-            buffer.writeInteger(UInt16(payloadBuffer.readableBytes + 8)) // Length
-            
-            buffer.writeBytes([
-                0x00, 0x00,                                     // SPID
-                UInt8(packetNumber),                            // PacketID (Unused)
-                0x00                                            // Window (Unused)
-            ])
-            
-            buffer.writeBuffer(&payloadBuffer)
-            
+            packets.append(TDSPacket(message: &packetData, headerType: .prelogin, isLastPacket: false, packetId: packetId, allocator: allocator))
+            packetId = packetId &+ 1
         }
         
-        /// Parses an instance of this message type from a byte buffer.
-        public static func parse(from buffer: inout ByteBuffer) throws -> PreloginSSLHandshakeMessage {
-            return PreloginSSLHandshakeMessage(sslPayload: buffer)
+        var lastPacket = sslPayload.slice()
+        packets.append(TDSPacket(message: &lastPacket, headerType: .prelogin, isLastPacket: true, packetId: packetId, allocator: allocator))
+        
+        self.init(packets: packets)
+    }
+}
+
+extension ByteBuffer {
+    init(unpackingSSLPayloadFrom message: TDSMessage, allocator: ByteBufferAllocator) throws {
+        let size = message.packets.reduce(0, { $0 + $1.messageBuffer.readableBytes })
+        var buffer = allocator.buffer(capacity: size)
+        
+        for packet in message.packets {
+            var messageBuffer = packet.messageBuffer
+            buffer.writeBuffer(&messageBuffer)
         }
+        
+        self = buffer
     }
 }

@@ -1,8 +1,8 @@
 import NIO
 
-extension TDSMessage {
+extension TDSMessages {
     /// Authentication request returned by the server.
-    public struct SSLKickoff: TDSMessageType {
+    public struct SSLKickoff: TDSPacketType {
         public static var headerType: TDSPacket.HeaderType {
             return .sslKickoff
         }

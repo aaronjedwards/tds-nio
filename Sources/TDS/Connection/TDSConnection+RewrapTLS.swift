@@ -39,10 +39,11 @@ public final class PipelineOrganizationHandler: ChannelDuplexHandler, RemovableC
         switch self.state {
         case .sslHandshake(var sslHandshakeState):
             let message = self.unwrapInboundIn(data)
+            
             switch message.headerType {
             case .prelogin:
-                let message = try TDSMessage.PreloginSSLHandshakeMessage.init(message: message)
-                sslHandshakeState.addReceivedData(message.sslPayload)
+                let message = try ByteBuffer(unpackingSSLPayloadFrom: message, allocator: context.channel.allocator)
+                sslHandshakeState.addReceivedData(message)
                 self.state = .sslHandshake(sslHandshakeState)
                 context.fireChannelRead(self.wrapInboundOut(sslHandshakeState.inputBuffer))
                 sslHandshakeState.inputBuffer.clear()
@@ -71,7 +72,7 @@ public final class PipelineOrganizationHandler: ChannelDuplexHandler, RemovableC
     private func _flush(context: ChannelHandlerContext) throws {
         switch self.state {
         case .sslHandshake(var sslHandshakeState):
-            let message = try TDSMessage.PreloginSSLHandshakeMessage(sslPayload: sslHandshakeState.outputBuffer).message()
+            let message = try TDSMessage(packingSSLPayloadWith: &sslHandshakeState.outputBuffer, allocator: context.channel.allocator)
             context.writeAndFlush(self.wrapOutboundOut(message), promise: sslHandshakeState.outputPromise)
             sslHandshakeState.outputBuffer.clear()
             state = .sslHandshake(sslHandshakeState)
