@@ -24,7 +24,7 @@ extension TDSMessages {
             while readOptions {
                 // Check if we have parsed at least the required VERSION token
                 guard let mappedToken = _buffer.readInteger(as: Byte.self).map(PreloginToken.init), let token = mappedToken else {
-                    throw TDSError.protocol("Invalid Prelogin Response: Invalid PL_OPTION_TOKEN value.")
+                    throw TDSError.protocolError("Invalid Prelogin Response: Invalid PL_OPTION_TOKEN value.")
                 }
                 
                 if preloginOptions.count > 0 {
@@ -41,7 +41,7 @@ extension TDSMessages {
                     let offset = _buffer.readInteger(as: UShort.self),
                     let length = _buffer.readInteger(as: UShort.self)
                     else {
-                        throw TDSError.protocol("Invalid Prelogin Response: Invalid *PRELOGIN_OPTION segment.")
+                        throw TDSError.protocolError("Invalid Prelogin Response: Invalid *PRELOGIN_OPTION segment.")
                 }
                 
                 let option = PreloginOption(token: token, offset: offset, length: length)
@@ -56,7 +56,7 @@ extension TDSMessages {
             guard
                 preloginOptions.first(where: { $0.token == PreloginToken.version }) != nil
                 else {
-                    throw TDSError.protocol("Invalid Prelogin Response: Missing required VERSION option.")
+                    throw TDSError.protocolError("Invalid Prelogin Response: Missing required VERSION option.")
             }
             
             var versionValue: String?
@@ -66,7 +66,7 @@ extension TDSMessages {
                 guard
                     var optionData = _buffer.getSlice(at: Int(option.offset), length: Int(option.length))
                     else {
-                        throw TDSError.protocol("Invalid Prelogin Response: Error while parsing PL_OPTION_DATA")
+                        throw TDSError.protocolError("Invalid Prelogin Response: Error while parsing PL_OPTION_DATA")
                 }
                 
                 switch option.token {
@@ -78,7 +78,7 @@ extension TDSMessages {
                         let buildNumber = optionData.readInteger(as: UShort.self),
                         let subBuild = optionData.readInteger(as: UShort.self)
                         else {
-                            throw TDSError.protocol("Invalid Prelogin Response: Invalid VERSION option data.")
+                            throw TDSError.protocolError("Invalid Prelogin Response: Invalid VERSION option data.")
                     }
                     
                     versionValue = "\(majorVersion).\(minorVersion).\(buildNumber).\(subBuild)"
@@ -87,7 +87,7 @@ extension TDSMessages {
                     guard
                         let encryptionValue = optionData.readInteger(as: Byte.self).map(PreloginEncryption.init)
                         else {
-                            throw TDSError.protocol("Invalid Prelogin Response: Invalid ENCRYPTION option data.")
+                            throw TDSError.protocolError("Invalid Prelogin Response: Invalid ENCRYPTION option data.")
                     }
                     
                     encryption = encryptionValue
@@ -98,7 +98,7 @@ extension TDSMessages {
             }
             
             guard let lastOption = preloginOptions.last else {
-                throw TDSError.protocol("Invalid Prelogin Response: Should be at least 1 PRELOGIN_OPTION.")
+                throw TDSError.protocolError("Invalid Prelogin Response: Should be at least 1 PRELOGIN_OPTION.")
             }
             
             // Read all bytes that were a part of this message from the buffer
@@ -106,7 +106,7 @@ extension TDSMessages {
             _ = buffer.readBytes(length: totalLength)
             
             guard let version = versionValue else {
-                throw TDSError.protocol("Invalid Prelogin Response: Missing required VERSION data.")
+                throw TDSError.protocolError("Invalid Prelogin Response: Missing required VERSION data.")
             }
             
             let response = PreloginResponse(version: version, encryption: encryption)

@@ -36,7 +36,7 @@ private final class PreloginRequest: TDSRequest {
                     
                     return TDSMessage(packets: [outbound])
                 default:
-                    throw TDSError.protocol("PRELOGIN Error: Server does not supprt encryption.")
+                    throw TDSError.protocolError("PRELOGIN Error: Server does not supprt encryption.")
                 }
             }
         default:

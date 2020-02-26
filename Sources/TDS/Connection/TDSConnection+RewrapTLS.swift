@@ -49,7 +49,7 @@ public final class PipelineOrganizationHandler: ChannelDuplexHandler, RemovableC
                 sslHandshakeState.inputBuffer.clear()
                 state = .sslHandshake(sslHandshakeState)
             default:
-                throw TDSError.protocol("Expected PRELOGIN SSL Handshake Response")
+                throw TDSError.protocolError("Expected PRELOGIN SSL Handshake Response")
             }
         default:
             break

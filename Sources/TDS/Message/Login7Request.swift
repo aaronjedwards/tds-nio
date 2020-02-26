@@ -3,8 +3,8 @@ import NIO
 import Foundation
 
 extension TDSConnection {
-    public func login(username: String, password: String) -> EventLoopFuture<Void> {
-        let auth = TDSMessages.Login7Message(
+    public func login(username: String, password: String, database: String = "master") -> EventLoopFuture<Void> {
+        let auth = TDSMessages.Login7Request(
             hostname: "localhost",
             username: username,
             password: password,
@@ -12,17 +12,30 @@ extension TDSConnection {
             serverName: "",
             clientInterfaceName: "SwiftTDS",
             language: "",
-            database: "",
+            database: database,
             sspiData: "")
         return self.send(Login7Request(login: auth))
     }
 }
 
 struct Login7Request: TDSRequest {
-    let login: TDSMessages.Login7Message
+    let login: TDSMessages.Login7Request
     
     func respond(to message: TDSMessage, allocator: ByteBufferAllocator) throws -> TDSMessage? {
-        print(message)
+        var messageBuffer = message.firstPacket.messageBuffer
+        
+        guard
+            let token = messageBuffer.readInteger(as: UInt8.self),
+            let tokenType = TDSMessages.TokenType(rawValue: token)
+        else {
+            throw TDSError.protocolError("Invalid token type in Login7 response")
+        }
+        
+        switch tokenType {
+        case .error:
+            throw TDSError.invalidCredentials
+        }
+        
         return nil
     }
     
@@ -37,9 +50,16 @@ struct Login7Request: TDSRequest {
 }
 
 extension TDSMessages {
+    enum TokenType: UInt8 {
+        case error = 0xaa
+    }
+    
+    struct Login7Response {
+    }
+    
     /// `LOGIN7`
     /// https://docs.microsoft.com/en-us/openspecs/windows_protocols/ms-tds/773a62b6-ee89-4c02-9e5e-344882630aac
-    public struct Login7Message: TDSPacketType {
+    public struct Login7Request: TDSPacketType {
         public static var headerType: TDSPacket.HeaderType {
             return .tds7Login
         }

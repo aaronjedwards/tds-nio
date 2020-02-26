@@ -7,7 +7,7 @@ extension TDSMessage {
         var packetId: UInt8 = 0
         while sslPayload.readableBytes >= TDSPacket.maximumPacketDataLength {
             guard var packetData = sslPayload.readSlice(length: TDSPacket.maximumPacketDataLength) else {
-                throw TDSError.protocol("Serialization Error: Expected")
+                throw TDSError.protocolError("Serialization Error: Expected")
             }
             
             packets.append(TDSPacket(message: &packetData, headerType: .prelogin, isLastPacket: false, packetId: packetId, allocator: allocator))
