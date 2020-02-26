@@ -1,6 +1,7 @@
 import Logging
 import NIO
 import NIOSSL
+import Foundation
 
 extension TDSConnection {
     public static func connect(
@@ -17,7 +18,6 @@ extension TDSConnection {
         // TDSMessage decoders
         let firstDecoder = ByteToMessageHandler(TDSMessageDecoder())
         let firstEncoder = MessageToByteHandler(TDSMessageEncoder())
-        
         return bootstrap.connect(to: socketAddress).flatMap { channel in
             return channel.pipeline.addHandlers([
                 firstDecoder,
