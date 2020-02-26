@@ -25,10 +25,12 @@ private final class PreloginRequest: TDSRequest {
     func respond(to message: TDSMessage, allocator: ByteBufferAllocator) throws -> TDSMessage? {
         switch message.headerType {
         case .preloginResponse:
-            var messageBuffer = message.packets[0].messageBuffer
+            var messageBuffer = try ByteBuffer(unpackingDataFrom: message, allocator: allocator)
             let message = try TDSMessages.PreloginResponse.parse(from: &messageBuffer)
+
             print("Prelogin Response Version: \(message.body.version)")
             print("Prelogin Response Encrytion: \(message.body.encryption)")
+
             if let enc = message.body.encryption {
                 switch enc {
                 case .encryptOn, .encryptReq, .encryptClientCertOn, .encryptClientCertReq:
