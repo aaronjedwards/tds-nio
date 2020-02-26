@@ -12,7 +12,6 @@ extension TDSConnection {
 // MARK: Private
 
 private final class PreloginRequest: TDSRequest {
-    
     enum State {
         case start
     }
@@ -23,16 +22,20 @@ private final class PreloginRequest: TDSRequest {
         logger.debug("Sending Prelogin Packet)")
     }
     
-    func respond(to message: TDSMessage) throws -> TDSMessage? {
+    func respond(to message: TDSMessage, allocator: ByteBufferAllocator) throws -> TDSMessage? {
         switch message.headerType {
         case .preloginResponse:
-            let message = try TDSMessage.PreloginResponse.init(message: message)
+            var messageBuffer = try ByteBuffer(unpackingDataFrom: message, allocator: allocator)
+            let message = try TDSMessages.PreloginResponse.parse(from: &messageBuffer)
+
             print("Prelogin Response Version: \(message.body.version)")
             print("Prelogin Response Encrytion: \(message.body.encryption)")
+
             if let enc = message.body.encryption {
                 switch enc {
                 case .encryptOn, .encryptReq, .encryptClientCertOn, .encryptClientCertReq:
-                    return try TDSMessage.SSLKickoff().message()
+                    let message = try TDSMessage(packetType: TDSMessages.SSLKickoff(), allocator: allocator)
+                    return message
                 default:
                     throw TDSError.protocol("PRELOGIN Error: Server does not supprt encryption.")
                 }
@@ -40,10 +43,13 @@ private final class PreloginRequest: TDSRequest {
         default:
             break
         }
+        
         return nil
     }
     
-    func start() throws -> TDSMessage {
-        return try TDSMessage.PreloginMessage(version: "9.0.0", encryption: .encryptOn).message()
+    func start(allocator: ByteBufferAllocator) throws -> TDSMessage {
+        let prelogin = TDSMessages.PreloginPacket(version: "9.0.0", encryption: .encryptOn)
+        let message = try TDSMessage(packetType: prelogin, allocator: allocator)
+        return message
     }
 }

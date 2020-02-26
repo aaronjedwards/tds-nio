@@ -5,15 +5,15 @@ import NIO
 extension TDSPacket {
     public struct Status: ExpressibleByIntegerLiteral, Equatable, CustomStringConvertible {
         /// Normal message
-        public static let normal = 0x00
+        public static let normal: Status = 0x00
         /// End of message
-        public static let eom = 0x01
+        public static let eom: Status = 0x01
         /// From client to server
-        public static let ignoreThisEvent = 0x02
+        public static let ignoreThisEvent: Status = 0x02
         /// RESETCONNECTION
-        public static let resetConnection = 0x08
+        public static let resetConnection: Status = 0x08
         /// RESETCONNECTIONSKIPTRAN
-        public static let resetConnectionSkipTran = 0x10
+        public static let resetConnectionSkipTran: Status = 0x10
         
         public let value: UInt8
         
