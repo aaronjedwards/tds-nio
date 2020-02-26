@@ -83,7 +83,7 @@ extension TDSMessages {
 
 public struct PreloginOption {
     /// `PL_OPTION_TOKEN`
-    var token: TDSMessage.PreloginToken
+    var token: TDSMessages.PreloginToken
     /// `PL_OFFSET`
     var offset: UShort
     /// `PL_OPTION_LENGTH`

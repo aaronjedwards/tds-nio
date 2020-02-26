@@ -16,11 +16,11 @@ private final class SSLKickoffRequest: TDSRequest {
         logger.debug("Kicking off Prelogin SSL Handshake.")
     }
     
-    func respond(to message: TDSMessage) throws -> TDSMessage? {
+    func respond(to message: TDSPacket, allocator: ByteBufferAllocator) throws -> TDSPacket? {
         return nil
     }
     
-    func start() throws -> TDSMessage {
-        return try TDSMessage.SSLKickoff().message()
+    func start(allocator: ByteBufferAllocator) throws -> TDSPacket {
+        try TDSPacket(message: TDSMessages.SSLKickoff(), allocator: allocator)
     }
 }

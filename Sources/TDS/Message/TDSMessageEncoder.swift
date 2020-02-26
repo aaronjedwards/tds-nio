@@ -2,15 +2,13 @@ import NIO
 
 public final class TDSMessageEncoder: MessageToByteEncoder {
     /// See `MessageToByteEncoder`.
-    public typealias OutboundIn = TDSMessage
+    public typealias OutboundIn = TDSPacket
     
     /// See `MessageToByteEncoder`.
-    public func encode(data message: TDSMessage, out: inout ByteBuffer) throws {
-        // print("TDSMessage.ChannelEncoder.encode(\(message))")
-        var message = message
-        
+    public func encode(data message: TDSPacket, out: inout ByteBuffer) throws {
         // serialize the message data
-        out.writeBuffer(&message.data)
+        var buffer = message.messageBuffer
+        out.writeBuffer(&buffer)
     }
 }
 

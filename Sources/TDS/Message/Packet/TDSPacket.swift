@@ -13,8 +13,8 @@ public struct TDSPacket {
         header.type
     }
     
-    public var messageBuffer: ByteBuffer! {
-        buffer.getSlice(at: Header.length, length: buffer.readableBytes - Header.length)
+    public var messageBuffer: ByteBuffer {
+        buffer.getSlice(at: Header.length, length: buffer.readableBytes - Header.length)!
     }
     
     /// Packet Data

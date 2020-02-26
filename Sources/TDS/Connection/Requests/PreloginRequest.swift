@@ -23,15 +23,16 @@ private final class PreloginRequest: TDSRequest {
     }
     
     func respond(to packet: TDSPacket, allocator: ByteBufferAllocator) throws -> TDSPacket? {
+        var messageBuffer = packet.messageBuffer
         switch packet.headerType {
         case .preloginResponse:
-            let message = try TDSMessages.PreloginResponse.init(message: message)
+            let message = try TDSMessages.PreloginResponse.parse(from: &messageBuffer)
             print("Prelogin Response Version: \(message.body.version)")
             print("Prelogin Response Encrytion: \(message.body.encryption)")
             if let enc = message.body.encryption {
                 switch enc {
                 case .encryptOn, .encryptReq, .encryptClientCertOn, .encryptClientCertReq:
-                    return TDSPacket(message: TDSMessages.SSLKickoff(), allocator: allocator)
+                    return try TDSPacket(message: TDSMessages.SSLKickoff(), allocator: allocator)
                 default:
                     throw TDSError.protocol("PRELOGIN Error: Server does not supprt encryption.")
                 }
@@ -42,7 +43,8 @@ private final class PreloginRequest: TDSRequest {
         return nil
     }
     
-    func start() throws -> TDSMessage {
-        return try TDSMessages.PreloginMessage(version: "9.0.0", encryption: .encryptOn).message()
+    func start(allocator: ByteBufferAllocator) throws -> TDSPacket {
+        let message = TDSMessages.PreloginMessage(version: "9.0.0", encryption: .encryptOn)
+        return try TDSPacket(message: message, allocator: allocator)
     }
 }

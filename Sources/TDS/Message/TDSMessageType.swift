@@ -8,7 +8,7 @@ public protocol TDSMessage {
 
 extension TDSMessage {
     public init(packet: TDSPacket) throws {
-        var messageBuffer = packet.messageBuffer!
+        var messageBuffer = packet.messageBuffer
         self = try Self.parse(from: &messageBuffer)
     }
     
