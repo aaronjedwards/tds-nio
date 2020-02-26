@@ -1,9 +1,9 @@
 import NIO
 
-extension TDSMessage {
+extension TDSMessages {
     /// `PRELOGIN`
     /// https://docs.microsoft.com/en-us/openspecs/windows_protocols/ms-tds/60f56408-0188-4cd5-8b90-25c6f2423868
-    public struct PreloginMessage: TDSMessageType {
+    public struct PreloginPacket: TDSPacketType {
         public static var headerType: TDSPacket.HeaderType {
             return .prelogin
         }
@@ -17,16 +17,6 @@ extension TDSMessage {
         }
         
         public func serialize(into buffer: inout ByteBuffer) throws {
-            // Packet Header: 0x00 - 0x08 (8 bytes)
-            buffer.writeBytes([
-                PreloginMessage.headerType.value,              // Type
-                0x01,                                   // Status
-                0x00, PreloginMessage.messageLength,           // Length
-                0x00, 0x00,                             // SPID
-                0x00,                                   // PacketID (Unused)
-                0x00                                    // Window (Unused)
-            ])
-            
             // Token List: 0x09 - 0x0E (6 bytes)
             //
             // Follows the form of:
@@ -74,7 +64,7 @@ extension TDSMessage {
     }
 }
 
-extension TDSMessage {
+extension TDSMessages {
     public struct Prelogin {
         public var version: String
         public var encryption: PreloginEncryption?
@@ -83,14 +73,14 @@ extension TDSMessage {
 
 public struct PreloginOption {
     /// `PL_OPTION_TOKEN`
-    var token: TDSMessage.PreloginToken
+    var token: TDSMessages.PreloginToken
     /// `PL_OFFSET`
     var offset: UShort
     /// `PL_OPTION_LENGTH`
     var length: UShort
 }
 
-extension TDSMessage {
+extension TDSMessages {
     public enum PreloginToken: Byte {
         /// VERSION
         case version = 0x00
@@ -121,7 +111,7 @@ extension TDSMessage {
     }
 }
 
-extension TDSMessage {
+extension TDSMessages {
     public enum PreloginEncryption: Byte {
         case encryptOff = 0x00
         case encryptOn = 0x01
