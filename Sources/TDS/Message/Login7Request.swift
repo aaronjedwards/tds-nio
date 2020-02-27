@@ -34,9 +34,12 @@ struct Login7Request: TDSRequest {
         switch tokenType {
         case .error:
             throw TDSError.invalidCredentials
+        case .info:
+            throw TDSError.protocolError("Unsupported INFO TokenType")
+        case .done:
+            print("Authenticated as user \(login.username)")
+            return nil
         }
-        
-        return nil
     }
     
     func start(allocator: ByteBufferAllocator) throws -> TDSMessage {
@@ -51,10 +54,9 @@ struct Login7Request: TDSRequest {
 
 extension TDSMessages {
     enum TokenType: UInt8 {
-        case error = 0xaa
-    }
-    
-    struct Login7Response {
+        case error = 0xAA
+        case info = 0xAB
+        case done = 0xFD
     }
     
     /// `LOGIN7`
@@ -84,15 +86,15 @@ extension TDSMessages {
         public func serialize(into buffer: inout ByteBuffer) throws {
             // Each basic field needs to serialize the length & offset
             let basicFields = [
-                hostname,
-                username,
-                password,
-                appName,
-                serverName,
-                "", // unused field
-                clientInterfaceName,
-                language,
-                database
+                (hostname, false),
+                (username, false),
+                (password, true),
+                (appName, false),
+                (serverName, false),
+                ("", false), // unused field
+                (clientInterfaceName, false),
+                (language, false),
+                (database, false)
             ]
             
             // ClientID serializes inbetween `basicFields` and `extendedFields`
@@ -100,9 +102,9 @@ extension TDSMessages {
             
             // Each extended field needs to serialize the length & offset
             let extendedFields = [
-                sspiData,
-                atchDBFile,
-                changePassword
+                (sspiData, false),
+                (atchDBFile, false),
+                (changePassword, true)
             ]
             
             let sspiLong: UInt32 = 0
@@ -134,7 +136,7 @@ extension TDSMessages {
             
             buffer.writeInteger(0 as UInt32) // SSPI
             
-            func writeField(_ string: String) {
+            func writeField(_ string: String, isPassword: Bool) {
                 let utf16 = string.utf16
                 
                 // TODO: Will someone realistically add 64KB of data in a string here?
@@ -144,19 +146,27 @@ extension TDSMessages {
                 buffer.setInteger(UInt16(utf16.count), at: offsetLengthsPosition, endianness: .little)
                 offsetLengthsPosition += 2
                 
-                for character in utf16 {
-                    buffer.writeInteger(character, endianness: .little)
+                if isPassword {
+                    for character in utf16 {
+                        let newHighBits = (character << 4) & 0b1111000011110000
+                        let newLowBits = (character >> 4) & 0b0000111100001111
+                        buffer.writeInteger((newHighBits | newLowBits) ^ 0xA5A5, endianness: .little)
+                    }
+                } else {
+                    for character in utf16 {
+                        buffer.writeInteger(character, endianness: .little)
+                    }
                 }
             }
             
-            for field in basicFields {
-                writeField(field)
+            for (field, isPassword) in basicFields {
+                writeField(field, isPassword: isPassword)
             }
             
             offsetLengthsPosition += clientId.count
             
-            for field in extendedFields {
-                writeField(field)
+            for (field, isPassword) in extendedFields {
+                writeField(field, isPassword: isPassword)
             }
             
             buffer.setInteger(UInt32(buffer.writerIndex - login7HeaderPosition), at: login7HeaderPosition, endianness: .little)
