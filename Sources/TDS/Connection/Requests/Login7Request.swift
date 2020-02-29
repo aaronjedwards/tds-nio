@@ -46,8 +46,8 @@ struct Login7Request: TDSRequest {
     }
 
     func start(allocator: ByteBufferAllocator) throws -> TDSMessage {
-        let packet = try TDSPacket(message: login, isLastPacket: true, allocator: allocator)
-        return TDSMessage(packets: [packet])
+        let message = try TDSMessage(packetType: login, allocator: allocator)
+        return message
     }
 
     func log(to logger: Logger) {
