@@ -2,61 +2,61 @@ import Logging
 import NIO
 import Foundation
 
-extension TDSConnection {
-    public func login(username: String, password: String, database: String = "master") -> EventLoopFuture<Void> {
-        let auth = TDSMessages.Login7Request(
-            hostname: "localhost",
-            username: username,
-            password: password,
-            appName: "TDSTester",
-            serverName: "",
-            clientInterfaceName: "SwiftTDS",
-            language: "",
-            database: database,
-            sspiData: "")
-        return self.send(Login7Request(login: auth))
-    }
-}
-
-struct Login7Request: TDSRequest {
-    let login: TDSMessages.Login7Request
-    
-    func respond(to message: TDSMessage, allocator: ByteBufferAllocator) throws -> TDSMessage? {
-        var messageBuffer = message.firstPacket.messageBuffer
-        
-        guard
-            let token = messageBuffer.readInteger(as: UInt8.self),
-            let tokenType = TDSMessages.TokenType(rawValue: token)
-        else {
-            throw TDSError.protocolError("Invalid token type in Login7 response")
-        }
-        
-        switch tokenType {
-        case .error:
-            throw TDSError.invalidCredentials
-        case .info:
-            throw TDSError.protocolError("Unsupported INFO TokenType")
-        case .done:
-            print("Authenticated as user \(login.username)")
-            return nil
-        }
-    }
-    
-    func start(allocator: ByteBufferAllocator) throws -> TDSMessage {
-        let packet = try TDSPacket(message: login, isLastPacket: true, allocator: allocator)
-        return TDSMessage(packets: [packet])
-    }
-    
-    func log(to logger: Logger) {
-        logger.log(level: .debug, "Logging in as \(login.username)")
-    }
-}
-
 extension TDSMessages {
     enum TokenType: UInt8 {
         case error = 0xAA
         case info = 0xAB
         case done = 0xFD
+        case envchange = 0xE3
+    }
+
+    enum EnvchangeType: UInt8 {
+        case database = 1
+        case language = 2
+        case characterSet = 3
+        case packetSize = 4
+        case unicodeSortingLocalId = 5
+        case unicodeSortingFlags = 6
+        case sqlCollation = 7
+        case beingTransaction = 8
+        case commitTransaction = 9
+        case rollbackTransaction = 10
+        case enlistDTCTransaction = 11
+        case defectTransaction = 12
+        case realTimeLogShipping = 13
+        case promoteTransaction = 15
+        case transactionManagerAddress = 16
+        case transactionEnded = 17
+        case resetConnectionAck = 18
+        case userInstanceStarted = 19
+        case routingInfo = 20
+    }
+
+    public static func parseEnvChangeTokenStream(messageBuffer: inout ByteBuffer) throws {
+        guard
+            let length = messageBuffer.readInteger(endianness: .little, as: UInt16.self),
+            let type = messageBuffer.readInteger(as: UInt8.self),
+            let changeType = TDSMessages.EnvchangeType(rawValue: type)
+        else {
+            throw TDSError.protocolError("Invalid envchange token")
+        }
+        print("Enchange type: \(type)")
+        switch changeType {
+        case .database:
+            print("readableBytes: \(messageBuffer.readableBytes)")
+            guard
+                let newValueLength = messageBuffer.readInteger(as: UInt8.self),
+                let newValue = messageBuffer.readString(length: Int(newValueLength * 2)),
+                let oldValueLength = messageBuffer.readInteger(as: UInt8.self),
+                let oldValue = messageBuffer.readString(length: Int(newValueLength * 2))
+            else {
+                throw TDSError.protocolError("Invalid database type token")
+            }
+            print("new value: \(newValue)")
+            print("old value: \(oldValue)")
+        default:
+            break
+        }
     }
     
     /// `LOGIN7`
@@ -65,11 +65,8 @@ extension TDSMessages {
         public static var headerType: TDSPacket.HeaderType {
             return .tds7Login
         }
-        
-        static var tdsVersion: TDSVersion = .tds7_4
-        static var packetSize: DWord = DWord(TDSPacket.defaultPacketLength)
-        static var clientPID: DWord = DWord(ProcessInfo.processInfo.processIdentifier)
-        static var connectionId: DWord = 100
+
+         static var clientPID: UInt32 = UInt32(ProcessInfo.processInfo.processIdentifier)
         
         var hostname: String
         var username: String
@@ -173,101 +170,4 @@ extension TDSMessages {
             return
         }
     }
-}
-
-public struct Login {
-    /// Header
-    
-    /// Total length of the LOGIN7 structure exluding the header
-    var length: DWord
-    
-    /// Highest TDS Version
-    var tdsVersion: TDSVersion
-    var packetSize: DWord
-    var clientPID: DWord
-    var connectionId: DWord
-    var optionFlags1: Byte
-    var optionFlags2: Byte
-    var typeFlags: Byte
-    var optionFlags3: Byte
-
-    /// This field is not used and can be set to zero.
-    static let clientTimeZone: Long = 0
-    
-    /// Note The ClientLCID value is no longer used to set language parameters and is ignored.
-    var clientLCID: ULong = 0
-    
-    /// Data
-    var hostname: String
-    var username: String
-    var password: String
-    var appName: String
-    var serverName: String
-    var clientInterfaceName: String
-    var language: String
-    var database: String
-    var clientId: String
-    var sspiData: String
-    var attachDBFile: String
-    var changePassword: String
-}
-
-public struct OffsetLength {
-    /// ibHostName & cchHostName
-    var hostnameOffset: UShort
-    var hostnameLength: UShort
-    
-    /// ibUserName & cchUserName
-    var usernameOffset: UShort
-    var usernameLength: UShort
-    
-    /// ibPassword & cchPassword
-    var passwordOffset: UShort
-    var passwordLength: UShort
-    
-    /// ibAppName & cchAppName
-    var appNameOffset: UShort
-    var appNameLength: UShort
-    
-    /// ibServerName & cchServerName
-    var serverNameOffset: UShort
-    var serverNameLength: UShort
-    
-    /// (ibUnused / ibExtension) & (cbUnused / cbExtension)
-    var unusedOrExtensionOffset: UShort
-    var unusedOrExtensionLength: UShort
-    
-    /// ibCltIntName & cchCltIntName
-    var clientInterfaceNameOffset: UShort
-    var clientInterfaceNameLength: UShort
-    
-    /// ibLanguage & cchLanguage
-    var languageOffset: UShort
-    var languageLength: UShort
-    
-    /// ibDatabase & cchDatabase
-    var databaseOffset: UShort
-    var databaseLength: UShort
-    
-    /// ClientID
-    var ClientId: [Byte]
-    
-    /// ibSSPI & cbSSPI
-    var sspiOffset: UShort
-    var sspiLength: UShort
-    
-    /// ibAtchDBFile & cchAtchDBFile
-    var attachDbFileOffset: UShort
-    var attachDbFileLength: UShort
-    
-    /// ibChangePassword & cchChangePassword
-    var changePasswordOffset: UShort
-    var changePasswordLength: UShort
-    
-    /// cbSSPILong
-    var cbSSPILong: DWord
-}
-
-public enum TDSVersion: DWord {
-    case tds7_4 = 0x04000074
 }

@@ -47,7 +47,7 @@ private final class PreloginRequest: TDSRequest {
     }
     
     func start(allocator: ByteBufferAllocator) throws -> TDSMessage {
-        let message = TDSMessages.PreloginPacket(version: "9.0.0", encryption: .encryptOn)
+        let message = TDSMessages.PreloginMessage(version: "9.0.0", encryption: .encryptOn)
         let packet = try TDSPacket(message: message, isLastPacket: true, allocator: allocator)
         
         return TDSMessage(packets: [packet])
