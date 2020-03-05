@@ -138,7 +138,7 @@ extension TDSMessages {
                 
                 // TODO: Will someone realistically add 64KB of data in a string here?
                 // Is that a risk?
-                buffer.setInteger(UInt16(buffer.writerIndex - TDSPacket.Header.length), at: offsetLengthsPosition, endianness: .little)
+                buffer.setInteger(UInt16(buffer.writerIndex - login7HeaderPosition), at: offsetLengthsPosition, endianness: .little)
                 offsetLengthsPosition += 2
                 buffer.setInteger(UInt16(utf16.count), at: offsetLengthsPosition, endianness: .little)
                 offsetLengthsPosition += 2
