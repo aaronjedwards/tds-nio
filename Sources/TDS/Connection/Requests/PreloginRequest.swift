@@ -28,8 +28,6 @@ private final class PreloginRequest: TDSRequest {
             var messageBuffer = try ByteBuffer(unpackingDataFrom: message, allocator: allocator)
             let message = try TDSMessages.PreloginResponse.parse(from: &messageBuffer)
 
-            print("Prelogin Response Version: \(message.body.version)")
-            print("Prelogin Response Encryption: \(message.body.encryption)")
             if let enc = message.body.encryption {
                 switch enc {
                 case .encryptOn, .encryptReq, .encryptClientCertOn, .encryptClientCertReq:

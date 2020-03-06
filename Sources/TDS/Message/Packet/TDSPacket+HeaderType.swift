@@ -15,6 +15,9 @@ extension TDSPacket {
         
         /// Tabular Result
         public static let tabularResult: HeaderType = 0x04
+
+        /// Login Response
+        public static let loginResponse: HeaderType = 0x04
         
         /// Attention Signal
         public static let attentionSignal: HeaderType = 0x06

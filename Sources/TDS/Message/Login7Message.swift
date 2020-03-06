@@ -3,65 +3,9 @@ import NIO
 import Foundation
 
 extension TDSMessages {
-    enum TokenType: UInt8 {
-        case error = 0xAA
-        case info = 0xAB
-        case done = 0xFD
-        case envchange = 0xE3
-    }
-
-    enum EnvchangeType: UInt8 {
-        case database = 1
-        case language = 2
-        case characterSet = 3
-        case packetSize = 4
-        case unicodeSortingLocalId = 5
-        case unicodeSortingFlags = 6
-        case sqlCollation = 7
-        case beingTransaction = 8
-        case commitTransaction = 9
-        case rollbackTransaction = 10
-        case enlistDTCTransaction = 11
-        case defectTransaction = 12
-        case realTimeLogShipping = 13
-        case promoteTransaction = 15
-        case transactionManagerAddress = 16
-        case transactionEnded = 17
-        case resetConnectionAck = 18
-        case userInstanceStarted = 19
-        case routingInfo = 20
-    }
-
-    public static func parseEnvChangeTokenStream(messageBuffer: inout ByteBuffer) throws {
-        guard
-            let length = messageBuffer.readInteger(endianness: .little, as: UInt16.self),
-            let type = messageBuffer.readInteger(as: UInt8.self),
-            let changeType = TDSMessages.EnvchangeType(rawValue: type)
-        else {
-            throw TDSError.protocolError("Invalid envchange token")
-        }
-        print("Enchange type: \(type)")
-        switch changeType {
-        case .database:
-            print("readableBytes: \(messageBuffer.readableBytes)")
-            guard
-                let newValueLength = messageBuffer.readInteger(as: UInt8.self),
-                let newValue = messageBuffer.readString(length: Int(newValueLength * 2)),
-                let oldValueLength = messageBuffer.readInteger(as: UInt8.self),
-                let oldValue = messageBuffer.readString(length: Int(newValueLength * 2))
-            else {
-                throw TDSError.protocolError("Invalid database type token")
-            }
-            print("new value: \(newValue)")
-            print("old value: \(oldValue)")
-        default:
-            break
-        }
-    }
-    
     /// `LOGIN7`
     /// https://docs.microsoft.com/en-us/openspecs/windows_protocols/ms-tds/773a62b6-ee89-4c02-9e5e-344882630aac
-    public struct Login7Request: TDSPacketType {
+    public struct Login7Message: TDSPacketType {
         public static var headerType: TDSPacket.HeaderType {
             return .tds7Login
         }
