@@ -10,6 +10,7 @@ public struct TDSMessage {
     }
     
     public internal(set) var packets: [TDSPacket]
+    var firstPacket: TDSPacket { packets[0] }
     
     init(packets: [TDSPacket]) {
         assert(!packets.isEmpty, "Invalid message")

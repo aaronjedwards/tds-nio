@@ -100,7 +100,7 @@ final class TDSRequestHandler: ChannelDuplexHandler {
             case .receivedTDSPreLoginResponse:
                 if tlsConfiguration != nil {
                     guard case .sslKickoff = response.headerType else {
-                        throw TDSError.protocol("PRELOGIN Error: Expected SSL Handshake")
+                        throw TDSError.protocolError("PRELOGIN Error: Expected SSL Handshake")
                     }
                     
                     try sslKickoff(context: context)
@@ -120,7 +120,7 @@ final class TDSRequestHandler: ChannelDuplexHandler {
     
     private func sslKickoff(context: ChannelHandlerContext) throws {
         guard let tlsConfig = tlsConfiguration, let hostname = serverHostname else {
-            throw TDSError.protocol("Encryption was requested but an SSL Configuration was not provided.")
+            throw TDSError.protocolError("Encryption was requested but an SSL Configuration was not provided.")
         }
         
         let sslContext = try! NIOSSLContext(configuration: tlsConfig)
@@ -197,6 +197,7 @@ final class TDSRequestHandler: ChannelDuplexHandler {
                 context.channel.pipeline.removeHandler(self.firstDecoder),
                 context.channel.pipeline.removeHandler(self.firstEncoder),
                 context.channel.pipeline.addHandler(ByteToMessageHandler(TDSMessageDecoder()), position: .after(self.sslClientHandler)),
+                context.channel.pipeline.addHandler(MessageToByteHandler(TDSMessageEncoder()), position: .after(self.sslClientHandler))
             ], on: context.eventLoop)
             
             future.whenSuccess {_ in

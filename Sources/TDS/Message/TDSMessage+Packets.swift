@@ -9,7 +9,7 @@ extension TDSMessage {
         var packetId: UInt8 = 0
         while buffer.readableBytes >= TDSPacket.maximumPacketDataLength {
             guard var packetData = buffer.readSlice(length: TDSPacket.maximumPacketDataLength) else {
-                throw TDSError.protocol("Serialization Error: Expected")
+                throw TDSError.protocolError("Serialization Error: Expected")
             }
             
             packets.append(TDSPacket(message: &packetData, headerType: headerType, isLastPacket: false, packetId: packetId, allocator: allocator))
