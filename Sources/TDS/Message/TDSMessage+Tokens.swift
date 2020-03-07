@@ -18,7 +18,7 @@ enum TokenType: UInt8 {
     /// DONE
     case done = 0xFD
     /// DONEINPROC
-    case doneInProx = 0xFF
+    case doneInProc = 0xFF
     /// DONEPROC
     case doneProc = 0xFE
     /// ENVCHANGE
@@ -66,6 +66,11 @@ extension TDSMessages {
         var minorVer: UInt8
         var buildNumHi: UInt8
         var buildNumLow: UInt8
+    }
+
+    struct ColMetadataToken: Token {
+        var type: TokenType = .colMetadata
+        var count: UShort
     }
 
     struct DoneToken: Token {
@@ -143,9 +148,11 @@ extension TDSMessages {
                 if let token = try TDSMessages.parseEnvChangeTokenStream(messageBuffer: &messageBuffer) {
                     tokens.append(token)
                 }
-            case .done:
+            case .done, .doneInProc, .doneProc :
                 let token = try TDSMessages.parseDoneTokenStream(messageBuffer: &messageBuffer)
                 tokens.append(token)
+            case .colMetadata:
+                let token = try TDSMessages.parseColMetadataTokenStream(messageBuffer: &messageBuffer)
             default:
                 throw TDSError.protocolError("Parsing implementation incomplete")
             }
@@ -171,6 +178,29 @@ extension TDSMessages {
 
         let token = LoginAckToken(interface: interface, tdsVersion: tdsVersion, progName: progName, majorVer: majorVer, minorVer: minorVer, buildNumHi: buildNumHi, buildNumLow: buildNumLow)
 
+        return token
+    }
+
+    public static func parseColMetadataTokenStream(messageBuffer: inout ByteBuffer) throws -> Token {
+        guard
+            let count = messageBuffer.readInteger(endianness: .little, as: UShort.self)
+        else {
+            throw TDSError.protocolError("Invalid COLMETADATA token")
+        }
+
+
+        for col in 0...count - 1 {
+            guard
+                let userType = messageBuffer.readInteger(as: ULong.self),
+                let flags = messageBuffer.readInteger(as: UShort.self),
+                let dataType = messageBuffer.readInteger(as: UInt8.self),
+                
+            else {
+                throw TDSError.protocolError("Invalid COLMETADATA token")
+            }
+        }
+
+        let token = ColMetadataToken(count: count)
         return token
     }
 

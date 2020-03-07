@@ -20,6 +20,7 @@ func testPrelogin() throws {
     ).wait()
     try conn.prelogin().wait()
     try conn.login(username: "SA", password: "<YourStrong@Passw0rd>").wait()
+    try conn.sql("SELECT @@VERSION").wait()
     try conn.close().wait()
 }
 
