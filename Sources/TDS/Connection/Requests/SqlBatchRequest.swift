@@ -15,6 +15,18 @@ struct SqlBatchRequest: TDSRequest {
     func respond(to message: TDSMessage, allocator: ByteBufferAllocator) throws -> TDSMessage? {
         var messageBuffer = try ByteBuffer(unpackingDataFrom: message, allocator: allocator)
         let response = try TDSMessages.TabularResponse.parse(from: &messageBuffer)
+
+        // TODO: pass row data to upper layer
+        // Below prints results of "SELECT @@VERSION" test query
+        guard
+            let rowToken = response.tokens[1] as? TDSMessages.RowToken,
+            let data = rowToken.colData.first?.data,
+            let sqlServerVersion = String(bytes: data, encoding: .utf16LittleEndian)
+        else {
+            throw TDSError.protocolError("Error attempting to extract row value for test sql result.")
+        }
+
+        print(sqlServerVersion)
         return nil
     }
 

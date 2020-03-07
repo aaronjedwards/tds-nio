@@ -14,8 +14,6 @@ extension TDSMessages {
         buffer.writeInteger(1 as UInt32) // OutstandingRequestCount
 
         buffer.setInteger(UInt32(buffer.writerIndex - startWriterIndex), at: startWriterIndex, endianness: .little)
-
-        print(buffer.debugDescription)
         return
     }
 }

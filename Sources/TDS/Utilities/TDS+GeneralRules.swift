@@ -46,10 +46,10 @@ public typealias Precision = UInt8
 /// SCALE
 public typealias Scale = UInt8
 
-#warning("TODO - GEN_NULL")
-#warning("TODO - CHARBIN_NULL")
-#warning("TODO - FRESERVEDBIT")
-#warning("TODO - FRESERVEDBYTE")
+// TODO: GEN_NULL
+// TODO: CHARBIN_NULL
+// TODO: FRESERVEDBIT
+// TODO: FRESERVEDBYTE
 
 /// UNICODECHAR
 public typealias UnicodeChar = UInt16

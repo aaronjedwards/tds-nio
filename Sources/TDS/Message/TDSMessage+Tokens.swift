@@ -71,6 +71,27 @@ extension TDSMessages {
     struct ColMetadataToken: Token {
         var type: TokenType = .colMetadata
         var count: UShort
+        var colData: [ColumnData]
+
+        struct ColumnData {
+            var userType: ULong
+            var flags: UShort
+            var dataType: DataType
+            var length: Int
+            var collation: [UInt8]
+            var colName: String
+        }
+    }
+
+    struct RowToken: Token {
+        var type: TokenType = .row
+        var colData: [ColumnData]
+
+        struct ColumnData {
+            var textPointer: [UInt8]
+            var timestamp: [UInt8]
+            var data: [UInt8]
+        }
     }
 
     struct DoneToken: Token {
@@ -128,6 +149,14 @@ extension TDSMessages {
     }
 
     public static func parseTokenDataStream(messageBuffer: inout ByteBuffer) throws -> [Token] {
+
+        enum State {
+            case parsing
+            case recievedColMetadata(ColMetadataToken)
+        }
+
+        var state: State = .parsing
+
         var tokens: [Token] = []
         while messageBuffer.readableBytes > 0 {
             guard
@@ -153,6 +182,16 @@ extension TDSMessages {
                 tokens.append(token)
             case .colMetadata:
                 let token = try TDSMessages.parseColMetadataTokenStream(messageBuffer: &messageBuffer)
+                tokens.append(token)
+                state = .recievedColMetadata(token)
+            case .row:
+                switch state {
+                case .recievedColMetadata(let colMetadata):
+                    let token = try TDSMessages.parseRowTokenStream(colMetadata: colMetadata, messageBuffer: &messageBuffer)
+                    tokens.append(token)
+                default:
+                    throw TDSError.protocolError("Error while parsing row data: no COLMETADATA recieved")
+                }
             default:
                 throw TDSError.protocolError("Parsing implementation incomplete")
             }
@@ -160,7 +199,7 @@ extension TDSMessages {
         return tokens
     }
 
-    public static func parseLoginAckTokenStream(messageBuffer: inout ByteBuffer) throws -> Token {
+    public static func parseLoginAckTokenStream(messageBuffer: inout ByteBuffer) throws -> LoginAckToken {
         guard
             let _ = messageBuffer.readInteger(endianness: .little, as: UInt16.self),
             let interface = messageBuffer.readInteger(as: UInt8.self),
@@ -181,30 +220,91 @@ extension TDSMessages {
         return token
     }
 
-    public static func parseColMetadataTokenStream(messageBuffer: inout ByteBuffer) throws -> Token {
+    public static func parseColMetadataTokenStream(messageBuffer: inout ByteBuffer) throws -> ColMetadataToken {
         guard
             let count = messageBuffer.readInteger(endianness: .little, as: UShort.self)
         else {
             throw TDSError.protocolError("Invalid COLMETADATA token")
         }
 
-
-        for col in 0...count - 1 {
+        var colData: [ColMetadataToken.ColumnData] = []
+        for _ in 0...count - 1 {
             guard
                 let userType = messageBuffer.readInteger(as: ULong.self),
                 let flags = messageBuffer.readInteger(as: UShort.self),
-                let dataType = messageBuffer.readInteger(as: UInt8.self),
-                
+                let dataTypeVal = messageBuffer.readInteger(as: UInt8.self),
+                let dataType = DataType.init(rawValue: dataTypeVal)
             else {
                 throw TDSError.protocolError("Invalid COLMETADATA token")
             }
+            var length: Int
+            switch dataType {
+            case .sqlVariant, .nText, .text, .image:
+                guard let len = messageBuffer.readInteger(endianness: .little, as: LongLen.self) else {
+                    throw TDSError.protocolError("Error while reading length")
+                }
+                length = Int(len)
+            case .char, .varchar, .nchar, .nvarchar, .binary, .varbinary:
+                guard let len = messageBuffer.readInteger(endianness: .little, as: UShortCharBinLen.self) else {
+                    throw TDSError.protocolError("Error while reading length")
+                }
+                length = Int(len)
+            default:
+                guard let len = messageBuffer.readInteger(endianness: .little, as: ByteLen.self) else {
+                    throw TDSError.protocolError("Error while reading length")
+                }
+                length = Int(len)
+            }
+
+            var collationData: [UInt8] = []
+            if (dataType.isCollationType()) {
+                guard let collationBytes = messageBuffer.readBytes(length: 5) else {
+                    throw TDSError.protocolError("Error while reading collation data")
+                }
+                collationData = collationBytes
+            }
+
+            // TODO: Read [TableName] and [CryptoMetaData]
+
+            guard
+                let colNameLength = messageBuffer.readInteger(as: UInt8.self),
+                let colNameBytes = messageBuffer.readBytes(length: Int(colNameLength * 2)),
+                let colName = String(bytes: colNameBytes, encoding: .utf16LittleEndian)
+            else {
+                throw TDSError.protocolError("Error while reading column name")
+            }
+
+            colData.append(ColMetadataToken.ColumnData(userType: userType, flags: flags, dataType: dataType, length: length, collation: collationData, colName: colName))
         }
 
-        let token = ColMetadataToken(count: count)
+        let token = ColMetadataToken(count: count, colData: colData)
         return token
     }
 
-    public static func parseDoneTokenStream(messageBuffer: inout ByteBuffer) throws -> Token {
+    public static func parseRowTokenStream(colMetadata: ColMetadataToken, messageBuffer: inout ByteBuffer) throws -> RowToken {
+        var colData: [RowToken.ColumnData] = []
+
+        // TODO: Handle textpointer and timestamp for certain types
+        for _ in colMetadata.colData {
+            guard
+                // let textPointerLength = messageBuffer.readInteger(as: UInt8.self),
+                // let textPointer = messageBuffer.readBytes(length: Int(textPointerLength)),
+                // let timestamp = messageBuffer.readBytes(length: 8),
+                // TODO: Handle length depending on the datatype. Hardcoded as of now.
+                let dataLength = messageBuffer.readInteger(endianness: .little, as: UShortCharBinLen.self),
+                let data = messageBuffer.readBytes(length: Int(dataLength))
+            else {
+                throw TDSError.protocolError("Error while reading row data")
+            }
+
+            colData.append(RowToken.ColumnData(textPointer: [], timestamp: [], data: data))
+        }
+
+        let token = RowToken(colData: colData)
+        return token
+    }
+
+    public static func parseDoneTokenStream(messageBuffer: inout ByteBuffer) throws -> DoneToken {
         guard
             let status = messageBuffer.readInteger(as: UShort.self),
             let curCmd = messageBuffer.readInteger(as: UShort.self),
@@ -248,7 +348,7 @@ extension TDSMessages {
         }
     }
 
-    public static func parseErrorInfoTokenStream(type: TokenType, messageBuffer: inout ByteBuffer) throws -> Token {
+    public static func parseErrorInfoTokenStream(type: TokenType, messageBuffer: inout ByteBuffer) throws -> ErrorInfoToken {
         guard
             let _ = messageBuffer.readInteger(endianness: .little, as: UInt16.self),
             let number = messageBuffer.readInteger(as: Long.self),

@@ -1,7 +1,7 @@
 import NIO
 
 extension TDSMessages {
-    enum DataTypes: UInt8 {
+    enum DataType: UInt8 {
         /// NULLTYPE / Null
         case nullType = 0x1F
         /// INT1TYPE / TinyInt
@@ -76,5 +76,14 @@ extension TDSMessages {
         case nText = 0x63
         /// SSVARIANTTYPE / Sql_Variant
         case sqlVariant = 0x62
+
+        func isCollationType() -> Bool {
+            switch self {
+            case .char, .varchar, .text, .nText, .nchar, .nvarchar:
+                return true
+            default:
+                return false
+            }
+        }
     }
 }
