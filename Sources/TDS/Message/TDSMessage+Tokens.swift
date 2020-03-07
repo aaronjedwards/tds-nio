@@ -79,7 +79,10 @@ extension TDSMessages {
             var dataType: DataType
             var length: Int
             var collation: [UInt8]
+            var tableName: String?
             var colName: String
+            var precision: Int?
+            var scale: Int?
         }
     }
 
@@ -249,9 +252,21 @@ extension TDSMessages {
                     throw TDSError.protocolError("Error while reading length")
                 }
                 length = Int(len)
+            case .date:
+                length = 3
+            case .tinyInt, .bit:
+                length = 1
+            case .smallInt:
+                length = 2
+            case .intType, .smallDateTime, .real, .smallMoney:
+                length = 4
+            case .money, .datetime, .float, .bigInt:
+                length = 8
+            case .nullType:
+                length = 0
             default:
                 guard let len = messageBuffer.readInteger(endianness: .little, as: ByteLen.self) else {
-                    throw TDSError.protocolError("Error while reading length")
+                    throw TDSError.protocolError("Error while reading length.")
                 }
                 length = Int(len)
             }
@@ -259,12 +274,60 @@ extension TDSMessages {
             var collationData: [UInt8] = []
             if (dataType.isCollationType()) {
                 guard let collationBytes = messageBuffer.readBytes(length: 5) else {
-                    throw TDSError.protocolError("Error while reading collation data")
+                    throw TDSError.protocolError("Error while reading COLLATION.")
                 }
                 collationData = collationBytes
             }
 
+            var precision: Int?
+            if (dataType.isPrecisionType()) {
+                guard
+                    let p = messageBuffer.readInteger(as: UInt8.self),
+                    p <= 38
+                else {
+                    throw TDSError.protocolError("Error while reading PRECISION.")
+                }
+                precision = Int(p)
+            }
+
+            var scale: Int?
+            if (dataType.isScaleType()) {
+                guard let s = messageBuffer.readInteger(as: UInt8.self) else {
+                    throw TDSError.protocolError("Error while reading SCALE.")
+                }
+
+                if let p = precision {
+                    guard s <= p else {
+                        throw TDSError.protocolError("Invalid SCALE value. Must be less than or equal to precision value.")
+                    }
+                }
+
+                scale = Int(s)
+            }
+
             // TODO: Read [TableName] and [CryptoMetaData]
+            var tableName: String?
+            switch dataType {
+            case .text, .nText, .image:
+                var parts: [String] = []
+                guard let numParts = messageBuffer.readInteger(as: UInt8.self) else {
+                    throw TDSError.protocolError("Error while reading NUMPARTS.")
+                }
+
+                for i in 0...numParts - 1 {
+                    guard
+                        let partNameLen = messageBuffer.readInteger(as: UShort.self),
+                        let partNameBytes = messageBuffer.readBytes(length: Int(partNameLen * 2)),
+                        let partName = String(bytes: partNameBytes, encoding: .utf16LittleEndian)
+                    else {
+                        throw TDSError.protocolError("Error while reading NUMPARTS.")
+                    }
+                    parts.append(partName)
+                }
+                tableName = parts.joined(separator: ".")
+            default:
+                break
+            }
 
             guard
                 let colNameLength = messageBuffer.readInteger(as: UInt8.self),
@@ -274,7 +337,7 @@ extension TDSMessages {
                 throw TDSError.protocolError("Error while reading column name")
             }
 
-            colData.append(ColMetadataToken.ColumnData(userType: userType, flags: flags, dataType: dataType, length: length, collation: collationData, colName: colName))
+            colData.append(ColMetadataToken.ColumnData(userType: userType, flags: flags, dataType: dataType, length: length, collation: collationData, tableName: tableName, colName: colName, precision: precision, scale: scale))
         }
 
         let token = ColMetadataToken(count: count, colData: colData)
@@ -285,14 +348,41 @@ extension TDSMessages {
         var colData: [RowToken.ColumnData] = []
 
         // TODO: Handle textpointer and timestamp for certain types
-        for _ in colMetadata.colData {
+        for col in colMetadata.colData {
+
+            var length: Int
+            switch col.dataType {
+            case .sqlVariant, .nText, .text, .image:
+                guard let len = messageBuffer.readInteger(endianness: .little, as: LongLen.self) else {
+                    throw TDSError.protocolError("Error while reading length")
+                }
+                length = Int(len)
+            case .char, .varchar, .nchar, .nvarchar, .binary, .varbinary:
+                guard let len = messageBuffer.readInteger(endianness: .little, as: UShortCharBinLen.self) else {
+                    throw TDSError.protocolError("Error while reading length")
+                }
+                length = Int(len)
+            case .date:
+                length = 3
+            case .tinyInt, .bit:
+                length = 1
+            case .smallInt:
+                length = 2
+            case .intType, .smallDateTime, .real, .smallMoney:
+                length = 4
+            case .money, .datetime, .float, .bigInt:
+                length = 8
+            case .nullType:
+                length = 0
+            default:
+                guard let len = messageBuffer.readInteger(endianness: .little, as: ByteLen.self) else {
+                    throw TDSError.protocolError("Error while reading length.")
+                }
+                length = Int(len)
+            }
+
             guard
-                // let textPointerLength = messageBuffer.readInteger(as: UInt8.self),
-                // let textPointer = messageBuffer.readBytes(length: Int(textPointerLength)),
-                // let timestamp = messageBuffer.readBytes(length: 8),
-                // TODO: Handle length depending on the datatype. Hardcoded as of now.
-                let dataLength = messageBuffer.readInteger(endianness: .little, as: UShortCharBinLen.self),
-                let data = messageBuffer.readBytes(length: Int(dataLength))
+                let data = messageBuffer.readBytes(length: Int(length))
             else {
                 throw TDSError.protocolError("Error while reading row data")
             }

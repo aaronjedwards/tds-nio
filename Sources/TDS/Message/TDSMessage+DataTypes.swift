@@ -85,5 +85,23 @@ extension TDSMessages {
                 return false
             }
         }
+
+        func isPrecisionType() -> Bool {
+            switch self {
+            case .numericLegacy, .numeric, .decimalLegacy, .decimal:
+                return true
+            default:
+                return false
+            }
+        }
+
+        func isScaleType() -> Bool {
+            switch self {
+            case .numericLegacy, .numeric, .decimalLegacy, .decimal, .time, .datetime2, .datetimeOffset:
+                return true
+            default:
+                return false
+            }
+        }
     }
 }
