@@ -2,7 +2,7 @@ import NIO
 
 extension TDSMessages {
     /// Authentication request returned by the server.
-    public struct SSLKickoff: TDSPacketType {
+    public struct SSLKickoff: TDSMessageType {
         public static var headerType: TDSPacket.HeaderType {
             return .sslKickoff
         }

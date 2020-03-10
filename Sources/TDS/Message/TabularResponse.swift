@@ -3,15 +3,16 @@ import NIO
 import Foundation
 
 extension TDSMessages {
-    public struct TabularResponse: TDSPacketType {
+    public struct TabularResponse: TDSMessageType {
         public static var headerType: TDSPacket.HeaderType {
             return .tabularResult
         }
 
-        var tokens: [Token]
+        var tokens: [TDSToken]
 
         static public func parse(from buffer: inout ByteBuffer) throws -> TDSMessages.TabularResponse {
-            let tokens = try TDSMessages.parseTokenDataStream(messageBuffer: &buffer)
+            let parser = TokenStreamParser()
+            let tokens = try parser.parse(from: &buffer)
             return .init(tokens: tokens)
         }
     }

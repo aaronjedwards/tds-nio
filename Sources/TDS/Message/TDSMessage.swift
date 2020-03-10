@@ -1,7 +1,7 @@
 import NIO
 
 // Use this as a namespace
-enum TDSMessages {}
+public enum TDSMessages {}
 
 /// Client or Server Message
 public struct TDSMessage {
@@ -17,7 +17,7 @@ public struct TDSMessage {
         self.packets = packets
     }
 
-    init<M: TDSPacketType>(packetType: M, allocator: ByteBufferAllocator) throws {
+    init<M: TDSMessageType>(packetType: M, allocator: ByteBufferAllocator) throws {
         var buffer = allocator.buffer(capacity: 4_096)
         try packetType.serialize(into: &buffer)
         self = try .init(packingDataWith: &buffer, headerType: M.headerType, allocator: allocator)
