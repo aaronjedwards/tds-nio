@@ -21,7 +21,7 @@ extension TDSMessages {
         var language: String
         var database: String
         var sspiData: String
-        var atchDBFile: String = "" // TODO: What is this?
+        var atchDBFile: String = "" // the filename for a database that is to be attached during the connection process
         var changePassword: String = ""
         
         public func serialize(into buffer: inout ByteBuffer) throws {

@@ -23,7 +23,9 @@ struct Login7Request: TDSRequest {
 
     func respond(to message: TDSMessage, allocator: ByteBufferAllocator) throws -> TDSMessage? {
         var messageBuffer = try ByteBuffer(unpackingDataFrom: message, allocator: allocator)
-        let response = try TDSMessages.LoginResponse.parse(from: &messageBuffer)
+        _ = try TDSMessages.LoginResponse.parse(from: &messageBuffer)
+        // TODO: Set logged in ready state
+        // TODO: React to envchange request from server
         return nil
     }
 
