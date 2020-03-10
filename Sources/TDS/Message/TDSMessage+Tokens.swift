@@ -314,7 +314,7 @@ extension TDSMessages {
                     throw TDSError.protocolError("Error while reading NUMPARTS.")
                 }
 
-                for i in 0...numParts - 1 {
+                for _ in 0...numParts - 1 {
                     guard
                         let partNameLen = messageBuffer.readInteger(as: UShort.self),
                         let partNameBytes = messageBuffer.readBytes(length: Int(partNameLen * 2)),

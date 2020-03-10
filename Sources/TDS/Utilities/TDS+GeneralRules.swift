@@ -37,7 +37,7 @@ public typealias UShortCharBinLen = UInt16
 /// LONGLEN
 public typealias LongLen = Int32
 
-//ULONGLONGLEN
+/// ULONGLONGLEN
 public typealias ULongLongLen = UInt64
 
 /// PRECISION
@@ -46,12 +46,14 @@ public typealias Precision = UInt8
 /// SCALE
 public typealias Scale = UInt8
 
-// TODO: GEN_NULL
-// TODO: CHARBIN_NULL
-// TODO: FRESERVEDBIT
-// TODO: FRESERVEDBYTE
+/// GEN_NULL
+public typealias GenNull = UInt8
+
+/// CHARBIN_NULL
+public typealias CharBinNull = UInt16
+
+/// FRESERVEDBYTE
+public typealias FReservedByte = Byte
 
 /// UNICODECHAR
 public typealias UnicodeChar = UInt16
-
-
