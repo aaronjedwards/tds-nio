@@ -4,9 +4,7 @@ import Foundation
 
 extension TDSMessages {
     public struct TabularResponse: TDSPacketType {
-        public static var headerType: TDSPacket.HeaderType {
-            return .tabularResult
-        }
+        public static var headerType: TDSPacket.HeaderType = .tabularResult
 
         var tokens: [Token]
 

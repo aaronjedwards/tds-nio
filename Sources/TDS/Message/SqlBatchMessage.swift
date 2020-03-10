@@ -3,20 +3,16 @@ import NIO
 import Foundation
 
 extension TDSMessages {
-    /// `LOGIN7`
-    /// https://docs.microsoft.com/en-us/openspecs/windows_protocols/ms-tds/773a62b6-ee89-4c02-9e5e-344882630aac
-    public struct SqlBatchMessage: TDSPacketType {
-        public static var headerType: TDSPacket.HeaderType {
-            return .sqlBatch
-        }
+    /// `SQLBatch`
+    /// https://docs.microsoft.com/en-us/openspecs/windows_protocols/ms-tds/f2026cd3-9a46-4a3f-9a08-f63140bcbbe3
+    public struct RawSqlBatchMessage: TDSPacketType {
+        public static let headerType: TDSPacket.HeaderType = .sqlBatch
 
         var sqlText: String
 
         public func serialize(into buffer: inout ByteBuffer) throws {
             TDSMessages.serializeAllHeaders(&buffer)
-            for character in sqlText.utf16 {
-                buffer.writeInteger(character, endianness: .little)
-            }
+            buffer.writeUTF16String(sqlText)
             return
         }
     }
