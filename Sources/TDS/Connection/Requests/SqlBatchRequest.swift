@@ -44,7 +44,7 @@ class RawSqlBatchRequest: TDSRequest {
                 }
             }
 
-            try onRow(rowData.joined(separator: ","))
+            try onRow(rowData.joined(separator: ", "))
         }
 
         return nil
