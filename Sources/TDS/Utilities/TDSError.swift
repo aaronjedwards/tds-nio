@@ -4,6 +4,7 @@ public enum TDSError: Error, LocalizedError, CustomStringConvertible {
     case protocolError(String)
     case connectionClosed
     case invalidCredentials
+    case invalidConnectionOptionValueLength(fieldName: String, limit: UInt16)
     
     /// See `LocalizedError`.
     public var errorDescription: String? {
@@ -20,6 +21,8 @@ public enum TDSError: Error, LocalizedError, CustomStringConvertible {
             description = "connection closed"
         case .invalidCredentials:
             description = "Invalid login credentials"
+        case .invalidConnectionOptionValueLength(let fieldName, let limit):
+            description = "The value's length for field '\(fieldName)' exceeds it's limit of '\(limit)'"
         }
         return "TDS error: \(description)"
     }
