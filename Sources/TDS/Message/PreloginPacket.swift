@@ -21,7 +21,7 @@ extension TDSMessages {
             //
             // Follows the form of:
             // - Token (1 byte)
-            // - Offset from start of packet (2 btyes)
+            // - Offset from start of packet (2 bytes)
             // - Length in # of bytes (2 bytes)
             
             // Version (Required)

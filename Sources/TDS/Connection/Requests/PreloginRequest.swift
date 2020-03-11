@@ -34,7 +34,7 @@ private final class PreloginRequest: TDSRequest {
                     let message = try TDSMessage(packetType: TDSMessages.SSLKickoff(), allocator: allocator)
                     return message
                 default:
-                    throw TDSError.protocolError("PRELOGIN Error: Server does not supprt encryption.")
+                    throw TDSError.protocolError("PRELOGIN Error: Server does not support encryption.")
                 }
             }
         default:

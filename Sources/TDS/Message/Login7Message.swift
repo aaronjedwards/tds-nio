@@ -6,11 +6,86 @@ extension TDSMessages {
     /// `LOGIN7`
     /// https://docs.microsoft.com/en-us/openspecs/windows_protocols/ms-tds/773a62b6-ee89-4c02-9e5e-344882630aac
     public struct Login7Message: TDSPacketType {
+        private enum Login7MessageField {
+            case hostname(value: String)
+            case username(value: String)
+            case password(value: String)
+            case appName(value: String)
+            case serverName(value: String)
+            case clientInterfaceName(value: String)
+            case language(value: String)
+            case database(value: String)
+            case sspiData(value: String)
+            case atchDBFile(value: String)
+            case changePassword(value: String)
+            case unused(value: String)
+            var lengthLimit: UInt16 {
+                switch self {
+                case .atchDBFile:
+                    return 260
+                default:
+                    return 128
+                }
+            }
+            var isPassword: Bool {
+                switch self {
+                case .password, .changePassword:
+                    return true
+                default:
+                    return false
+                }
+            }
+            var fieldName: String {
+                switch self {
+                case .hostname:
+                    return "hostname"
+                case .username:
+                    return "username"
+                case .password:
+                    return "password"
+                case .appName:
+                    return "appName"
+                case .serverName:
+                    return "serverName"
+                case .clientInterfaceName:
+                    return "clientInterfaceName"
+                case .language:
+                    return "language"
+                case .database:
+                    return "database"
+                case .sspiData:
+                    return "sspiData"
+                case .atchDBFile:
+                    return "atchDBFile"
+                case .changePassword:
+                    return "changePassword"
+                case .unused:
+                    return "unused"
+                }
+            }
+            func validatedValue() throws -> String.UTF16View {
+                let validated: String.UTF16View
+                switch self {
+                case let .hostname(value), let .username(value),
+                     let .password(value), let .appName(value),
+                     let .serverName(value), let .clientInterfaceName(value),
+                     let .language(value), let .database(value), let .sspiData(value),
+                     let .atchDBFile(value), let .changePassword(value), let .unused(value):
+                    validated = value.utf16
+                }
+                guard validated.count < self.lengthLimit else {
+                    throw TDSError.invalidConnectionOptionValueLength(fieldName: self.fieldName,
+                                                                      limit: self.lengthLimit)
+                }
+                return validated
+            }
+        }
+        
         public static var headerType: TDSPacket.HeaderType {
             return .tds7Login
         }
-
-         static var clientPID: UInt32 = UInt32(ProcessInfo.processInfo.processIdentifier)
+        
+        static var clientPID: UInt32 = UInt32(ProcessInfo.processInfo.processIdentifier)
         
         var hostname: String
         var username: String
@@ -26,26 +101,26 @@ extension TDSMessages {
         
         public func serialize(into buffer: inout ByteBuffer) throws {
             // Each basic field needs to serialize the length & offset
-            let basicFields = [
-                (hostname, false),
-                (username, false),
-                (password, true),
-                (appName, false),
-                (serverName, false),
-                ("", false), // unused field
-                (clientInterfaceName, false),
-                (language, false),
-                (database, false)
+            let basicFields: [Login7MessageField] = [
+                .hostname(value: hostname),
+                .username(value: username),
+                .password(value: password),
+                .appName(value: appName),
+                .serverName(value: serverName),
+                .unused(value: ""), // unused field
+                .clientInterfaceName(value: clientInterfaceName),
+                .language(value: language),
+                .database(value: database)
             ]
             
             // ClientID serializes inbetween `basicFields` and `extendedFields`
             let clientId: [UInt8] = [0x00, 0x50, 0x8b, 0xe3, 0xb7, 0x8f]
             
             // Each extended field needs to serialize the length & offset
-            let extendedFields = [
-                (sspiData, false),
-                (atchDBFile, false),
-                (changePassword, true)
+            let extendedFields: [Login7MessageField] = [
+                .sspiData(value: sspiData),
+                .atchDBFile(value: atchDBFile),
+                .changePassword(value: changePassword)
             ]
             
             let sspiLong: UInt32 = 0
@@ -77,17 +152,15 @@ extension TDSMessages {
             
             buffer.writeInteger(0 as UInt32) // SSPI
             
-            func writeField(_ string: String, isPassword: Bool) {
-                let utf16 = string.utf16
+            func write(field: Login7MessageField) throws {
+                let utf16 = try field.validatedValue()
                 
-                // TODO: Will someone realistically add 64KB of data in a string here?
-                // Is that a risk?
                 buffer.setInteger(UInt16(buffer.writerIndex - login7HeaderPosition), at: offsetLengthsPosition, endianness: .little)
                 offsetLengthsPosition += 2
                 buffer.setInteger(UInt16(utf16.count), at: offsetLengthsPosition, endianness: .little)
                 offsetLengthsPosition += 2
                 
-                if isPassword {
+                if field.isPassword {
                     for character in utf16 {
                         let newHighBits = (character << 4) & 0b1111000011110000
                         let newLowBits = (character >> 4) & 0b0000111100001111
@@ -100,14 +173,14 @@ extension TDSMessages {
                 }
             }
             
-            for (field, isPassword) in basicFields {
-                writeField(field, isPassword: isPassword)
+            for field in basicFields {
+                try write(field: field)
             }
             
             offsetLengthsPosition += clientId.count
             
-            for (field, isPassword) in extendedFields {
-                writeField(field, isPassword: isPassword)
+            for field in extendedFields {
+                try write(field: field)
             }
             
             buffer.setInteger(UInt32(buffer.writerIndex - login7HeaderPosition), at: login7HeaderPosition, endianness: .little)
