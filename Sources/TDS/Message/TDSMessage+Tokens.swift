@@ -125,20 +125,33 @@ extension TDSMessages {
     struct BVarbyteEnvchangeToken: Token {
         var type: TokenType = .envchange
         var envchangeType: EnvchangeType
-        var newValue: String
-        var oldValue: String
+        var newValue: [UInt8]
+        var oldValue: [UInt8]
+    }
+
+    struct RoutingEnvchangeToken: Token {
+
+        struct RoutingData {
+            var port: Int
+            var alternateServer: String
+        }
+
+        var type: TokenType = .envchange
+        var envchangeType: EnvchangeType
+        var newValue: RoutingData
+        var oldValue: [UInt8]
     }
 
     enum EnvchangeType: UInt8 {
         case database = 1
         case language = 2
-        case characterSet = 3
+        case characterSet = 3 // TDS 7.0 or ealier
         case packetSize = 4
-        case unicodeSortingLocalId = 5
+        case unicodeSortingLocalId = 5 // TDS 7.0 or ealier
         case unicodeSortingFlags = 6
         case sqlCollation = 7
         case beingTransaction = 8
-        case commitTransaction = 9
+        case commitTransaction = 9 // TDS 7.0 or ealier
         case rollbackTransaction = 10
         case enlistDTCTransaction = 11
         case defectTransaction = 12
@@ -409,7 +422,7 @@ extension TDSMessages {
 
     public static func parseEnvChangeTokenStream(messageBuffer: inout ByteBuffer) throws -> Token? {
         guard
-            let length = messageBuffer.readInteger(endianness: .little, as: UInt16.self),
+            let _ = messageBuffer.readInteger(endianness: .little, as: UInt16.self),
             let type = messageBuffer.readInteger(as: UInt8.self),
             let changeType = TDSMessages.EnvchangeType(rawValue: type)
         else {
@@ -417,24 +430,54 @@ extension TDSMessages {
         }
 
         switch changeType {
-        case .database, .language, .characterSet, .packetSize, .unicodeSortingLocalId, .unicodeSortingFlags:
+        case .database, .language, .characterSet, .packetSize, .realTimeLogShipping, .unicodeSortingLocalId, .unicodeSortingFlags, .userInstanceStarted:
             guard
-                let newValueLength = messageBuffer.readInteger(as: UInt8.self),
-                let newValueBytes = messageBuffer.readBytes(length: Int(newValueLength * 2)),
-                let newValue = String(bytes: newValueBytes, encoding: .utf16LittleEndian),
-                let oldValueLength = messageBuffer.readInteger(as: UInt8.self),
-                let oldValueBytes = messageBuffer.readBytes(length: Int(oldValueLength * 2)),
-                let oldValue = String(bytes: oldValueBytes, encoding: .utf16LittleEndian)
+                let newValue = messageBuffer.readBVarchar(),
+                let oldValue = messageBuffer.readBVarchar()
             else {
                 throw TDSError.protocolError("Invalid token stream.")
             }
 
             let token = BVarcharEnvchangeToken(envchangeType: changeType, newValue: newValue, oldValue: oldValue)
             return token
+        case .sqlCollation, .beingTransaction, .commitTransaction, .defectTransaction, .rollbackTransaction, .enlistDTCTransaction, .resetConnectionAck, .transactionEnded:
+            guard
+               let newValue = messageBuffer.readBVarbyte(),
+               let oldValue = messageBuffer.readBVarbyte()
+           else {
+               throw TDSError.protocolError("Invalid token stream.")
+           }
 
-        default:
-            messageBuffer.moveReaderIndex(forwardBy: Int(length - 1))
-            return nil
+           let token = BVarbyteEnvchangeToken(envchangeType: changeType, newValue: newValue, oldValue: oldValue)
+           return token
+        case .promoteTransaction:
+            guard
+                let newValue = messageBuffer.readLVarbyte(),
+                let _ = messageBuffer.readBytes(length: 1)
+            else {
+                throw TDSError.protocolError("Invalid token stream.")
+            }
+
+            let token = BVarbyteEnvchangeToken(envchangeType: changeType, newValue: newValue, oldValue: [])
+            return token
+        case .transactionManagerAddress:
+                throw TDSError.protocolError("Received unexpected ENVCHANGE Token Type 16: Transaction Manager Address is not used by SQL Server.")
+        case .routingInfo:
+            guard
+                let _ = messageBuffer.readInteger(as: UInt16.self),
+                let protocolByte = messageBuffer.readInteger(as: UInt8.self),
+                protocolByte == 0,
+                let portNumber = messageBuffer.readInteger(as: UInt16.self),
+                let alternateServer = messageBuffer.readUSVarchar(),
+                let oldValue = messageBuffer.readBytes(length: 2)
+            else {
+                throw TDSError.protocolError("Invalid token stream.")
+            }
+
+            let newValue = RoutingEnvchangeToken.RoutingData(port: Int(portNumber), alternateServer: alternateServer)
+
+            let token = RoutingEnvchangeToken(envchangeType: changeType, newValue: newValue, oldValue: oldValue)
+            return token
         }
     }
 

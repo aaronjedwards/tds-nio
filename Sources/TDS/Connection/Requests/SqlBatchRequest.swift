@@ -26,7 +26,7 @@ class RawSqlBatchRequest: TDSRequest {
 
     func respond(to message: TDSMessage, allocator: ByteBufferAllocator) throws -> TDSMessage? {
         var messageBuffer = try ByteBuffer(unpackingDataFrom: message, allocator: allocator)
-        let response = try TDSMessages.TabularResponse.parse(from: &messageBuffer)
+        let response = try TDSMessages.TabularResultResponse.parse(from: &messageBuffer)
 
         let rowTokens = response.tokens.filter { $0.type == .row }
 
