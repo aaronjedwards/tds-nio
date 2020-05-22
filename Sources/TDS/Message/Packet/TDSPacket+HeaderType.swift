@@ -50,7 +50,7 @@ extension TDSPacket {
         
         /// See `CustomStringConvertible`.
         public var description: String {
-            return String(Character(Unicode.Scalar(value)))
+            return String(format: "%02X", value)
         }
         
         /// See `ExpressibleByIntegerLiteral`.

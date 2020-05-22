@@ -8,12 +8,12 @@ extension TDSMessages {
         buffer.moveWriterIndex(forwardBy: 4)
 
         // TransactionDescriptor
-        buffer.writeInteger(18 as UInt32, endianness: .little) // HeaderLength
-        buffer.writeInteger(0x02 as UInt16, endianness: .little) // HeaderType
-        buffer.writeInteger(0 as UInt64) // TransactionDescriptor
-        buffer.writeInteger(1 as UInt32) // OutstandingRequestCount
+        buffer.writeInteger(18 as DWord, endianness: .little) // HeaderLength
+        buffer.writeInteger(0x02 as UShort, endianness: .little) // HeaderType
+        buffer.writeInteger(0 as ULongLong, endianness: .little) // TransactionDescriptor
+        buffer.writeInteger(1 as DWord) // OutstandingRequestCount
 
-        buffer.setInteger(UInt32(buffer.writerIndex - startWriterIndex), at: startWriterIndex, endianness: .little)
+        buffer.setInteger(DWord(buffer.writerIndex - startWriterIndex), at: startWriterIndex, endianness: .little)
         return
     }
 }

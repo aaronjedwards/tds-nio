@@ -1,13 +1,16 @@
 import NIO
 import NIOSSL
 import NIOTLS
+import Logging
 
 public final class PipelineOrganizationHandler: ChannelDuplexHandler, RemovableChannelHandler {
     public typealias InboundIn = TDSMessage
     public typealias InboundOut = ByteBuffer
     public typealias OutboundIn = ByteBuffer
     public typealias OutboundOut = TDSMessage
-    
+
+    let logger: Logger
+
     /// `TDSMessage` decoders/encoders
     var firstDecoder: ByteToMessageHandler<TDSMessageDecoder>
     var firstEncoder: MessageToByteHandler<TDSMessageEncoder>
@@ -24,10 +27,12 @@ public final class PipelineOrganizationHandler: ChannelDuplexHandler, RemovableC
     var state = State.start
     
     public init(
+        logger: Logger,
         _ firstDecoder: ByteToMessageHandler<TDSMessageDecoder>,
         _ firstEncoder: MessageToByteHandler<TDSMessageEncoder>,
         _ sslClientHandler: NIOSSLClientHandler
     ) {
+        self.logger = logger
         self.firstDecoder = firstDecoder
         self.firstEncoder = firstEncoder
         self.sslClientHandler = sslClientHandler
@@ -42,6 +47,7 @@ public final class PipelineOrganizationHandler: ChannelDuplexHandler, RemovableC
             
             switch message.headerType {
             case .prelogin:
+                logger.debug("Unpacking data from Prelogin TLS message")
                 let message = try ByteBuffer(unpackingDataFrom: message, allocator: context.channel.allocator)
                 sslHandshakeState.addReceivedData(message)
                 self.state = .sslHandshake(sslHandshakeState)
@@ -76,6 +82,7 @@ public final class PipelineOrganizationHandler: ChannelDuplexHandler, RemovableC
             context.writeAndFlush(self.wrapOutboundOut(message), promise: sslHandshakeState.outputPromise)
             sslHandshakeState.outputBuffer.clear()
             state = .sslHandshake(sslHandshakeState)
+            logger.debug("Flushed Prelogin TLS message")
         default:
             context.flush()
         }
@@ -111,6 +118,12 @@ public final class PipelineOrganizationHandler: ChannelDuplexHandler, RemovableC
         } catch {
             self.errorCaught(context: context, error: error)
         }
+    }
+
+    public func errorCaught(context: ChannelHandlerContext, error: Error) {
+        print(error)
+        print(error.localizedDescription)
+        context.fireErrorCaught(error)
     }
 }
 

@@ -23,7 +23,7 @@ extension TDSMessages {
             // Parse *PRELOGIN_OPTION
             while readOptions {
                 // Check if we have parsed at least the required VERSION token
-                guard let mappedToken = _buffer.readInteger(as: Byte.self).map(PreloginToken.init), let token = mappedToken else {
+                guard let mappedToken = _buffer.readByte().map(PreloginToken.init), let token = mappedToken else {
                     throw TDSError.protocolError("Invalid Prelogin Response: Invalid PL_OPTION_TOKEN value.")
                 }
                 
@@ -38,8 +38,8 @@ extension TDSMessages {
                 
                 // Read PRELOGIN_OPTION
                 guard
-                    let offset = _buffer.readInteger(as: UShort.self),
-                    let length = _buffer.readInteger(as: UShort.self)
+                    let offset = _buffer.readUShort(endianess: .big),
+                    let length = _buffer.readUShort(endianess: .big)
                     else {
                         throw TDSError.protocolError("Invalid Prelogin Response: Invalid *PRELOGIN_OPTION segment.")
                 }
@@ -48,7 +48,7 @@ extension TDSMessages {
                 preloginOptions.append(option)
             }
             
-            // Parse PL_OPTION_DATA
+            // Parse big
             // Reset _buffer
             _buffer = buffer
             

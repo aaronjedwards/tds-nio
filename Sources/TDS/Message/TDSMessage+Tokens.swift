@@ -59,13 +59,13 @@ extension TDSMessages {
 
     struct LoginAckToken: Token {
         var type: TokenType = .loginAck
-        var interface: UInt8
+        var interface: Byte
         var tdsVersion: DWord
         var progName: String
-        var majorVer: UInt8
-        var minorVer: UInt8
-        var buildNumHi: UInt8
-        var buildNumLow: UInt8
+        var majorVer: Byte
+        var minorVer: Byte
+        var buildNumHi: Byte
+        var buildNumLow: Byte
     }
 
     struct ColMetadataToken: Token {
@@ -78,7 +78,7 @@ extension TDSMessages {
             var flags: UShort
             var dataType: DataType
             var length: Int
-            var collation: [UInt8]
+            var collation: [Byte]
             var tableName: String?
             var colName: String
             var precision: Int?
@@ -91,9 +91,9 @@ extension TDSMessages {
         var colData: [ColumnData]
 
         struct ColumnData {
-            var textPointer: [UInt8]
-            var timestamp: [UInt8]
-            var data: [UInt8]
+            var textPointer: [Byte]
+            var timestamp: [Byte]
+            var data: [Byte]
         }
     }
 
@@ -107,8 +107,8 @@ extension TDSMessages {
     struct ErrorInfoToken: Token {
         var type: TokenType = .error
         var number: Int
-        var state: UInt8
-        var classValue: UInt8
+        var state: Byte
+        var classValue: Byte
         var messageText: String
         var serverName: String
         var procedureName: String
@@ -125,8 +125,8 @@ extension TDSMessages {
     struct BVarbyteEnvchangeToken: Token {
         var type: TokenType = .envchange
         var envchangeType: EnvchangeType
-        var newValue: [UInt8]
-        var oldValue: [UInt8]
+        var newValue: [Byte]
+        var oldValue: [Byte]
     }
 
     struct RoutingEnvchangeToken: Token {
@@ -139,10 +139,10 @@ extension TDSMessages {
         var type: TokenType = .envchange
         var envchangeType: EnvchangeType
         var newValue: RoutingData
-        var oldValue: [UInt8]
+        var oldValue: [Byte]
     }
 
-    enum EnvchangeType: UInt8 {
+    enum EnvchangeType: Byte {
         case database = 1
         case language = 2
         case characterSet = 3 // TDS 7.0 or ealier
@@ -176,7 +176,7 @@ extension TDSMessages {
         var tokens: [Token] = []
         while messageBuffer.readableBytes > 0 {
             guard
-                let token = messageBuffer.readInteger(as: UInt8.self),
+                let token = messageBuffer.readByte(),
                 let tokenType = TokenType(rawValue: token)
             else {
                 throw TDSError.protocolError("Invalid token type in Login7 response")
@@ -190,9 +190,8 @@ extension TDSMessages {
                 let token = try TDSMessages.parseLoginAckTokenStream(messageBuffer: &messageBuffer)
                 tokens.append(token)
             case .envchange:
-                if let token = try TDSMessages.parseEnvChangeTokenStream(messageBuffer: &messageBuffer) {
-                    tokens.append(token)
-                }
+                let token = try TDSMessages.parseEnvChangeTokenStream(messageBuffer: &messageBuffer)
+                tokens.append(token)
             case .done, .doneInProc, .doneProc :
                 let token = try TDSMessages.parseDoneTokenStream(messageBuffer: &messageBuffer)
                 tokens.append(token)
@@ -217,16 +216,15 @@ extension TDSMessages {
 
     public static func parseLoginAckTokenStream(messageBuffer: inout ByteBuffer) throws -> LoginAckToken {
         guard
-            let _ = messageBuffer.readInteger(endianness: .little, as: UInt16.self),
-            let interface = messageBuffer.readInteger(as: UInt8.self),
-            let tdsVersion = messageBuffer.readInteger(as: DWord.self),
-            let progNameLength = messageBuffer.readInteger(as: UInt8.self),
-            let progNameBytes = messageBuffer.readBytes(length: Int(progNameLength * 2)),
-            let progName = String(bytes: progNameBytes, encoding: .utf16LittleEndian),
-            let majorVer = messageBuffer.readInteger(as: UInt8.self),
-            let minorVer = messageBuffer.readInteger(as: UInt8.self),
-            let buildNumHi = messageBuffer.readInteger(as: UInt8.self),
-            let buildNumLow = messageBuffer.readInteger(as: UInt8.self)
+            let _ = messageBuffer.readUShort(),
+            let interface = messageBuffer.readByte(),
+            let tdsVersion = messageBuffer.readDWord(),
+            let progNameLength = messageBuffer.readByte(),
+            let progName = messageBuffer.readUTF16String(length: Int(progNameLength)),
+            let majorVer = messageBuffer.readByte(),
+            let minorVer = messageBuffer.readByte(),
+            let buildNumHi = messageBuffer.readByte(),
+            let buildNumLow = messageBuffer.readByte()
         else {
             throw TDSError.protocolError("Invalid loginack token")
         }
@@ -238,17 +236,17 @@ extension TDSMessages {
 
     public static func parseColMetadataTokenStream(messageBuffer: inout ByteBuffer) throws -> ColMetadataToken {
         guard
-            let count = messageBuffer.readInteger(endianness: .little, as: UShort.self)
+            let count = messageBuffer.readUShort()
         else {
-            throw TDSError.protocolError("Invalid COLMETADATA token")
+            throw TDSError.protocolError("Invalid COLMETADATA token: Error while reading COUNT of columns")
         }
 
         var colData: [ColMetadataToken.ColumnData] = []
         for _ in 0...count - 1 {
             guard
-                let userType = messageBuffer.readInteger(as: ULong.self),
-                let flags = messageBuffer.readInteger(as: UShort.self),
-                let dataTypeVal = messageBuffer.readInteger(as: UInt8.self),
+                let userType = messageBuffer.readULong(),
+                let flags = messageBuffer.readUShort(),
+                let dataTypeVal = messageBuffer.readByte(),
                 let dataType = DataType.init(rawValue: dataTypeVal)
             else {
                 throw TDSError.protocolError("Invalid COLMETADATA token")
@@ -256,12 +254,12 @@ extension TDSMessages {
             var length: Int
             switch dataType {
             case .sqlVariant, .nText, .text, .image:
-                guard let len = messageBuffer.readInteger(endianness: .little, as: LongLen.self) else {
+                guard let len = messageBuffer.readLongLen() else {
                     throw TDSError.protocolError("Error while reading length")
                 }
                 length = Int(len)
             case .char, .varchar, .nchar, .nvarchar, .binary, .varbinary:
-                guard let len = messageBuffer.readInteger(endianness: .little, as: UShortCharBinLen.self) else {
+                guard let len = messageBuffer.readUShortCharBinLen() else {
                     throw TDSError.protocolError("Error while reading length")
                 }
                 length = Int(len)
@@ -278,7 +276,7 @@ extension TDSMessages {
             case .nullType:
                 length = 0
             default:
-                guard let len = messageBuffer.readInteger(endianness: .little, as: ByteLen.self) else {
+                guard let len = messageBuffer.readByteLen() else {
                     throw TDSError.protocolError("Error while reading length.")
                 }
                 length = Int(len)
@@ -295,7 +293,7 @@ extension TDSMessages {
             var precision: Int?
             if (dataType.isPrecisionType()) {
                 guard
-                    let p = messageBuffer.readInteger(as: UInt8.self),
+                    let p = messageBuffer.readByte(),
                     p <= 38
                 else {
                     throw TDSError.protocolError("Error while reading PRECISION.")
@@ -305,7 +303,7 @@ extension TDSMessages {
 
             var scale: Int?
             if (dataType.isScaleType()) {
-                guard let s = messageBuffer.readInteger(as: UInt8.self) else {
+                guard let s = messageBuffer.readByte() else {
                     throw TDSError.protocolError("Error while reading SCALE.")
                 }
 
@@ -323,30 +321,23 @@ extension TDSMessages {
             switch dataType {
             case .text, .nText, .image:
                 var parts: [String] = []
-                guard let numParts = messageBuffer.readInteger(as: UInt8.self) else {
+                guard let numParts = messageBuffer.readByte() else {
                     throw TDSError.protocolError("Error while reading NUMPARTS.")
                 }
 
                 for _ in 0...numParts - 1 {
-                    guard
-                        let partNameLen = messageBuffer.readInteger(as: UShort.self),
-                        let partNameBytes = messageBuffer.readBytes(length: Int(partNameLen * 2)),
-                        let partName = String(bytes: partNameBytes, encoding: .utf16LittleEndian)
-                    else {
+                    guard let partName = messageBuffer.readUSVarchar() else {
                         throw TDSError.protocolError("Error while reading NUMPARTS.")
                     }
                     parts.append(partName)
                 }
+
                 tableName = parts.joined(separator: ".")
             default:
                 break
             }
 
-            guard
-                let colNameLength = messageBuffer.readInteger(as: UInt8.self),
-                let colNameBytes = messageBuffer.readBytes(length: Int(colNameLength * 2)),
-                let colName = String(bytes: colNameBytes, encoding: .utf16LittleEndian)
-            else {
+            guard let colName = messageBuffer.readBVarchar() else {
                 throw TDSError.protocolError("Error while reading column name")
             }
 
@@ -366,12 +357,12 @@ extension TDSMessages {
             var length: Int
             switch col.dataType {
             case .sqlVariant, .nText, .text, .image:
-                guard let len = messageBuffer.readInteger(endianness: .little, as: LongLen.self) else {
+                guard let len = messageBuffer.readLongLen() else {
                     throw TDSError.protocolError("Error while reading length")
                 }
                 length = Int(len)
             case .char, .varchar, .nchar, .nvarchar, .binary, .varbinary:
-                guard let len = messageBuffer.readInteger(endianness: .little, as: UShortCharBinLen.self) else {
+                guard let len = messageBuffer.readUShortCharBinLen() else {
                     throw TDSError.protocolError("Error while reading length")
                 }
                 length = Int(len)
@@ -388,7 +379,7 @@ extension TDSMessages {
             case .nullType:
                 length = 0
             default:
-                guard let len = messageBuffer.readInteger(endianness: .little, as: ByteLen.self) else {
+                guard let len = messageBuffer.readByteLen() else {
                     throw TDSError.protocolError("Error while reading length.")
                 }
                 length = Int(len)
@@ -409,9 +400,9 @@ extension TDSMessages {
 
     public static func parseDoneTokenStream(messageBuffer: inout ByteBuffer) throws -> DoneToken {
         guard
-            let status = messageBuffer.readInteger(as: UShort.self),
-            let curCmd = messageBuffer.readInteger(as: UShort.self),
-            let doneRowCount = messageBuffer.readInteger(as: ULongLong.self)
+            let status = messageBuffer.readUShort(),
+            let curCmd = messageBuffer.readUShort(),
+            let doneRowCount = messageBuffer.readULongLong()
         else {
             throw TDSError.protocolError("Invalid done token")
         }
@@ -420,10 +411,10 @@ extension TDSMessages {
         return token
     }
 
-    public static func parseEnvChangeTokenStream(messageBuffer: inout ByteBuffer) throws -> Token? {
+    public static func parseEnvChangeTokenStream(messageBuffer: inout ByteBuffer) throws -> Token {
         guard
-            let _ = messageBuffer.readInteger(endianness: .little, as: UInt16.self),
-            let type = messageBuffer.readInteger(as: UInt8.self),
+            let _ = messageBuffer.readUShort(),
+            let type = messageBuffer.readByte(),
             let changeType = TDSMessages.EnvchangeType(rawValue: type)
         else {
             throw TDSError.protocolError("Invalid envchange token")
@@ -464,10 +455,10 @@ extension TDSMessages {
                 throw TDSError.protocolError("Received unexpected ENVCHANGE Token Type 16: Transaction Manager Address is not used by SQL Server.")
         case .routingInfo:
             guard
-                let _ = messageBuffer.readInteger(as: UInt16.self),
-                let protocolByte = messageBuffer.readInteger(as: UInt8.self),
+                let _ = messageBuffer.readUShort(),
+                let protocolByte = messageBuffer.readByte(),
                 protocolByte == 0,
-                let portNumber = messageBuffer.readInteger(as: UInt16.self),
+                let portNumber = messageBuffer.readUShort(),
                 let alternateServer = messageBuffer.readUSVarchar(),
                 let oldValue = messageBuffer.readBytes(length: 2)
             else {
@@ -483,20 +474,14 @@ extension TDSMessages {
 
     public static func parseErrorInfoTokenStream(type: TokenType, messageBuffer: inout ByteBuffer) throws -> ErrorInfoToken {
         guard
-            let _ = messageBuffer.readInteger(endianness: .little, as: UInt16.self),
-            let number = messageBuffer.readInteger(as: Long.self),
-            let state = messageBuffer.readInteger(as: UInt8.self),
-            let classValue = messageBuffer.readInteger(as: UInt8.self),
-            let msgTextLength = messageBuffer.readInteger(endianness: .little, as: UShortLen.self),
-            let msgTextBytes = messageBuffer.readBytes(length: Int(msgTextLength * 2)),
-            let msgText = String(bytes: msgTextBytes, encoding: .utf16LittleEndian),
-            let serverNameLength = messageBuffer.readInteger(as: UInt8.self),
-            let serverNameBytes = messageBuffer.readBytes(length: Int(serverNameLength * 2)),
-            let serverName = String(bytes: serverNameBytes, encoding: .utf16LittleEndian),
-            let procNameLength = messageBuffer.readInteger(as: UInt8.self),
-            let procNameBytes = messageBuffer.readBytes(length: Int(procNameLength * 2)),
-            let procName = String(bytes: procNameBytes, encoding: .utf16LittleEndian),
-            let lineNumber = messageBuffer.readInteger(as: Long.self)
+            let _ = messageBuffer.readUShort(),
+            let number = messageBuffer.readLong(),
+            let state = messageBuffer.readByte(),
+            let classValue = messageBuffer.readByte(),
+            let msgText = messageBuffer.readUSVarchar(),
+            let serverName = messageBuffer.readBVarchar(),
+            let procName = messageBuffer.readBVarchar(),
+            let lineNumber = messageBuffer.readLong()
         else {
             throw TDSError.protocolError("Invalid error/info token")
         }

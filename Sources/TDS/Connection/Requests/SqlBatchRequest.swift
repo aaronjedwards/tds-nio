@@ -43,7 +43,7 @@ class RawSqlBatchRequest: TDSRequest {
                     rowData.append(data)
                 }
             }
-
+            
             try onRow(rowData.joined(separator: ", "))
         }
 

@@ -9,7 +9,7 @@ extension ByteBuffer {
 
     mutating func readBVarchar() -> String? {
         guard
-            let bytes = self.readInteger(as: UInt8.self),
+            let bytes = self.readByte(),
             let utf16 = self.readUTF16String(length: Int(bytes))
         else {
             return nil
@@ -19,7 +19,7 @@ extension ByteBuffer {
 
     mutating func readUSVarchar() -> String? {
         guard
-            let bytes = self.readInteger(as: UInt16.self),
+            let bytes = self.readUShort(),
             let utf16 = self.readUTF16String(length: Int(bytes))
         else {
             return nil
@@ -27,9 +27,9 @@ extension ByteBuffer {
         return utf16
     }
 
-    mutating func readBVarbyte() -> [UInt8]? {
+    mutating func readBVarbyte() -> [Byte]? {
         guard
-            let numBytes = self.readInteger(as: UInt8.self),
+            let numBytes = self.readByte(),
             let bytes = self.readBytes(length: Int(numBytes))
         else {
             return nil
@@ -37,9 +37,9 @@ extension ByteBuffer {
         return bytes
     }
 
-    mutating func readUSVarbyte() -> [UInt8]? {
+    mutating func readUSVarbyte() -> [Byte]? {
         guard
-            let numBytes = self.readInteger(as: UInt16.self),
+            let numBytes = self.readUShort(),
             let bytes = self.readBytes(length: Int(numBytes))
         else {
             return nil
@@ -47,9 +47,9 @@ extension ByteBuffer {
         return bytes
     }
 
-    mutating func readLVarbyte() -> [UInt8]? {
+    mutating func readLVarbyte() -> [Byte]? {
         guard
-            let numBytes = self.readInteger(as: UInt32.self),
+            let numBytes = self.readULong(),
             let bytes = self.readBytes(length: Int(numBytes))
         else {
             return nil
@@ -65,5 +65,75 @@ extension ByteBuffer {
             return nil
         }
         return utf16
+    }
+
+    mutating func readByte() -> Byte? {
+        guard let val = self.readInteger(as: Byte.self) else {
+            return nil
+        }
+        return val
+    }
+
+    mutating func readUShort(endianess: Endianness = .little) -> UShort? {
+        guard let val = self.readInteger(endianness: endianess, as: UShort.self) else {
+            return nil
+        }
+        return val
+    }
+
+    mutating func readULong(endianess: Endianness = .little) -> ULong? {
+        guard let val = self.readInteger(endianness: endianess, as: ULong.self) else {
+            return nil
+        }
+        return val
+    }
+
+    mutating func readLong(endianess: Endianness = .little) -> Long? {
+        guard let val = self.readInteger(endianness: endianess, as: Long.self) else {
+            return nil
+        }
+        return val
+    }
+
+    mutating func readDWord(endianess: Endianness = .big) -> DWord? {
+        guard let val = self.readInteger(endianness: endianess, as: DWord.self) else {
+            return nil
+        }
+        return val
+    }
+
+    mutating func readULongLong(endianess: Endianness = .little) -> ULongLong? {
+        guard let val = self.readInteger(endianness: endianess, as: ULongLong.self) else {
+            return nil
+        }
+        return val
+    }
+
+    mutating func readByteLen(endianness: Endianness = .little) -> ByteLen? {
+        guard let val = self.readInteger(endianness: .little, as: ByteLen.self) else {
+            return nil
+        }
+        return val
+    }
+
+    mutating func readUShortLen(endianness: Endianness = .little) -> UShortLen? {
+        guard let val = self.readInteger(endianness: .little, as: UShortLen.self) else {
+            return nil
+        }
+        return val
+    }
+
+    mutating func readUShortCharBinLen(endianness: Endianness = .little) -> UShortCharBinLen? {
+        guard let val = self.readInteger(endianness: .little, as: UShortCharBinLen.self) else {
+            return nil
+        }
+        return val
+    }
+
+    mutating func readLongLen(endianness: Endianness = .little) -> LongLen? {
+        guard let val = self.readInteger(endianness: .little, as: LongLen.self) else {
+            return nil
+        }
+        return val
     }
 }

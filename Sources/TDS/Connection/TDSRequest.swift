@@ -127,7 +127,7 @@ final class TDSRequestHandler: ChannelDuplexHandler {
         let sslHandler = try! NIOSSLClientHandler(context: sslContext, serverHostname: hostname)
         self.sslClientHandler = sslHandler
         
-        let coordinator = PipelineOrganizationHandler(firstDecoder, firstEncoder, sslHandler)
+        let coordinator = PipelineOrganizationHandler(logger: logger, firstDecoder, firstEncoder, sslHandler)
         self.pipelineCoordinator = coordinator
         
         context.channel.pipeline.addHandler(coordinator, position: .before(self)).whenComplete { _ in
@@ -196,12 +196,12 @@ final class TDSRequestHandler: ChannelDuplexHandler {
                 context.channel.pipeline.removeHandler(self.pipelineCoordinator),
                 context.channel.pipeline.removeHandler(self.firstDecoder),
                 context.channel.pipeline.removeHandler(self.firstEncoder),
-                context.channel.pipeline.addHandler(ByteToMessageHandler(TDSMessageDecoder()), position: .after(self.sslClientHandler)),
-                context.channel.pipeline.addHandler(MessageToByteHandler(TDSMessageEncoder()), position: .after(self.sslClientHandler))
+                context.channel.pipeline.addHandler(ByteToMessageHandler(TDSMessageDecoder(logger: logger)), position: .after(self.sslClientHandler)),
+                context.channel.pipeline.addHandler(MessageToByteHandler(TDSMessageEncoder(logger: logger)), position: .after(self.sslClientHandler))
             ], on: context.eventLoop)
             
             future.whenSuccess {_ in
-                print("Done w/ SSL Handshake and pipeline organization")
+                self.logger.debug("Done w/ SSL Handshake and pipeline organization")
                 if let request = self.queue.first {
                     self.cleanupRequest(request)
                 }

@@ -19,7 +19,7 @@ private final class PreloginRequest: TDSRequest {
     init() {}
     
     func log(to logger: Logger) {
-        logger.debug("Sending Prelogin Packet)")
+        logger.debug("Sending Prelogin Packet")
     }
     
     func respond(to message: TDSMessage, allocator: ByteBufferAllocator) throws -> TDSMessage? {
