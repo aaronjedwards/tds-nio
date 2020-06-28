@@ -7,6 +7,10 @@ extension ByteBuffer {
         }
     }
 
+    mutating func writeDouble(_ double: Double) {
+        self.writeInteger(double.bitPattern)
+    }
+
     mutating func readBVarchar() -> String? {
         guard
             let bytes = self.readByte(),
@@ -135,5 +139,19 @@ extension ByteBuffer {
             return nil
         }
         return val
+    }
+
+    mutating func readFloat() -> Float? {
+        return self.readInteger(as: UInt32.self).map { Float(bitPattern: $0) }
+    }
+
+    mutating func readDouble() -> Double? {
+        return self.readInteger(as: UInt64.self).map { Double(bitPattern: $0) }
+    }
+}
+
+internal extension Sequence where Element == UInt8 {
+    func hexdigest() -> String {
+        return reduce("") { $0 + String(format: "%02x", $1) }
     }
 }

@@ -13,7 +13,7 @@ extension TDSConnection {
         let bootstrap = ClientBootstrap(group: eventLoop)
             .channelOption(ChannelOptions.socket(SocketOptionLevel(SOL_SOCKET), SO_REUSEADDR), value: 1)
         
-        var logger = Logger(label: "swift-tds")
+        let logger = Logger(label: "swift-tds")
 //        logger.logLevel = Logger.Level.debug
         
         // TDSMessage decoders

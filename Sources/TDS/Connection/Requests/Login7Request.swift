@@ -4,7 +4,7 @@ import Foundation
 
 extension TDSConnection {
     public func login(hostname: String, username: String, password: String, serverName: String, database: String = "master") throws -> EventLoopFuture<Void> {
-        let auth = TDSMessages.Login7Message(
+        let auth = TDSMessage.Login7Message(
             hostname: hostname,
             username: username,
             password: password,
@@ -20,11 +20,11 @@ extension TDSConnection {
 }
 
 struct Login7Request: TDSRequest {
-    let login: TDSMessages.Login7Message
+    let login: TDSMessage.Login7Message
 
     func respond(to message: TDSMessage, allocator: ByteBufferAllocator) throws -> TDSMessage? {
         var messageBuffer = try ByteBuffer(unpackingDataFrom: message, allocator: allocator)
-        let response = try TDSMessages.LoginResponse.parse(from: &messageBuffer)
+        let _ = try TDSMessage.LoginResponse.parse(from: &messageBuffer)
         // TODO: Set logged in ready state
         // TODO: React to envchange request from server
         return nil

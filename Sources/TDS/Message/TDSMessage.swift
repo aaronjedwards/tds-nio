@@ -1,7 +1,7 @@
 import NIO
 
 // Use this as a namespace
-enum TDSMessages {}
+public enum TDSMessages {}
 
 /// Client or Server Message
 public struct TDSMessage {

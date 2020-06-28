@@ -3,48 +3,52 @@ import NIO
 import Foundation
 
 extension TDSConnection {
-    public func rawSql(_ sqlText: String) -> EventLoopFuture<[String]> {
-        var rows: [String] = []
-        let message = TDSMessages.RawSqlBatchMessage(sqlText: sqlText)
+    public func rawSql(_ sqlText: String) -> EventLoopFuture<[TDSRow]> {
+        var rows: [TDSRow] = []
+        let message = TDSMessage.RawSqlBatchMessage(sqlText: sqlText)
         return query(message) { rows.append($0) }.map { return rows }
     }
 
-    func query(_ message: TDSMessages.RawSqlBatchMessage, _ onRow: @escaping (String) throws -> ()) -> EventLoopFuture<Void> {
+    func query(_ message: TDSMessage.RawSqlBatchMessage, _ onRow: @escaping (TDSRow) throws -> ()) -> EventLoopFuture<Void> {
         let request = RawSqlBatchRequest(sqlBatch: message, onRow)
         return self.send(request)
     }
 }
 
 class RawSqlBatchRequest: TDSRequest {
-    let sqlBatch: TDSMessages.RawSqlBatchMessage
-    var onRow: (String) throws -> ()
+    let sqlBatch: TDSMessage.RawSqlBatchMessage
+    var onRow: (TDSRow) throws -> ()
+    var rowLookupTable: TDSRow.LookupTable?
 
-    init(sqlBatch: TDSMessages.RawSqlBatchMessage, _ onRow: @escaping (String) throws -> ()) {
+    init(sqlBatch: TDSMessage.RawSqlBatchMessage, _ onRow: @escaping (TDSRow) throws -> ()) {
         self.sqlBatch = sqlBatch
         self.onRow = onRow
     }
 
     func respond(to message: TDSMessage, allocator: ByteBufferAllocator) throws -> TDSMessage? {
         var messageBuffer = try ByteBuffer(unpackingDataFrom: message, allocator: allocator)
-        let response = try TDSMessages.TabularResultResponse.parse(from: &messageBuffer)
-
-        let rowTokens = response.tokens.filter { $0.type == .row }
+        let response = try TDSMessage.TabularResultResponse.parse(from: &messageBuffer)
 
         // TODO: The following is an incomplete implementation of extracting data from rowTokens
-        for token in rowTokens {
-
-            var rowData: [String] = []
-            guard let row = token as? TDSMessages.RowToken else {
-                throw TDSError.protocolError("Error while reading row results.")
-            }
-
-            for colData in row.colData {
-                if let data = String(bytes: colData.data, encoding: .utf16LittleEndian) {
-                    rowData.append(data)
+        for token in response.tokens {
+            switch token.type {
+            case .row:
+                guard let rowToken = token as? TDSTokens.RowToken else {
+                    throw TDSError.protocolError("Error while reading row results.")
                 }
+                guard let rowLookupTable = self.rowLookupTable else { fatalError() }
+                let row = TDSRow(dataRow: rowToken, lookupTable: rowLookupTable)
+                try onRow(row)
+
+                try onRow(row)
+            case .colMetadata:
+                guard let colMetadataToken = token as? TDSTokens.ColMetadataToken else {
+                    throw TDSError.protocolError("Error reading column metadata token.")
+                }
+                rowLookupTable = TDSRow.LookupTable(colMetadata: colMetadataToken)
+            default:
+                break
             }
-            
-            try onRow(rowData.joined(separator: ", "))
         }
 
         return nil

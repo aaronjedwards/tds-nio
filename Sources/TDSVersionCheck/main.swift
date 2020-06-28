@@ -27,6 +27,7 @@ func testPrelogin() throws {
     // Fetch records and view results
     let results = try conn.rawSql(queryTestTable).wait()
     print(results.count)
+//    print(results)
 
     try conn.close().wait()
 }
