@@ -11,7 +11,7 @@ extension TDSConnection {
 
     func query(_ message: TDSMessage.RawSqlBatchMessage, _ onRow: @escaping (TDSRow) throws -> ()) -> EventLoopFuture<Void> {
         let request = RawSqlBatchRequest(sqlBatch: message, onRow)
-        return self.send(request)
+        return self.send(request, logger: logger)
     }
 }
 

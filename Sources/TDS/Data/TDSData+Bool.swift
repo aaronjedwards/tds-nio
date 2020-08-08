@@ -4,12 +4,11 @@ import NIO
 /// https://docs.microsoft.com/en-us/openspecs/windows_protocols/ms-tds/76425d61-416d-4c64-a60b-06072f83e180
 
 extension TDSData {
-//    public init(bool: Bool) {
-//        var buffer = ByteBufferAllocator().buffer(capacity: 1)
-//        buffer.writeInteger(bool ? 1 : 0, as: UInt8.self)
-//        let colData = TDSTokens.ColMetadataToken.ColumnData(userType: 0, flags: <#T##UShort#>, dataType: <#T##TDSDataType#>, length: <#T##Int#>, collation: <#T##[Byte]#>, tableName: <#T##String?#>, colName: <#T##String#>, precision: <#T##Int?#>, scale: <#T##Int?#>)
-//        self.init(type: .bit, value: buffer)
-//    }
+    public init(bool: Bool) {
+        var buffer = ByteBufferAllocator().buffer(capacity: 1)
+        buffer.writeInteger(bool ? 1 : 0, as: UInt8.self)
+        self.init(metadata: Bool.tdsMetadata, value: buffer)
+    }
 
     public var bool: Bool? {
         guard var value = self.value else {
@@ -29,25 +28,25 @@ extension TDSData {
     }
 }
 
-//extension TDSData: ExpressibleByBooleanLiteral {
-//    public init(booleanLiteral value: Bool) {
-//        self.init(bool: value)
-//    }
-//}
-//
-//extension Bool: TDSDataConvertible {
-//    public static var tdsDataType: TDSDataType {
-//        return .bit
-//    }
-//
-//    public var tdsData: TDSData? {
-//        return .init(bool: self)
-//    }
-//
-//    public init?(tdsData: TDSData) {
-//        guard let bool = tdsData.bool else {
-//            return nil
-//        }
-//        self = bool
-//    }
-//}
+extension TDSData: ExpressibleByBooleanLiteral {
+    public init(booleanLiteral value: Bool) {
+        self.init(bool: value)
+    }
+}
+
+extension Bool: TDSDataConvertible {
+    public static var tdsMetadata: Metadata {
+        return TypeMetadata(dataType: .bit)
+    }
+
+    public var tdsData: TDSData? {
+        return .init(bool: self)
+    }
+
+    public init?(tdsData: TDSData) {
+        guard let bool = tdsData.bool else {
+            return nil
+        }
+        self = bool
+    }
+}

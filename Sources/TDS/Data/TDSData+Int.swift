@@ -4,45 +4,45 @@ import NIO
 /// https://docs.microsoft.com/en-us/openspecs/windows_protocols/ms-tds/76425d61-416d-4c64-a60b-06072f83e180
 
 extension TDSData {
-//    public init(int value: Int) {
-//        self.init(fwi: value)
-//    }
-//
-//    public init(int8 value: Int8) {
-//        self.init(fwi: value)
-//    }
-//
-//    public init(int16 value: Int16) {
-//        self.init(fwi: value)
-//    }
-//
-//    public init(int32 value: Int32) {
-//        self.init(fwi: value)
-//    }
-//
-//    public init(int64 value: Int64) {
-//        self.init(fwi: value)
-//    }
-//
-//    public init(uint value: UInt) {
-//        self.init(fwi: value)
-//    }
-//
-//    public init(uint8 value: UInt8) {
-//        self.init(fwi: value)
-//    }
-//
-//    public init(uint16 value: UInt16) {
-//        self.init(fwi: value)
-//    }
-//
-//    public init(uint32 value: UInt32) {
-//        self.init(fwi: value)
-//    }
-//
-//    public init(uint64 value: UInt64) {
-//        self.init(fwi: value)
-//    }
+    public init(int value: Int) {
+        self.init(fwi: value)
+    }
+
+    public init(int8 value: Int8) {
+        self.init(fwi: value)
+    }
+
+    public init(int16 value: Int16) {
+        self.init(fwi: value)
+    }
+
+    public init(int32 value: Int32) {
+        self.init(fwi: value)
+    }
+
+    public init(int64 value: Int64) {
+        self.init(fwi: value)
+    }
+
+    public init(uint value: UInt) {
+        self.init(fwi: value)
+    }
+
+    public init(uint8 value: UInt8) {
+        self.init(fwi: value)
+    }
+
+    public init(uint16 value: UInt16) {
+        self.init(fwi: value)
+    }
+
+    public init(uint32 value: UInt32) {
+        self.init(fwi: value)
+    }
+
+    public init(uint64 value: UInt64) {
+        self.init(fwi: value)
+    }
 
     public var int: Int? {
         return fwi()
@@ -86,29 +86,24 @@ extension TDSData {
 }
 
 private extension TDSData {
-//    init<I>(fwi: I) where I: FixedWidthInteger {
-//        let capacity: Int
-//        let type: TDSDataType
-//        switch I.bitWidth {
-//        case 8:
-//            capacity = 1
-//            type = .tinyInt
-//        case 16:
-//            capacity = 2
-//            type = .smallInt
-//        case 32:
-//            capacity = 3
-//            type = .int
-//        case 64:
-//            capacity = 4
-//            type = .bigInt
-//        default:
-//            fatalError("Cannot encode \(I.self) to TDSData")
-//        }
-//        var buffer = ByteBufferAllocator().buffer(capacity: capacity)
-//        buffer.writeInteger(fwi, endianness: .little)
-//        self.init(type: type, value: buffer)
-//    }
+    init<I>(fwi: I) where I: FixedWidthInteger {
+        let capacity: Int
+        switch I.bitWidth {
+        case 8:
+            capacity = 1
+        case 16:
+            capacity = 2
+        case 32:
+            capacity = 3
+        case 64:
+            capacity = 4
+        default:
+            fatalError("Cannot encode \(I.self) to TDSData")
+        }
+        var buffer = ByteBufferAllocator().buffer(capacity: capacity)
+        buffer.writeInteger(fwi, endianness: .little)
+        self.init(metadata: I.tdsMetadata, value: buffer)
+    }
 
     func fwi<I>(_ type: I.Type = I.self) -> I?
         where I: FixedWidthInteger
@@ -175,48 +170,50 @@ private extension TDSData {
     }
 }
 
-//extension FixedWidthInteger {
-//    public static var tdsDataType: TDSDataType {
-//        switch self.bitWidth {
-//        case 8:
-//            return .tinyInt
-//        case 16:
-//            return .smallInt
-//        case 32:
-//            return .int
-//        case 64:
-//            return .bigInt
-//        default:
-//            fatalError("\(self.bitWidth) not supported")
-//        }
-//    }
-//
-//    public var tdsData: TDSData? {
-//        return .init(fwi: self)
-//    }
-//
-//    public init?(tdsData: TDSData) {
-//        guard let fwi = tdsData.fwi(Self.self) else {
-//            return nil
-//        }
-//        self = fwi
-//    }
-//}
+extension FixedWidthInteger {
+    public static var tdsMetadata: Metadata {
+        let dataType: TDSDataType
+        switch self.bitWidth {
+        case 8:
+            dataType = .tinyInt
+        case 16:
+            dataType = .smallInt
+        case 32:
+            dataType = .int
+        case 64:
+            dataType = .bigInt
+        default:
+            fatalError("\(self.bitWidth) not supported")
+        }
+        return TypeMetadata(dataType: dataType)
+    }
 
-//extension Int: TDSDataConvertible { }
-//extension Int8: TDSDataConvertible { }
-//extension Int16: TDSDataConvertible { }
-//extension Int32: TDSDataConvertible { }
-//extension Int64: TDSDataConvertible { }
-//extension UInt: TDSDataConvertible { }
-//extension UInt8: TDSDataConvertible { }
-//extension UInt16: TDSDataConvertible { }
-//extension UInt32: TDSDataConvertible { }
-//extension UInt64: TDSDataConvertible { }
+    public var tdsData: TDSData? {
+        return .init(fwi: self)
+    }
 
-//extension TDSData: ExpressibleByIntegerLiteral {
-//    public init(integerLiteral value: Int) {
-//        self.init(int: value)
-//    }
-//}
+    public init?(tdsData: TDSData) {
+        guard let fwi = tdsData.fwi(Self.self) else {
+            return nil
+        }
+        self = fwi
+    }
+}
+
+extension Int: TDSDataConvertible { }
+extension Int8: TDSDataConvertible { }
+extension Int16: TDSDataConvertible { }
+extension Int32: TDSDataConvertible { }
+extension Int64: TDSDataConvertible { }
+extension UInt: TDSDataConvertible { }
+extension UInt8: TDSDataConvertible { }
+extension UInt16: TDSDataConvertible { }
+extension UInt32: TDSDataConvertible { }
+extension UInt64: TDSDataConvertible { }
+
+extension TDSData: ExpressibleByIntegerLiteral {
+    public init(integerLiteral value: Int) {
+        self.init(int: value)
+    }
+}
 

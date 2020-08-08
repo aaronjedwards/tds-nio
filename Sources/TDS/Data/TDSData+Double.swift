@@ -1,11 +1,11 @@
 import NIO
 
 extension TDSData {
-//    public init(double: Double) {
-//        var buffer = ByteBufferAllocator().buffer(capacity: 0)
-//        buffer.writeDouble(double)
-//        self.init(type: .float, value: buffer)
-//    }
+    public init(double: Double) {
+        var buffer = ByteBufferAllocator().buffer(capacity: 0)
+        buffer.writeDouble(double)
+        self.init(metadata: Double.tdsMetadata, value: buffer)
+    }
 
     public var double: Double? {
         guard var value = self.value else {
@@ -26,19 +26,19 @@ extension TDSData {
     }
 }
 
-//extension Double: TDSDataConvertible {
-//    public static var tdsDataType: TDSDataType {
-//        return .float
-//    }
-//
-//    public init?(tdsData: TDSData) {
-//        guard let double = tdsData.double else {
-//            return nil
-//        }
-//        self = double
-//    }
-//
-//    public var tdsData: TDSData? {
-//        return .init(double: self)
-//    }
-//}
+extension Double: TDSDataConvertible {
+    public static var tdsMetadata: Metadata {
+        return TypeMetadata(dataType: .float)
+    }
+
+    public init?(tdsData: TDSData) {
+        guard let double = tdsData.double else {
+            return nil
+        }
+        self = double
+    }
+
+    public var tdsData: TDSData? {
+        return .init(double: self)
+    }
+}

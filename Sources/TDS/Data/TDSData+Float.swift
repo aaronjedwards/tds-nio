@@ -1,7 +1,7 @@
 extension TDSData {
-//    public init(float: Float) {
-//        self.init(double: Double(float))
-//    }
+    public init(float: Float) {
+        self.init(double: Double(float))
+    }
 
     public var float: Float? {
         guard var value = self.value else {
@@ -20,19 +20,19 @@ extension TDSData {
     }
 }
 
-//extension Float: TDSDataConvertible {
-//    public static var tdsDataType: TDSDataType {
-//        return .real
-//    }
-//
-//    public init?(tdsData: TDSData) {
-//        guard let float = tdsData.float else {
-//            return nil
-//        }
-//        self = float
-//    }
-//
-//    public var tdsData: TDSData? {
-//        return .init(float: self)
-//    }
-//}
+extension Float: TDSDataConvertible {
+    public static var tdsMetadata: Metadata {
+        return TypeMetadata(dataType: .real)
+    }
+
+    public init?(tdsData: TDSData) {
+        guard let float = tdsData.float else {
+            return nil
+        }
+        self = float
+    }
+
+    public var tdsData: TDSData? {
+        return .init(float: self)
+    }
+}

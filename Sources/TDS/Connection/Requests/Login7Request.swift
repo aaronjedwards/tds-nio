@@ -3,19 +3,19 @@ import NIO
 import Foundation
 
 extension TDSConnection {
-    public func login(hostname: String, username: String, password: String, serverName: String, database: String = "master") throws -> EventLoopFuture<Void> {
+    public func login(hostname: String? = nil, username: String, password: String? = nil, serverName: String? = nil, database: String? = nil) -> EventLoopFuture<Void> {
         let auth = TDSMessage.Login7Message(
-            hostname: hostname,
+            hostname: hostname ?? "",
             username: username,
-            password: password,
+            password: password ?? "",
             appName: "",
-            serverName: serverName,
+            serverName: serverName ?? "",
             clientInterfaceName: "SwiftTDS",
             language: "",
-            database: database,
+            database: database ?? "master",
             sspiData: ""
         )
-        return self.send(Login7Request(login: auth))
+        return self.send(Login7Request(login: auth), logger: logger)
     }
 }
 

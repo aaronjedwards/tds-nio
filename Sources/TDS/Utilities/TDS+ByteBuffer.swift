@@ -148,6 +148,47 @@ extension ByteBuffer {
     mutating func readDouble() -> Double? {
         return self.readInteger(as: UInt64.self).map { Double(bitPattern: $0) }
     }
+    
+    mutating func read3ByteInt() -> UInt32? {
+        guard let bytes = self.readBytes(length: 3) else {
+            return nil
+        }
+        
+        var value: UInt32 = 0
+        value += numericCast(bytes[0]) << 16
+        value += numericCast(bytes[1]) << 8
+        value += numericCast(bytes[2]) << 0
+        
+        return value
+    }
+    
+    mutating func read5ByteInt() -> UInt64? {
+        guard let bytes = self.readBytes(length: 5) else {
+            return nil
+        }
+        
+        var value: UInt64 = 0
+        value += numericCast(bytes[0]) << 32
+        value += numericCast(bytes[1]) << 24
+        value += numericCast(bytes[2]) << 16
+        value += numericCast(bytes[3]) << 8
+        value += numericCast(bytes[4]) << 0
+        
+        return value
+    }
+    
+    mutating func readByteLengthInteger<I: FixedWidthInteger>(length: Int, as: I.Type = I.self) -> I? {
+        guard let bytes = self.readBytes(length: length) else {
+            return nil
+        }
+        
+        var value: I = 0
+        for i in 0...bytes.count - 1 {
+            value += numericCast(bytes[i]) << (i * 8)
+        }
+        
+        return value
+    }
 }
 
 internal extension Sequence where Element == UInt8 {

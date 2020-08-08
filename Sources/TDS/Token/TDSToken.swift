@@ -4,6 +4,33 @@ public protocol TDSToken {
     var type: TDSTokens.TokenType { get set }
 }
 
+public protocol Metadata {
+    var userType: ULong { get set }
+    var flags: UShort { get set }
+    var dataType: TDSDataType { get set }
+    var collation: [Byte] { get set }
+    var precision: Int? { get set }
+    var scale: Int? { get set }
+}
+
+public struct TypeMetadata: Metadata {
+    public var userType: ULong
+    public var flags: UShort
+    public var dataType: TDSDataType
+    public var collation: [Byte]
+    public var precision: Int?
+    public var scale: Int?
+    
+    init(userType: ULong = 0, flags: UShort = 0, dataType: TDSDataType, collation: [Byte] = [], precision: Int? = nil, scale: Int? = nil) {
+        self.userType = userType
+        self.flags = flags
+        self.dataType = dataType
+        self.collation = collation
+        self.precision = precision
+        self.scale = scale
+    }
+}
+
 public enum TDSTokens {
 
     public enum TokenType: UInt8 {
@@ -73,16 +100,16 @@ public enum TDSTokens {
         var count: UShort
         var colData: [ColumnData]
 
-        public struct ColumnData {
-            var userType: ULong
-            var flags: UShort
-            var dataType: TDSDataType
-            var length: Int
-            var collation: [Byte]
-            var tableName: String?
-            var colName: String
-            var precision: Int?
-            var scale: Int?
+        public struct ColumnData: Metadata {
+            public var userType: ULong
+            public var flags: UShort
+            public var dataType: TDSDataType
+            public var length: Int
+            public var collation: [Byte]
+            public var tableName: String?
+            public var colName: String
+            public var precision: Int?
+            public var scale: Int?
         }
     }
 

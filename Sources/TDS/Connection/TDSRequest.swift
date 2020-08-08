@@ -4,7 +4,7 @@ import NIOTLS
 import Logging
 
 extension TDSConnection: TDSClient {
-    public func send(_ request: TDSRequest) -> EventLoopFuture<Void> {
+    public func send(_ request: TDSRequest, logger: Logger) -> EventLoopFuture<Void> {
         request.log(to: self.logger)
         let promise = self.channel.eventLoop.makePromise(of: Void.self)
         let request = TDSRequestContext(delegate: request, promise: promise)

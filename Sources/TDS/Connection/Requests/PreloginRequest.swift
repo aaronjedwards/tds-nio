@@ -5,7 +5,7 @@ import Foundation
 extension TDSConnection {
     public func prelogin() -> EventLoopFuture<Void> {
         let auth = PreloginRequest()
-        return self.send(auth)
+        return self.send(auth, logger: logger)
     }
 }
 

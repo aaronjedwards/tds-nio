@@ -3,7 +3,7 @@ import NIO
 extension TDSConnection {
     private func sslKickoff() -> EventLoopFuture<Void> {
         let auth = SSLKickoffRequest()
-        return self.send(auth)
+        return self.send(auth, logger: logger)
     }
 }
 

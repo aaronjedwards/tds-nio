@@ -3,11 +3,11 @@ import Foundation
 
 public struct TDSData: CustomStringConvertible, CustomDebugStringConvertible {
     /// The object ID of the field's data type.
-    public var metadata: TDSTokens.ColMetadataToken.ColumnData
+    public var metadata: Metadata
 
     public var value: ByteBuffer?
 
-    public init(metadata: TDSTokens.ColMetadataToken.ColumnData, value: ByteBuffer? = nil) {
+    public init(metadata: Metadata, value: ByteBuffer? = nil) {
         self.metadata = metadata
         self.value = value
     }
@@ -74,7 +74,7 @@ public struct TDSData: CustomStringConvertible, CustomDebugStringConvertible {
 }
 
 extension TDSData: TDSDataConvertible {
-    public static var tdsDataType: TDSDataType {
+    public static var tdsMetadata: Metadata {
         fatalError("TDSData cannot be statically represented as a single data type")
     }
 
