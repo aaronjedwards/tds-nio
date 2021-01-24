@@ -121,7 +121,6 @@ public final class PipelineOrganizationHandler: ChannelDuplexHandler, RemovableC
     }
 
     public func errorCaught(context: ChannelHandlerContext, error: Error) {
-        print(error)
         print(error.localizedDescription)
         context.fireErrorCaught(error)
     }

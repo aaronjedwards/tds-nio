@@ -58,7 +58,7 @@ extension TDSMessage {
             let interface = messageBuffer.readByte(),
             let tdsVersion = messageBuffer.readDWord(),
             let progNameLength = messageBuffer.readByte(),
-            let progName = messageBuffer.readUTF16String(length: Int(progNameLength)),
+            let progName = messageBuffer.readUTF16String(length: Int(progNameLength) * 2),
             let majorVer = messageBuffer.readByte(),
             let minorVer = messageBuffer.readByte(),
             let buildNumHi = messageBuffer.readByte(),

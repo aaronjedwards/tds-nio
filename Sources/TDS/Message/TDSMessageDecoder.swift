@@ -24,6 +24,7 @@ public final class TDSMessageDecoder: ByteToMessageDecoder {
                 let message = TDSMessage(packets: storedPackets)
                 context.fireChannelRead(wrapInboundOut(message))
                 storedPackets.removeAll(keepingCapacity: true)
+                logger.debug("Decoded message with type: \(message.headerType)")
                 return .continue
             }
             
@@ -35,7 +36,7 @@ public final class TDSMessageDecoder: ByteToMessageDecoder {
     
     public func decodeLast(context: ChannelHandlerContext, buffer: inout ByteBuffer, seenEOF: Bool) throws -> DecodingState {
         logger.debug("Decoding last")
-        return try decode(context: context, buffer: &buffer)
+        return .needMoreData
     }
 }
 

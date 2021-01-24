@@ -37,7 +37,7 @@ public struct TDSData: CustomStringConvertible, CustomDebugStringConvertible {
         case .smallDateTime, .datetime, .datetimen, .date, .time, .datetime2, .datetimeOffset:
             fatalError("Unimplemented")
         case .charLegacy, .varcharLegacy, .char, .varchar, .nvarchar, .nchar, .text, .nText:
-            fatalError("Unimplemented")
+            description = self.string?.description
         case .binaryLegacy, .varbinaryLegacy, .varbinary, .binary:
             fatalError("Unimplemented")
         case .guid:

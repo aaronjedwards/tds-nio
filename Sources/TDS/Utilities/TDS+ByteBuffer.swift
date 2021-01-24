@@ -14,7 +14,7 @@ extension ByteBuffer {
     mutating func readBVarchar() -> String? {
         guard
             let bytes = self.readByte(),
-            let utf16 = self.readUTF16String(length: Int(bytes))
+            let utf16 = self.readUTF16String(length: Int(bytes) * 2)
         else {
             return nil
         }
@@ -24,7 +24,7 @@ extension ByteBuffer {
     mutating func readUSVarchar() -> String? {
         guard
             let bytes = self.readUShort(),
-            let utf16 = self.readUTF16String(length: Int(bytes))
+            let utf16 = self.readUTF16String(length: Int(bytes) * 2)
         else {
             return nil
         }
@@ -63,7 +63,7 @@ extension ByteBuffer {
 
     mutating func readUTF16String(length: Int) -> String? {
         guard
-            let bytes = self.readBytes(length: length * 2),
+            let bytes = self.readBytes(length: length),
             let utf16 = String(bytes: bytes, encoding: .utf16LittleEndian)
         else {
             return nil
@@ -141,14 +141,35 @@ extension ByteBuffer {
         return val
     }
 
-    mutating func readFloat() -> Float? {
-        return self.readInteger(as: UInt32.self).map { Float(bitPattern: $0) }
+    mutating func readFloat(endianness: Endianness = .big) -> Float? {
+       precondition(MemoryLayout<Float>.size == MemoryLayout<UInt32>.size)
+        return self.readInteger(endianness: endianness, as: UInt32.self).map { Float(bitPattern: $0) }
+   }
+
+    mutating func readDouble(endianness: Endianness = .big) -> Double? {
+       precondition(MemoryLayout<Double>.size == MemoryLayout<UInt64>.size)
+       return self.readInteger(endianness: endianness, as: UInt64.self).map { Double(bitPattern: $0) }
+   }
+    
+    mutating func readSmallMoney() -> Double? {
+        guard let value = self.readInteger(endianness: .little, as: Int32.self) else {
+            return nil
+        }
+        return Double(value) / Double(10000)
     }
 
-    mutating func readDouble() -> Double? {
-        return self.readInteger(as: UInt64.self).map { Double(bitPattern: $0) }
+    mutating func readMoney() -> Double? {
+        guard
+            let high = self.readInteger(endianness: .little, as: UInt32.self),
+            let low = self.readInteger(endianness: .little, as: UInt32.self)
+        else {
+            return nil
+        }
+        
+        let value = Int64(high) << 32 | Int64(low)
+        return Double(value) / Double(10000)
     }
-    
+
     mutating func read3ByteInt() -> UInt32? {
         guard let bytes = self.readBytes(length: 3) else {
             return nil
@@ -195,4 +216,67 @@ internal extension Sequence where Element == UInt8 {
     func hexdigest() -> String {
         return reduce("") { $0 + String(format: "%02x", $1) }
     }
+}
+
+struct UInt128 {
+   var lower: UInt64
+   var higher: UInt64
+}
+
+extension UInt128: FixedWidthInteger {
+    static var max: UInt128 {
+        1_000_000_000_000_000
+    }
+    
+    static var min: UInt128 {
+        <#code#>
+    }
+    
+    func addingReportingOverflow(_ rhs: UInt128) -> (partialValue: UInt128, overflow: Bool) {
+        <#code#>
+    }
+    
+    func subtractingReportingOverflow(_ rhs: UInt128) -> (partialValue: UInt128, overflow: Bool) {
+        <#code#>
+    }
+    
+    func multipliedReportingOverflow(by rhs: UInt128) -> (partialValue: UInt128, overflow: Bool) {
+        <#code#>
+    }
+    
+    func dividedReportingOverflow(by rhs: UInt128) -> (partialValue: UInt128, overflow: Bool) {
+        <#code#>
+    }
+    
+    func remainderReportingOverflow(dividingBy rhs: UInt128) -> (partialValue: UInt128, overflow: Bool) {
+        <#code#>
+    }
+    
+    func dividingFullWidth(_ dividend: (high: UInt128, low: Magnitude)) -> (quotient: UInt128, remainder: UInt128) {
+        <#code#>
+    }
+    
+    var nonzeroBitCount: Int {
+        <#code#>
+    }
+    
+    var leadingZeroBitCount: Int {
+        <#code#>
+    }
+    
+    var byteSwapped: UInt128 {
+        <#code#>
+    }
+    
+    typealias Words = <#type#>
+    
+    typealias Magnitude = <#type#>
+    
+    static func + (lhs: UInt128, rhs: UInt128) -> UInt128 {
+        <#code#>
+    }
+    
+    typealias IntegerLiteralType = <#type#>
+    
+    
 }

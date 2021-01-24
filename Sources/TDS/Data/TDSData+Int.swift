@@ -161,6 +161,8 @@ private extension TDSData {
                     return nil
                 }
                 return I(int64)
+            case 0:
+                return nil
             default:
                 fatalError("Unexpected number of readable bytes for INTNTYPE data type.")
             }

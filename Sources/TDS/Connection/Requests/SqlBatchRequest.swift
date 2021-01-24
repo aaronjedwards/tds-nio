@@ -5,9 +5,14 @@ import Foundation
 extension TDSConnection {
     public func rawSql(_ sqlText: String) -> EventLoopFuture<[TDSRow]> {
         var rows: [TDSRow] = []
-        let message = TDSMessage.RawSqlBatchMessage(sqlText: sqlText)
-        return query(message) { rows.append($0) }.map { return rows }
+        return rawSql(sqlText, onRow: { rows.append($0) }).map { rows }
     }
+    
+    public func rawSql(_ sqlText: String, onRow: @escaping (TDSRow) throws -> ()) -> EventLoopFuture<Void> {
+        let request = RawSqlBatchRequest(sqlBatch: TDSMessage.RawSqlBatchMessage(sqlText: sqlText), onRow)
+        return self.send(request, logger: logger)
+    }
+
 
     func query(_ message: TDSMessage.RawSqlBatchMessage, _ onRow: @escaping (TDSRow) throws -> ()) -> EventLoopFuture<Void> {
         let request = RawSqlBatchRequest(sqlBatch: message, onRow)
@@ -38,8 +43,6 @@ class RawSqlBatchRequest: TDSRequest {
                 }
                 guard let rowLookupTable = self.rowLookupTable else { fatalError() }
                 let row = TDSRow(dataRow: rowToken, lookupTable: rowLookupTable)
-                try onRow(row)
-
                 try onRow(row)
             case .colMetadata:
                 guard let colMetadataToken = token as? TDSTokens.ColMetadataToken else {
