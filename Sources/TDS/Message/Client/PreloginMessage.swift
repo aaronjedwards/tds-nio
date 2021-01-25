@@ -10,10 +10,12 @@ extension TDSMessage {
         
         public static let messageLength: Byte = 0x1A // (26 bytes)
         
-        public var body: Prelogin
+        public var version: String
+        public var encryption: PreloginEncryption?
         
         public init(version: String, encryption: PreloginEncryption?) {
-            body = Prelogin(version: version, encryption: encryption)
+            self.version = version
+            self.encryption = encryption
         }
         
         public func serialize(into buffer: inout ByteBuffer) throws {
@@ -32,7 +34,7 @@ extension TDSMessage {
             ])
             
             // Encryption
-            if body.encryption != nil {
+            if encryption != nil {
                 buffer.writeBytes([
                     0x01,
                     0x00, 0x11,
@@ -55,19 +57,12 @@ extension TDSMessage {
             ])
             
             // Encryption Data
-            if let enc = body.encryption {
+            if let enc = encryption {
                 buffer.writeBytes([
                     enc.rawValue
                 ])
             }
         }
-    }
-}
-
-extension TDSMessage {
-    public struct Prelogin {
-        public var version: String
-        public var encryption: PreloginEncryption?
     }
 }
 

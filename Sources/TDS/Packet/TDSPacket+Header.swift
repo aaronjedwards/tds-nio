@@ -24,6 +24,15 @@ extension TDSPacket {
         /// Window
         public var window: UInt8 = 0x00
         
+        init(type: HeaderType, status: Status, length: UInt16 = 0) {
+            self.type = type
+            self.status = status
+            self.length = length
+            self.spid = 0x0000
+            self.packetId = 0x00
+            self.window = 0x00
+        }
+        
         init?(from buffer: ByteBuffer) {
             guard
                 let typeByte: UInt8 = buffer.getInteger(at: 0),
@@ -42,6 +51,15 @@ extension TDSPacket {
             self.spid = spid
             self.packetId = packetId
             self.window = window
+        }
+        
+        func writeToByteBuffer(buffer: inout ByteBuffer) {
+            buffer.writeInteger(type.value)
+            buffer.writeInteger(status.value)
+            buffer.writeInteger(length)
+            buffer.writeInteger(spid)
+            buffer.writeInteger(packetId)
+            buffer.writeInteger(window)
         }
     }
 }

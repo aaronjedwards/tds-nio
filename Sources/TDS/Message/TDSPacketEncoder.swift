@@ -1,9 +1,9 @@
 import NIO
 import Logging
 
-public final class TDSMessageEncoder: MessageToByteEncoder {
+public final class TDSPacketEncoder: MessageToByteEncoder {
     /// See `MessageToByteEncoder`.
-    public typealias OutboundIn = TDSMessage
+    public typealias OutboundIn = TDSPacket
 
     let logger: Logger
 
@@ -12,9 +12,10 @@ public final class TDSMessageEncoder: MessageToByteEncoder {
     }
     
     /// See `MessageToByteEncoder`.
-    public func encode(data message: TDSMessage, out: inout ByteBuffer) throws {
-        message.writeToByteBuffer(&out)
-        logger.debug("Encoding TDSMessage - type: \(message.headerType.description), packet count: \(message.packets.count)")
+    public func encode(data message: TDSPacket, out: inout ByteBuffer) throws {
+        var packet = message
+        out.writeBuffer(&packet.buffer)
+        logger.debug("Encoding TDSPacket - type: \(packet.headerType.description)")
     }
 }
 

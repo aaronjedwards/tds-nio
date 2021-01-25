@@ -23,8 +23,8 @@ extension TDSConnection {
         let logger = Logger(label: "swift-tds")
         
         // TDSMessage decoders
-        let firstDecoder = ByteToMessageHandler(TDSMessageDecoder(logger: logger))
-        let firstEncoder = MessageToByteHandler(TDSMessageEncoder(logger: logger))
+        let firstDecoder = ByteToMessageHandler(TDSPacketDecoder(logger: logger))
+        let firstEncoder = MessageToByteHandler(TDSPacketEncoder(logger: logger))
         
         return bootstrap.connect(to: socketAddress).flatMap { channel in
             return channel.pipeline.addHandlers([

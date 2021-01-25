@@ -8,10 +8,7 @@ public struct TDSPacket {
         Header(from: buffer)
     }
     
-    var headerType: HeaderType {
-        // This could become a stored constant so we don't parse the header unnecessarily
-        header.type
-    }
+    let headerType: HeaderType
     
     public var messageBuffer: ByteBuffer {
         buffer.getSlice(at: Header.length, length: buffer.readableBytes - Header.length)!
@@ -23,6 +20,7 @@ public struct TDSPacket {
     init?(from buffer: inout ByteBuffer) {
         guard
             buffer.readableBytes >= Header.length,
+            let typeByte: UInt8 = buffer.getInteger(at: 0),
             let length: UInt16 = buffer.getInteger(at: 2), // After type and status
             length <= buffer.readableBytes,
             let slice = buffer.readSlice(length: Int(length))
@@ -30,6 +28,7 @@ public struct TDSPacket {
             return nil
         }
         
+        self.headerType = .init(integerLiteral: typeByte)
         self.buffer = slice
     }
     
@@ -54,6 +53,7 @@ public struct TDSPacket {
         
         buffer.setInteger(UInt16(buffer.writerIndex), at: 2)
         
+        self.headerType = M.headerType
         self.buffer = buffer
     }
     
@@ -78,7 +78,18 @@ public struct TDSPacket {
         
         buffer.setInteger(UInt16(buffer.writerIndex), at: 2)
         
+        self.headerType = headerType
         self.buffer = buffer
+    }
+}
+
+extension TDSPacket {
+    public static func empty(type: HeaderType, allocator: ByteBufferAllocator) -> TDSPacket {
+        let header = Header(type: type, status: .eom)
+        var buffer = allocator.buffer(capacity: 100)
+        header.writeToByteBuffer(buffer: &buffer)
+        let packet = TDSPacket.init(from: &buffer)!
+        return packet
     }
 }
 

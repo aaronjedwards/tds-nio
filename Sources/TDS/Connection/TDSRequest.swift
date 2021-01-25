@@ -15,8 +15,8 @@ extension TDSConnection: TDSClient {
 
 public protocol TDSRequest {
     // nil value ends the request
-    func respond(to message: TDSMessage, allocator: ByteBufferAllocator) throws -> TDSMessage?
-    func start(allocator: ByteBufferAllocator) throws -> TDSMessage
+    func respond(to packet: TDSPacket, allocator: ByteBufferAllocator) throws -> [TDSPacket]?
+    func start(allocator: ByteBufferAllocator) throws -> [TDSPacket]
     func log(to logger: Logger)
 }
 
@@ -32,13 +32,13 @@ final class TDSRequestContext {
 }
 
 final class TDSRequestHandler: ChannelDuplexHandler {
-    typealias InboundIn = TDSMessage
+    typealias InboundIn = TDSPacket
     typealias OutboundIn = TDSRequestContext
-    typealias OutboundOut = TDSMessage
+    typealias OutboundOut = TDSPacket
     
     /// `TDSMessage` handlers
-    var firstDecoder: ByteToMessageHandler<TDSMessageDecoder>
-    var firstEncoder: MessageToByteHandler<TDSMessageEncoder>
+    var firstDecoder: ByteToMessageHandler<TDSPacketDecoder>
+    var firstEncoder: MessageToByteHandler<TDSPacketEncoder>
     var tlsConfiguration: TLSConfiguration?
     var serverHostname: String?
     
@@ -63,8 +63,8 @@ final class TDSRequestHandler: ChannelDuplexHandler {
     
     public init(
         logger: Logger,
-        _ firstDecoder: ByteToMessageHandler<TDSMessageDecoder>,
-        _ firstEncoder: MessageToByteHandler<TDSMessageEncoder>,
+        _ firstDecoder: ByteToMessageHandler<TDSPacketDecoder>,
+        _ firstEncoder: MessageToByteHandler<TDSPacketEncoder>,
         _ tlsConfiguration: TLSConfiguration? = nil,
         _ serverHostname: String? = nil
     ) {
@@ -77,7 +77,7 @@ final class TDSRequestHandler: ChannelDuplexHandler {
     }
     
     private func _channelRead(context: ChannelHandlerContext, data: NIOAny) throws {
-        let message = self.unwrapInboundIn(data)
+        let packet = self.unwrapInboundIn(data)
         guard self.queue.count > 0 else {
             // discard packet
             return
@@ -85,7 +85,7 @@ final class TDSRequestHandler: ChannelDuplexHandler {
         
         let request = self.queue[0]
         
-        switch (state, message.headerType) {
+        switch (state, packet.headerType) {
         case (.sentInitialTDSPreLogin, .preloginResponse):
             state = .receivedTDSPreLoginResponse
         case (_, .loginResponse):
@@ -94,12 +94,17 @@ final class TDSRequestHandler: ChannelDuplexHandler {
             break
         }
         
-        if let response = try request.delegate.respond(to: message, allocator: context.channel.allocator) {
-            switch (state, response.headerType) {
+        if let responses = try request.delegate.respond(to: packet, allocator: context.channel.allocator) {
+            guard let first = responses.first else {
+                return
+            }
+            switch (state, first.headerType) {
             case (.receivedTDSPreLoginResponse, .sslKickoff):
                 try sslKickoff(context: context)
             default:
-                context.write(self.wrapOutboundOut(response), promise: nil)
+                for response in responses {
+                    context.write(self.wrapOutboundOut(response), promise: nil)
+                }
                 context.flush()
             }
         } else {
@@ -138,9 +143,13 @@ final class TDSRequestHandler: ChannelDuplexHandler {
     private func _write(context: ChannelHandlerContext, data: NIOAny, promise: EventLoopPromise<Void>?) throws {
         let request = self.unwrapOutboundIn(data)
         self.queue.append(request)
-        let message = try request.delegate.start(allocator: context.channel.allocator)
         
-        switch (state, message.headerType) {
+        var packets = try request.delegate.start(allocator: context.channel.allocator)
+        guard let first = packets.first else {
+            return
+        }
+        
+        switch (state, first.headerType) {
         case (.start, .prelogin):
             state = .sentInitialTDSPreLogin
         case (_, .tds7Login):
@@ -151,7 +160,14 @@ final class TDSRequestHandler: ChannelDuplexHandler {
             break
         }
         
-        context.writeAndFlush(self.wrapOutboundOut(message), promise: promise)
+        if let last = packets.popLast() {
+            for item in packets {
+                context.write(self.wrapOutboundOut(item), promise: nil)
+            }
+            context.write(self.wrapOutboundOut(last), promise: promise)
+        } else {
+            promise?.succeed(())
+        }
     }
     
     func channelRead(context: ChannelHandlerContext, data: NIOAny) {
@@ -187,8 +203,8 @@ final class TDSRequestHandler: ChannelDuplexHandler {
                 context.channel.pipeline.removeHandler(self.pipelineCoordinator),
                 context.channel.pipeline.removeHandler(self.firstDecoder),
                 context.channel.pipeline.removeHandler(self.firstEncoder),
-                context.channel.pipeline.addHandler(ByteToMessageHandler(TDSMessageDecoder(logger: logger)), position: .after(sslHandler)),
-                context.channel.pipeline.addHandler(MessageToByteHandler(TDSMessageEncoder(logger: logger)), position: .after(sslHandler))
+                context.channel.pipeline.addHandler(ByteToMessageHandler(TDSPacketDecoder(logger: logger)), position: .after(sslHandler)),
+                context.channel.pipeline.addHandler(MessageToByteHandler(TDSPacketEncoder(logger: logger)), position: .after(sslHandler))
             ], on: context.eventLoop)
             
             future.whenSuccess {_ in

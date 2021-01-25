@@ -19,20 +19,32 @@ extension TDSConnection {
     }
 }
 
-struct Login7Request: TDSRequest {
+class Login7Request: TDSRequest {
     let login: TDSMessage.Login7Message
+    
+    private var storedPackets = [TDSPacket]()
+    
+    init(login: TDSMessage.Login7Message) {
+        self.login = login
+    }
 
-    func respond(to message: TDSMessage, allocator: ByteBufferAllocator) throws -> TDSMessage? {
-        var messageBuffer = try ByteBuffer(unpackingDataFrom: message, allocator: allocator)
+    func respond(to packet: TDSPacket, allocator: ByteBufferAllocator) throws -> [TDSPacket]? {
+        storedPackets.append(packet)
+        
+        guard packet.header.status == .eom else {
+            return []
+        }
+        
+        var messageBuffer = ByteBuffer(from: storedPackets, allocator: allocator)
         let _ = try TDSMessage.LoginResponse.parse(from: &messageBuffer)
         // TODO: Set logged in ready state
         // TODO: React to envchange request from server
         return nil
     }
 
-    func start(allocator: ByteBufferAllocator) throws -> TDSMessage {
+    func start(allocator: ByteBufferAllocator) throws -> [TDSPacket] {
         let message = try TDSMessage(packetType: login, allocator: allocator)
-        return message
+        return message.packets
     }
 
     func log(to logger: Logger) {

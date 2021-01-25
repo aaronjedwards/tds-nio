@@ -19,7 +19,7 @@ public struct TDSMessage {
     init<M: TDSMessageType>(packetType: M, allocator: ByteBufferAllocator) throws {
         var buffer = allocator.buffer(capacity: 4_096)
         try packetType.serialize(into: &buffer)
-        self = try .init(packingDataWith: &buffer, headerType: M.headerType, allocator: allocator)
+        self = try .init(from: &buffer, headerType: M.headerType, allocator: allocator)
     }
     
     public func writeToByteBuffer(_ data: inout ByteBuffer) {

@@ -8,10 +8,12 @@ extension TDSMessage {
             return .preloginResponse
         }
         
-        public var body: Prelogin
+        public var version: String
+        public var encryption: PreloginEncryption?
         
         public init(version: String, encryption: PreloginEncryption?) {
-            body = Prelogin(version: version, encryption: encryption)
+            self.version = version
+            self.encryption = encryption
         }
         
         /// Parses an instance of this message type from a byte buffer.

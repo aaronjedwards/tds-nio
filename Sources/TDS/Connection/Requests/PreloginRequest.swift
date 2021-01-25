@@ -14,6 +14,8 @@ extension TDSConnection {
 internal final class PreloginRequest: TDSRequest {
     private let clientEncryption: TDSMessage.PreloginEncryption
     
+    private var storedPackets = [TDSPacket]()
+    
     init(_ shouldNegotiateEncryption: Bool) {
         self.clientEncryption = shouldNegotiateEncryption ? .encryptOn : .encryptNotSup
     }
@@ -22,19 +24,28 @@ internal final class PreloginRequest: TDSRequest {
         logger.debug("Sending Prelogin Packet")
     }
     
-    func respond(to message: TDSMessage, allocator: ByteBufferAllocator) throws -> TDSMessage? {
-        switch message.headerType {
+    func respond(to packet: TDSPacket, allocator: ByteBufferAllocator) throws -> [TDSPacket]? {
+        storedPackets.append(packet)
+        
+        guard packet.header.status == .eom else {
+            return []
+        }
+        
+        switch packet.headerType {
         case .preloginResponse:
-            var messageBuffer = try ByteBuffer(unpackingDataFrom: message, allocator: allocator)
-            let parsedMessage = try TDSMessage.PreloginResponse.parse(from: &messageBuffer)
+            var messageBuffer = ByteBuffer(from: storedPackets, allocator: allocator)
+            guard let parsedMessage = try? TDSMessage.PreloginResponse.parse(from: &messageBuffer) else {
+                throw TDSError.protocolError("Unable to parse prelogin response from message contents.")
+            }
             
             // Encryption Negotiation - Supports all or nothing encryption
-            if let serverEncryption = parsedMessage.body.encryption {
+            if let serverEncryption = parsedMessage.encryption {
                 switch (serverEncryption, clientEncryption) {
                 case (.encryptReq, .encryptOn),
                      (.encryptOn, .encryptOn):
                     // encrypt connection
-                    return try TDSMessage(packetType: TDSMessage.SSLKickoff(), allocator: allocator)
+                    let packet = TDSPacket.empty(type: .sslKickoff, allocator: allocator)
+                    return [packet]
                 case (.encryptNotSup, .encryptNotSup):
                     // no encryption
                     return nil
@@ -49,9 +60,9 @@ internal final class PreloginRequest: TDSRequest {
         return nil
     }
     
-    func start(allocator: ByteBufferAllocator) throws -> TDSMessage {
+    func start(allocator: ByteBufferAllocator) throws -> [TDSPacket] {
         let prelogin = TDSMessage.PreloginMessage(version: "9.0.0", encryption: clientEncryption)
         let message = try TDSMessage(packetType: prelogin, allocator: allocator)
-        return message
+        return message.packets
     }
 }

@@ -24,14 +24,22 @@ class RawSqlBatchRequest: TDSRequest {
     let sqlBatch: TDSMessage.RawSqlBatchMessage
     var onRow: (TDSRow) throws -> ()
     var rowLookupTable: TDSRow.LookupTable?
+    
+    private var storedPackets = [TDSPacket]()
 
     init(sqlBatch: TDSMessage.RawSqlBatchMessage, _ onRow: @escaping (TDSRow) throws -> ()) {
         self.sqlBatch = sqlBatch
         self.onRow = onRow
     }
 
-    func respond(to message: TDSMessage, allocator: ByteBufferAllocator) throws -> TDSMessage? {
-        var messageBuffer = try ByteBuffer(unpackingDataFrom: message, allocator: allocator)
+    func respond(to packet: TDSPacket, allocator: ByteBufferAllocator) throws -> [TDSPacket]? {
+        storedPackets.append(packet)
+        
+        guard packet.header.status == .eom else {
+            return []
+        }
+        
+        var messageBuffer = ByteBuffer(from: storedPackets, allocator: allocator)
         let response = try TDSMessage.TabularResultResponse.parse(from: &messageBuffer)
 
         // TODO: The following is an incomplete implementation of extracting data from rowTokens
@@ -57,8 +65,8 @@ class RawSqlBatchRequest: TDSRequest {
         return nil
     }
 
-    func start(allocator: ByteBufferAllocator) throws -> TDSMessage {
-        return try TDSMessage(packetType: sqlBatch, allocator: allocator)
+    func start(allocator: ByteBufferAllocator) throws -> [TDSPacket] {
+        return try TDSMessage(packetType: sqlBatch, allocator: allocator).packets
     }
 
     func log(to logger: Logger) {
