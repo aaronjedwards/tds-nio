@@ -62,7 +62,6 @@ private final class TDSErrorHandler: ChannelInboundHandler {
         self.logger.error("Uncaught error: \(error)")
         context.close(promise: nil)
         context.fireErrorCaught(error)
-        
     }
 }
 

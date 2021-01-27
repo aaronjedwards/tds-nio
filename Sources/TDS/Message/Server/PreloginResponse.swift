@@ -3,8 +3,8 @@ import NIO
 extension TDSMessage {
     /// `PRELOGIN`
     /// https://docs.microsoft.com/en-us/openspecs/windows_protocols/ms-tds/60f56408-0188-4cd5-8b90-25c6f2423868
-    public struct PreloginResponse: TDSMessageType {
-        public static var headerType: TDSPacket.HeaderType {
+    public struct PreloginResponse: TDSMessagePayload {
+        public static var packetType: TDSPacket.HeaderType {
             return .preloginResponse
         }
         

@@ -14,10 +14,16 @@ extension TDSConnection: TDSClient {
 }
 
 public protocol TDSRequest {
-    // nil value ends the request
-    func respond(to packet: TDSPacket, allocator: ByteBufferAllocator) throws -> [TDSPacket]?
+    func handle(packet: TDSPacket, allocator: ByteBufferAllocator) throws -> TDSPacketResponse
     func start(allocator: ByteBufferAllocator) throws -> [TDSPacket]
     func log(to logger: Logger)
+}
+
+public enum TDSPacketResponse {
+    case done
+    case `continue`
+    case respond(with: [TDSPacket])
+    case kickoffSSL
 }
 
 final class TDSRequestContext {
@@ -48,18 +54,24 @@ final class TDSRequestHandler: ChannelDuplexHandler {
     
     enum State: Int {
         case start
-        case sentInitialTDSPreLogin
-        case receivedTDSPreLoginResponse
+        case sentPrelogin
         case sslHandshakeStarted
         case sslHandshakeComplete
-        case sentTDSLogin
+        case sentLogin
         case loggedIn
     }
     
     private var state = State.start
     
     private var queue: [TDSRequestContext]
+    
     let logger: Logger
+    
+    var currentRequest: TDSRequestContext? {
+        get {
+            self.queue.first
+        }
+    }
     
     public init(
         logger: Logger,
@@ -78,37 +90,29 @@ final class TDSRequestHandler: ChannelDuplexHandler {
     
     private func _channelRead(context: ChannelHandlerContext, data: NIOAny) throws {
         let packet = self.unwrapInboundIn(data)
-        guard self.queue.count > 0 else {
+        guard let request = self.currentRequest else {
             // discard packet
             return
         }
         
-        let request = self.queue[0]
-        
-        switch (state, packet.headerType) {
-        case (.sentInitialTDSPreLogin, .preloginResponse):
-            state = .receivedTDSPreLoginResponse
-        case (_, .loginResponse):
-            state = .loggedIn
-        default:
-            break
-        }
-        
-        if let responses = try request.delegate.respond(to: packet, allocator: context.channel.allocator) {
-            guard let first = responses.first else {
-                return
-            }
-            switch (state, first.headerType) {
-            case (.receivedTDSPreLoginResponse, .sslKickoff):
-                try sslKickoff(context: context)
-            default:
-                for response in responses {
-                    context.write(self.wrapOutboundOut(response), promise: nil)
+        do {
+            let response = try request.delegate.handle(packet: packet, allocator: context.channel.allocator)
+            switch response {
+            case .kickoffSSL:
+                guard case .sentPrelogin = state else {
+                    throw TDSError.protocolError("Unexpected state to initiate SSL kickoff. If encryption is negotiated, the SSL exchange should immediately follow the PRELOGIN phase.")
                 }
+                try sslKickoff(context: context)
+            case .respond(let packets):
+                try write(context: context, packets: packets, promise: nil)
                 context.flush()
+            case .continue:
+                return
+            case .done:
+                cleanupRequest(request)
             }
-        } else {
-            cleanupRequest(request)
+        } catch {
+            cleanupRequest(request, error: error)
         }
     }
     
@@ -131,30 +135,35 @@ final class TDSRequestHandler: ChannelDuplexHandler {
         }
     }
     
-    private func cleanupRequest(_ request: TDSRequestContext) {
+    private func cleanupRequest(_ request: TDSRequestContext, error: Error? = nil) {
         self.queue.removeFirst()
-        if let error = request.lastError {
+        if let error = error {
             request.promise.fail(error)
         } else {
             request.promise.succeed(())
         }
     }
     
-    private func _write(context: ChannelHandlerContext, data: NIOAny, promise: EventLoopPromise<Void>?) throws {
-        let request = self.unwrapOutboundIn(data)
-        self.queue.append(request)
-        
-        var packets = try request.delegate.start(allocator: context.channel.allocator)
-        guard let first = packets.first else {
+    private func write(context: ChannelHandlerContext, packets: [TDSPacket], promise: EventLoopPromise<Void>?) throws {
+        var packets = packets
+        guard let requestType = packets.first?.type else {
             return
         }
         
-        switch (state, first.headerType) {
-        case (.start, .prelogin):
-            state = .sentInitialTDSPreLogin
-        case (_, .tds7Login):
-            if state.rawValue >= State.receivedTDSPreLoginResponse.rawValue  {
-                state = .sentTDSLogin
+        switch requestType {
+        case .prelogin:
+            switch state {
+            case .start:
+                state = .sentPrelogin
+            case .sentPrelogin, .sslHandshakeStarted, .sslHandshakeComplete, .sentLogin, .loggedIn:
+                throw TDSError.protocolError("PRELOGIN message must be the first message sent and may only be sent once per connection.")
+            }
+        case .tds7Login:
+            switch state {
+            case .sentPrelogin, .sslHandshakeComplete:
+                state = .sentLogin
+            case .start, .sslHandshakeStarted, .sentLogin, .loggedIn:
+                throw TDSError.protocolError("LOGIN message must follow immediately after the PRELOGIN message or (if encryption is enabled) SSL negotiation and may only be sent once per connection.")
             }
         default:
             break
@@ -179,8 +188,12 @@ final class TDSRequestHandler: ChannelDuplexHandler {
     }
     
     func write(context: ChannelHandlerContext, data: NIOAny, promise: EventLoopPromise<Void>?) {
+        let request = self.unwrapOutboundIn(data)
+        self.queue.append(request)
         do {
-            try self._write(context: context, data: data, promise: promise)
+            let packets = try request.delegate.start(allocator: context.channel.allocator)
+            try write(context: context, packets: packets, promise: promise)
+            context.flush()
         } catch {
             self.errorCaught(context: context, error: error)
         }
@@ -209,10 +222,10 @@ final class TDSRequestHandler: ChannelDuplexHandler {
             
             future.whenSuccess {_ in
                 self.logger.debug("Done w/ SSL Handshake and pipeline organization")
-                if let request = self.queue.first {
+                self.state = .sslHandshakeComplete
+                if let request = self.currentRequest {
                     self.cleanupRequest(request)
                 }
-                self.state = .sslHandshakeComplete
             }
             
             future.whenFailure { error in

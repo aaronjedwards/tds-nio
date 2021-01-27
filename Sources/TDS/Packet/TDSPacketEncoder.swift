@@ -15,7 +15,7 @@ public final class TDSPacketEncoder: MessageToByteEncoder {
     public func encode(data message: TDSPacket, out: inout ByteBuffer) throws {
         var packet = message
         out.writeBuffer(&packet.buffer)
-        logger.debug("Encoding TDSPacket - type: \(packet.headerType.description)")
+        logger.debug("Encoding TDSPacket - type: \(packet.type.description)")
     }
 }
 

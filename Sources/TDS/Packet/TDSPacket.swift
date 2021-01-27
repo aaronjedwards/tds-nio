@@ -8,7 +8,7 @@ public struct TDSPacket {
         Header(from: buffer)
     }
     
-    let headerType: HeaderType
+    let type: HeaderType
     
     public var messageBuffer: ByteBuffer {
         buffer.getSlice(at: Header.length, length: buffer.readableBytes - Header.length)!
@@ -28,14 +28,14 @@ public struct TDSPacket {
             return nil
         }
         
-        self.headerType = .init(integerLiteral: typeByte)
+        self.type = .init(integerLiteral: typeByte)
         self.buffer = slice
     }
     
-    init<M: TDSMessageType>(message: M, allocator: ByteBufferAllocator) throws {
+    init<M: TDSMessagePayload>(message: M, allocator: ByteBufferAllocator) throws {
         var buffer = allocator.buffer(capacity: 4_096)
         
-        buffer.writeInteger(M.headerType.value)
+        buffer.writeInteger(M.packetType.value)
         buffer.writeInteger(0x00 as UInt8) // status
         
         // Skip length, it will be set later
@@ -47,21 +47,17 @@ public struct TDSPacket {
         try message.serialize(into: &buffer)
         
         // Update length
-        if buffer.writerIndex >= Int(UInt16.max) {
-            fatalError("This shouldn't happen, crash for now")
-        }
-        
         buffer.setInteger(UInt16(buffer.writerIndex), at: 2)
         
-        self.headerType = M.headerType
+        self.type = M.packetType
         self.buffer = buffer
     }
     
-    init(message: inout ByteBuffer, headerType: HeaderType, isLastPacket: Bool, packetId: UInt8 = 0, allocator: ByteBufferAllocator) {
-        var buffer = allocator.buffer(capacity: 4_096)
+    init(from inputBuffer: inout ByteBuffer, ofType type: HeaderType, isLastPacket: Bool, packetId: UInt8 = 0, allocator: ByteBufferAllocator) {
+        var buffer = allocator.buffer(capacity: inputBuffer.readableBytes + TDSPacket.headerLength)
         
-        buffer.writeInteger(headerType.value)
-        buffer.writeInteger(isLastPacket ? 0x01 : 0x00 as UInt8) // status
+        buffer.writeInteger(type.value)
+        buffer.writeInteger(isLastPacket ? TDSPacket.Status.eom.value : TDSPacket.Status.normal.value) // status
         
         // Skip length, it will be set later
         buffer.moveWriterIndex(forwardBy: 2)
@@ -69,31 +65,18 @@ public struct TDSPacket {
         buffer.writeInteger(packetId) // PacketID
         buffer.writeInteger(0x00 as UInt8) // Window
         
-        buffer.writeBuffer(&message)
+        buffer.writeBuffer(&inputBuffer)
         
         // Update length
-        if buffer.writerIndex >= Int(UInt16.max) {
-            fatalError("This shouldn't happen, crash for now")
-        }
-        
         buffer.setInteger(UInt16(buffer.writerIndex), at: 2)
         
-        self.headerType = headerType
+        self.type = type
         self.buffer = buffer
     }
 }
 
 extension TDSPacket {
-    public static func empty(type: HeaderType, allocator: ByteBufferAllocator) -> TDSPacket {
-        let header = Header(type: type, status: .eom)
-        var buffer = allocator.buffer(capacity: 100)
-        header.writeToByteBuffer(buffer: &buffer)
-        let packet = TDSPacket.init(from: &buffer)!
-        return packet
-    }
-}
-
-extension TDSPacket {
     public static let defaultPacketLength = 1000
+    public static let headerLength = 8
     public static let maximumPacketDataLength = TDSPacket.defaultPacketLength - 8
 }

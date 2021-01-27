@@ -47,7 +47,7 @@ public final class PipelineOrganizationHandler: ChannelDuplexHandler, RemovableC
         case .sslHandshake(var sslHandshakeState):
             let packet = self.unwrapInboundIn(data)
             
-            switch packet.headerType {
+            switch packet.type {
             case .prelogin:
                 storedPackets.append(packet)
                 if (packet.header.status == .eom) {
@@ -84,7 +84,7 @@ public final class PipelineOrganizationHandler: ChannelDuplexHandler, RemovableC
     private func _flush(context: ChannelHandlerContext) throws {
         switch self.state {
         case .sslHandshake(var sslHandshakeState):
-            let message = try TDSMessage(from: &sslHandshakeState.outputBuffer, headerType: .prelogin, allocator: context.channel.allocator)
+            let message = try TDSMessage(from: &sslHandshakeState.outputBuffer, ofType: .prelogin, allocator: context.channel.allocator)
             for packet in message.packets {
                 context.write(self.wrapOutboundOut(packet), promise: sslHandshakeState.outputPromise)
             }

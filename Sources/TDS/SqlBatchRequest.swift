@@ -9,13 +9,13 @@ extension TDSConnection {
     }
     
     public func rawSql(_ sqlText: String, onRow: @escaping (TDSRow) throws -> ()) -> EventLoopFuture<Void> {
-        let request = RawSqlBatchRequest(sqlBatch: TDSMessage.RawSqlBatchMessage(sqlText: sqlText), onRow)
+        let request = RawSqlBatchRequest(sqlBatch: TDSMessage.RawSqlBatchMessage(sqlText: sqlText), logger: logger, onRow)
         return self.send(request, logger: logger)
     }
 
 
     func query(_ message: TDSMessage.RawSqlBatchMessage, _ onRow: @escaping (TDSRow) throws -> ()) -> EventLoopFuture<Void> {
-        let request = RawSqlBatchRequest(sqlBatch: message, onRow)
+        let request = RawSqlBatchRequest(sqlBatch: message, logger: logger, onRow)
         return self.send(request, logger: logger)
     }
 }
@@ -25,25 +25,38 @@ class RawSqlBatchRequest: TDSRequest {
     var onRow: (TDSRow) throws -> ()
     var rowLookupTable: TDSRow.LookupTable?
     
-    private var storedPackets = [TDSPacket]()
+    private let logger: Logger
+    private let tokenParser: TDSTokenParser
 
-    init(sqlBatch: TDSMessage.RawSqlBatchMessage, _ onRow: @escaping (TDSRow) throws -> ()) {
+    init(sqlBatch: TDSMessage.RawSqlBatchMessage, logger: Logger, _ onRow: @escaping (TDSRow) throws -> ()) {
         self.sqlBatch = sqlBatch
         self.onRow = onRow
+        self.logger = logger
+        self.tokenParser = TDSTokenParser(logger: logger)
     }
 
-    func respond(to packet: TDSPacket, allocator: ByteBufferAllocator) throws -> [TDSPacket]? {
-        storedPackets.append(packet)
-        
+    func handle(packet: TDSPacket, allocator: ByteBufferAllocator) throws -> TDSPacketResponse {
+        // Add packet to token parser stream
+        let parsedTokens = tokenParser.writeAndParseTokens(packet.messageBuffer)
+        try handleParsedTokens(parsedTokens)
         guard packet.header.status == .eom else {
-            return []
+            return .continue
         }
-        
-        var messageBuffer = ByteBuffer(from: storedPackets, allocator: allocator)
-        let response = try TDSMessage.TabularResultResponse.parse(from: &messageBuffer)
 
+        return .done
+    }
+
+    func start(allocator: ByteBufferAllocator) throws -> [TDSPacket] {
+        return try TDSMessage(payload: sqlBatch, allocator: allocator).packets
+    }
+
+    func log(to logger: Logger) {
+
+    }
+    
+    func handleParsedTokens(_ tokens: [TDSToken]) throws {
         // TODO: The following is an incomplete implementation of extracting data from rowTokens
-        for token in response.tokens {
+        for token in tokens {
             switch token.type {
             case .row:
                 guard let rowToken = token as? TDSTokens.RowToken else {
@@ -61,16 +74,6 @@ class RawSqlBatchRequest: TDSRequest {
                 break
             }
         }
-
-        return nil
-    }
-
-    func start(allocator: ByteBufferAllocator) throws -> [TDSPacket] {
-        return try TDSMessage(packetType: sqlBatch, allocator: allocator).packets
-    }
-
-    func log(to logger: Logger) {
-
     }
 }
 

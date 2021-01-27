@@ -16,7 +16,7 @@ public final class TDSPacketDecoder: ByteToMessageDecoder {
     public func decode(context: ChannelHandlerContext, buffer: inout ByteBuffer) throws -> DecodingState {
         while let packet = TDSPacket(from: &buffer) {
             context.fireChannelRead(wrapInboundOut(packet))
-            logger.debug("Decoded TDSPacket with type: \(packet.headerType)")
+            logger.debug("Decoded TDSPacket with type: \(packet.type)")
             return .continue
         }
         

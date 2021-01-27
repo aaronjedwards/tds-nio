@@ -48,15 +48,21 @@ final class TDSTests: XCTestCase {
         XCTAssertEqual(date != nil, true)
     }
     
-    func testRawSqlInt() throws {
+    func testRawSqlLargeResultSet() throws {
         let conn = try TDSConnection.test(on: eventLoop).wait()
         defer { try! conn.close().wait() }
-        let rows = try conn.rawSql("SELECT TOP (1) [decimal_column] FROM [dbo].[applicationUsers]").wait()
-        XCTAssertEqual(rows.count, 1)
-        
-        let number = rows[0].column("decimal_column")?.double
-        print(number)
-        XCTAssertEqual(number != nil, true)
+        let rows = try conn.rawSql("""
+            SELECT TOP(10000)
+                  [id]
+                  , [first_name]
+                  , [last_name]
+                  , [email]
+                  , [gender]
+                  , [ip_address]
+            FROM [dbo].[applicationUsers]
+        """)
+        .wait()
+        XCTAssertEqual(rows.count, 10000)
     }
     
     func testLocalTLSServerWithSelfSignedCertificate() throws {

@@ -1,6 +1,6 @@
 import NIO
 
-extension TDSMessages {
+extension TDSMessage {
 
     static public func serializeAllHeaders(_ buffer: inout ByteBuffer) {
         let startWriterIndex = buffer.writerIndex

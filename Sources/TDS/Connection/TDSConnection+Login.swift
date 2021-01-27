@@ -15,35 +15,38 @@ extension TDSConnection {
             database: database ?? "master",
             sspiData: ""
         )
-        return self.send(Login7Request(login: auth), logger: logger)
+        return self.send(LoginRequest(login: auth, logger: logger), logger: logger)
     }
 }
 
-class Login7Request: TDSRequest {
-    let login: TDSMessage.Login7Message
+class LoginRequest: TDSRequest {
+    private let login: TDSMessage.Login7Message
+    private let logger: Logger
     
-    private var storedPackets = [TDSPacket]()
+    private let tokenParser: TDSTokenParser
     
-    init(login: TDSMessage.Login7Message) {
+    init(login: TDSMessage.Login7Message, logger: Logger) {
         self.login = login
+        self.logger = logger
+        self.tokenParser = TDSTokenParser(logger: logger)
     }
 
-    func respond(to packet: TDSPacket, allocator: ByteBufferAllocator) throws -> [TDSPacket]? {
-        storedPackets.append(packet)
+    func handle(packet: TDSPacket, allocator: ByteBufferAllocator) throws -> TDSPacketResponse {
+        // Add packet to token parser stream
+        let tokens = tokenParser.writeAndParseTokens(packet.messageBuffer)
         
         guard packet.header.status == .eom else {
-            return []
+            return .continue
         }
         
-        var messageBuffer = ByteBuffer(from: storedPackets, allocator: allocator)
-        let _ = try TDSMessage.LoginResponse.parse(from: &messageBuffer)
         // TODO: Set logged in ready state
         // TODO: React to envchange request from server
-        return nil
+        
+        return .done
     }
 
     func start(allocator: ByteBufferAllocator) throws -> [TDSPacket] {
-        let message = try TDSMessage(packetType: login, allocator: allocator)
+        let message = try TDSMessage(payload: login, allocator: allocator)
         return message.packets
     }
 

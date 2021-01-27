@@ -5,8 +5,8 @@ public enum TDSMessages {}
 
 /// Client or Server Message
 public struct TDSMessage {
-    public var headerType: TDSPacket.HeaderType {
-        packets[0].headerType
+    public var packetType: TDSPacket.HeaderType {
+        packets[0].type
     }
     
     public internal(set) var packets: [TDSPacket]
@@ -16,10 +16,10 @@ public struct TDSMessage {
         self.packets = packets
     }
 
-    init<M: TDSMessageType>(packetType: M, allocator: ByteBufferAllocator) throws {
-        var buffer = allocator.buffer(capacity: 4_096)
-        try packetType.serialize(into: &buffer)
-        self = try .init(from: &buffer, headerType: M.headerType, allocator: allocator)
+    init<P: TDSMessagePayload>(payload: P, allocator: ByteBufferAllocator) throws {
+        var buffer = allocator.buffer(capacity: TDSPacket.maximumPacketDataLength)
+        try payload.serialize(into: &buffer)
+        self = try TDSMessage(from: &buffer, ofType: P.packetType, allocator: allocator)
     }
     
     public func writeToByteBuffer(_ data: inout ByteBuffer) {

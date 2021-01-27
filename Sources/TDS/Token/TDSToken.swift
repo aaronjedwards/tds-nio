@@ -142,26 +142,12 @@ public enum TDSTokens {
         var lineNumber: Int
     }
 
-//    public struct BVarcharEnvchangeToken: TDSToken {
-//        public var type: TokenType = .envchange
-//        var envchangeType: EnvchangeType
-//        var newValue: String
-//        var oldValue: String
-//    }
-
     public struct EnvchangeToken<T>: TDSToken {
         public var type: TokenType = .envchange
         var envchangeType: EnvchangeType
         var newValue: T
         var oldValue: T
     }
-
-//    public struct BVarbyteEnvchangeToken: TDSToken {
-//        public var type: TokenType = .envchange
-//        var envchangeType: EnvchangeType
-//        var newValue: [Byte]
-//        var oldValue: [Byte]
-//    }
 
     public struct RoutingEnvchangeToken: TDSToken {
 

@@ -21,17 +21,17 @@ internal final class PreloginRequest: TDSRequest {
     }
     
     func log(to logger: Logger) {
-        logger.debug("Sending Prelogin Packet")
+        logger.debug("Sending Prelogin message.")
     }
     
-    func respond(to packet: TDSPacket, allocator: ByteBufferAllocator) throws -> [TDSPacket]? {
+    func handle(packet: TDSPacket, allocator: ByteBufferAllocator) throws -> TDSPacketResponse {
         storedPackets.append(packet)
         
         guard packet.header.status == .eom else {
-            return []
+            return .continue
         }
         
-        switch packet.headerType {
+        switch packet.type {
         case .preloginResponse:
             var messageBuffer = ByteBuffer(from: storedPackets, allocator: allocator)
             guard let parsedMessage = try? TDSMessage.PreloginResponse.parse(from: &messageBuffer) else {
@@ -44,11 +44,10 @@ internal final class PreloginRequest: TDSRequest {
                 case (.encryptReq, .encryptOn),
                      (.encryptOn, .encryptOn):
                     // encrypt connection
-                    let packet = TDSPacket.empty(type: .sslKickoff, allocator: allocator)
-                    return [packet]
+                    return .kickoffSSL
                 case (.encryptNotSup, .encryptNotSup):
                     // no encryption
-                    return nil
+                    return .done
                 default:
                     throw TDSError.protocolError("PRELOGIN Error: Incompatible client/server encyption configuration. Client: \(clientEncryption), Server: \(serverEncryption)")
                 }
@@ -57,12 +56,12 @@ internal final class PreloginRequest: TDSRequest {
             break
         }
         
-        return nil
+        return .done
     }
     
     func start(allocator: ByteBufferAllocator) throws -> [TDSPacket] {
         let prelogin = TDSMessage.PreloginMessage(version: "9.0.0", encryption: clientEncryption)
-        let message = try TDSMessage(packetType: prelogin, allocator: allocator)
+        let message = try TDSMessage(payload: prelogin, allocator: allocator)
         return message.packets
     }
 }
