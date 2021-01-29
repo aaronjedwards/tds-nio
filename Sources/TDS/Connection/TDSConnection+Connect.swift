@@ -21,7 +21,6 @@ extension TDSConnection {
             .channelOption(ChannelOptions.socket(SocketOptionLevel(SOL_SOCKET), SO_REUSEADDR), value: 1)
         
         let logger = Logger(label: "swift-tds")
-        logger.debug("Connecting to \(serverHostname)")
         
         // TDSMessage decoders
         let firstDecoder = ByteToMessageHandler(TDSPacketDecoder(logger: logger))
