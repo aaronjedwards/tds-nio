@@ -59,9 +59,18 @@ private final class TDSErrorHandler: ChannelInboundHandler {
     }
     
     func errorCaught(context: ChannelHandlerContext, error: Error) {
-        self.logger.error("Uncaught error: \(error)")
-        context.close(promise: nil)
-        context.fireErrorCaught(error)
+        switch error {
+        case NIOSSLError.uncleanShutdown:
+            // TODO: Verify this is because the server didn't reply with a CLOSE_NOTIFY
+            // Ignore this only if the channel is already shut down
+            if context.channel.isActive {
+                fallthrough
+            }
+        default:
+            self.logger.error("Uncaught error: \(error)")
+            context.close(promise: nil)
+            context.fireErrorCaught(error)
+        }
     }
 }
 

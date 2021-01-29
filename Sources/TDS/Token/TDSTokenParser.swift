@@ -52,7 +52,6 @@ public class TDSTokenParser {
                 parsedTokens.append(token)
                 
             } catch {
-                logger.debug("Token parsing unsuccessful. Restoring token parser buffer. Error: \(error). Tokens parsed before error: \(parsedTokens.count).")
                 buffer = bufferCopy
                 return parsedTokens
             }

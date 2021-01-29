@@ -4,12 +4,12 @@ import XCTest
 
 extension TDSConnection {
     static func address() throws -> SocketAddress {
-        try .makeAddressResolvingHost(env("TDS_HOSTNAME") ?? "swift-tds.database.windows.net", port: 1433)
+        try .makeAddressResolvingHost(env("TDS_HOSTNAME") ?? "localhost", port: 1433)
     }
     
     static func testUnauthenticated(on eventLoop: EventLoop) -> EventLoopFuture<TDSConnection> {
         do {
-            return connect(to: try address(), serverHostname: env("TDS_HOSTNAME") ?? "swift-tds.database.windows.net", on: eventLoop)
+            return connect(to: try address(), tlsConfiguration: nil, serverHostname: env("TDS_HOSTNAME") ?? "localhost", on: eventLoop)
         } catch {
             return eventLoop.makeFailedFuture(error)
         }
@@ -19,9 +19,9 @@ extension TDSConnection {
         return testUnauthenticated(on: eventLoop).flatMap { conn in
             return conn.login(
                 username: env("TDS_USERNAME") ?? "swift_tds_user",
-                password: env("TDS_PASSWORD") ?? "RP9f7PVffK6U8b9ek@Q9eH-8",
-                server: env("TDS_SEVERNAME") ?? "swift-tds.database.windows.net",
-                database: env("TDS_DATABASE") ?? "swift-tds"
+                password: env("TDS_PASSWORD") ?? "SwiftTDS!",
+                server: env("TDS_SEVERNAME") ?? "localhost",
+                database: env("TDS_DATABASE") ?? "swift_tds_database"
             ).map {
                 return conn
             }.flatMapError { error in

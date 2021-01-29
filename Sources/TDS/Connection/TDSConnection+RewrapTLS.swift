@@ -3,6 +3,8 @@ import NIOSSL
 import NIOTLS
 import Logging
 
+/// TODO: This handler needs documentation
+
 public final class PipelineOrganizationHandler: ChannelDuplexHandler, RemovableChannelHandler {
     public typealias InboundIn = TDSPacket
     public typealias InboundOut = ByteBuffer
@@ -127,11 +129,6 @@ public final class PipelineOrganizationHandler: ChannelDuplexHandler, RemovableC
         } catch {
             self.errorCaught(context: context, error: error)
         }
-    }
-
-    public func errorCaught(context: ChannelHandlerContext, error: Error) {
-        print(error.localizedDescription)
-        context.fireErrorCaught(error)
     }
 }
 

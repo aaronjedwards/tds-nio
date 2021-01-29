@@ -200,12 +200,19 @@ final class TDSRequestHandler: ChannelDuplexHandler {
     }
     
     func close(context: ChannelHandlerContext, mode: CloseMode, promise: EventLoopPromise<Void>?) {
+        context.close(mode: mode, promise: promise)
+        
         for current in self.queue {
             current.promise.fail(TDSError.connectionClosed)
         }
         self.queue = []
-        context.close(mode: mode, promise: promise)
     }
+    
+    public func errorCaught(context: ChannelHandlerContext, error: Error) {
+        print(error.localizedDescription)
+        context.fireErrorCaught(error)
+    }
+    
     
     private func _userInboundEventTriggered(context: ChannelHandlerContext, event: Any) throws {
         if let sslHandler = sslClientHandler, let sslHandshakeComplete = event as? TLSUserEvent, case .handshakeCompleted = sslHandshakeComplete {

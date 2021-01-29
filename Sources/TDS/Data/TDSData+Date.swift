@@ -100,12 +100,12 @@ extension ByteBuffer {
         self.writeInteger(minutesFromUTC)
     }
     
-    // time(n) is represented as one unsigned integer that represents the number of 10-n second increments since 12 AM within a day.
-    // The length, in bytes, of that integer depends on the scale n as follows:
-    // * 3 bytes if 0 <= n < = 2.
-    // * 4 bytes if 3 <= n < = 4.
-    // * 5 bytes if 5 <= n < = 7.
-    //
+    /// time(n) is represented as one unsigned integer that represents the number of 10-n second increments since 12 AM within a day.
+    /// The length, in bytes, of that integer depends on the scale n as follows:
+    /// * 3 bytes if 0 <= n < = 2.
+    /// * 4 bytes if 3 <= n < = 4.
+    /// * 5 bytes if 5 <= n < = 7.
+    ///
     fileprivate mutating func readTimeComponents(bytes length: Int, scale: Int?) -> DateComponents? {
         guard var secondIncrements: Int = self.readByteLengthInteger(length: length), let scale = scale else {
             return nil
@@ -120,7 +120,7 @@ extension ByteBuffer {
         return DateComponents.init(nanosecond: secondIncrements * 100)
     }
     
-    // represented as one 3-byte unsigned integer that represents the number of days since January 1, year 1.
+    /// represented as one 3-byte unsigned integer that represents the number of days since January 1, year 1.
     fileprivate mutating func readDate() -> Date? {
         
         guard let daysSinceJan1: UInt32 = self.readByteLengthInteger(length: 3) else {
@@ -132,7 +132,7 @@ extension ByteBuffer {
         return Date(timeInterval: Double(secondsSinceJan1), since: _jan1)
     }
     
-    // datetime2(n) is represented as a concatenation of time(n) followed by date as specified above.
+    /// datetime2(n) is represented as a concatenation of time(n) followed by date as specified above.
     fileprivate mutating func readDatetime2(bytes length: Int, scale: Int?) -> Date? {
         
         guard

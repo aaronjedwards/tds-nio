@@ -12,7 +12,7 @@ extension TDSConnection {
 // MARK: Private
 
 internal final class PreloginRequest: TDSRequest {
-    private let clientEncryption: TDSMessage.PreloginEncryption
+    private let clientEncryption: TDSMessages.PreloginEncryption
     
     private var storedPackets = [TDSPacket]()
     
@@ -34,7 +34,7 @@ internal final class PreloginRequest: TDSRequest {
         switch packet.type {
         case .preloginResponse:
             var messageBuffer = ByteBuffer(from: storedPackets, allocator: allocator)
-            guard let parsedMessage = try? TDSMessage.PreloginResponse.parse(from: &messageBuffer) else {
+            guard let parsedMessage = try? TDSMessages.PreloginResponse.parse(from: &messageBuffer) else {
                 throw TDSError.protocolError("Unable to parse prelogin response from message contents.")
             }
             
@@ -60,7 +60,7 @@ internal final class PreloginRequest: TDSRequest {
     }
     
     func start(allocator: ByteBufferAllocator) throws -> [TDSPacket] {
-        let prelogin = TDSMessage.PreloginMessage(version: "9.0.0", encryption: clientEncryption)
+        let prelogin = TDSMessages.PreloginMessage(version: "9.0.0", encryption: clientEncryption)
         let message = try TDSMessage(payload: prelogin, allocator: allocator)
         return message.packets
     }

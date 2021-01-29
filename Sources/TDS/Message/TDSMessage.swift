@@ -1,6 +1,6 @@
 import NIO
 
-// Use this as a namespace
+/// Namespace for messages
 public enum TDSMessages {}
 
 /// Client or Server Message
@@ -26,17 +26,5 @@ public struct TDSMessage {
         for var packet in packets {
             data.writeBuffer(&packet.buffer)
         }
-    }
-    
-    public func makeByteBuffer(allocator: ByteBufferAllocator) -> ByteBuffer {
-        let size = packets.reduce(0, { $0 + $1.buffer.readableBytes })
-        
-        var data = allocator.buffer(capacity: size)
-        
-        for var packet in packets {
-            data.writeBuffer(&packet.buffer)
-        }
-        
-        return data
     }
 }

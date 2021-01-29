@@ -10,6 +10,7 @@ extension TDSData {
             return nil
         }
         
+        // TODO
         switch self.metadata.dataType {
         case .charLegacy, .varcharLegacy, .char, .varchar, .nvarchar, .nchar, .text, .nText:
             let val = value.readUTF16String(length: value.readableBytes)

@@ -3,30 +3,25 @@ import NIO
 import Foundation
 
 extension TDSConnection {
-    public func login(username: String, password: String? = nil, server: String? = nil, database: String? = nil) -> EventLoopFuture<Void> {
-        let auth = TDSMessage.Login7Message(
-            hostname: Host.current().name ?? "",
+    public func login(username: String, password: String, server: String, database: String) -> EventLoopFuture<Void> {
+        let payload = TDSMessages.Login7Message(
             username: username,
-            password: password ?? "",
-            appName: "",
-            serverName: server ?? "",
-            clientInterfaceName: "SwiftTDS",
-            language: "",
-            database: database ?? "master",
-            sspiData: ""
+            password: password,
+            serverName: server,
+            database: database
         )
-        return self.send(LoginRequest(login: auth, logger: logger), logger: logger)
+        return self.send(LoginRequest(payload: payload, logger: logger), logger: logger)
     }
 }
 
 class LoginRequest: TDSRequest {
-    private let login: TDSMessage.Login7Message
+    private let payload: TDSMessages.Login7Message
     private let logger: Logger
     
     private let tokenParser: TDSTokenParser
     
-    init(login: TDSMessage.Login7Message, logger: Logger) {
-        self.login = login
+    init(payload: TDSMessages.Login7Message, logger: Logger) {
+        self.payload = payload
         self.logger = logger
         self.tokenParser = TDSTokenParser(logger: logger)
     }
@@ -46,11 +41,11 @@ class LoginRequest: TDSRequest {
     }
 
     func start(allocator: ByteBufferAllocator) throws -> [TDSPacket] {
-        let message = try TDSMessage(payload: login, allocator: allocator)
+        let message = try TDSMessage(payload: payload, allocator: allocator)
         return message.packets
     }
 
     func log(to logger: Logger) {
-        logger.debug("Logging in as \(login.username)")
+        logger.debug("Logging in as \(payload.username)")
     }
 }

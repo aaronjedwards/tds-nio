@@ -9,26 +9,26 @@ extension TDSConnection {
     }
     
     public func rawSql(_ sqlText: String, onRow: @escaping (TDSRow) throws -> ()) -> EventLoopFuture<Void> {
-        let request = RawSqlBatchRequest(sqlBatch: TDSMessage.RawSqlBatchMessage(sqlText: sqlText), logger: logger, onRow)
+        let request = RawSqlBatchRequest(sqlBatch: TDSMessages.RawSqlBatchMessage(sqlText: sqlText), logger: logger, onRow)
         return self.send(request, logger: logger)
     }
 
 
-    func query(_ message: TDSMessage.RawSqlBatchMessage, _ onRow: @escaping (TDSRow) throws -> ()) -> EventLoopFuture<Void> {
+    func query(_ message: TDSMessages.RawSqlBatchMessage, _ onRow: @escaping (TDSRow) throws -> ()) -> EventLoopFuture<Void> {
         let request = RawSqlBatchRequest(sqlBatch: message, logger: logger, onRow)
         return self.send(request, logger: logger)
     }
 }
 
 class RawSqlBatchRequest: TDSRequest {
-    let sqlBatch: TDSMessage.RawSqlBatchMessage
+    let sqlBatch: TDSMessages.RawSqlBatchMessage
     var onRow: (TDSRow) throws -> ()
     var rowLookupTable: TDSRow.LookupTable?
     
     private let logger: Logger
     private let tokenParser: TDSTokenParser
 
-    init(sqlBatch: TDSMessage.RawSqlBatchMessage, logger: Logger, _ onRow: @escaping (TDSRow) throws -> ()) {
+    init(sqlBatch: TDSMessages.RawSqlBatchMessage, logger: Logger, _ onRow: @escaping (TDSRow) throws -> ()) {
         self.sqlBatch = sqlBatch
         self.onRow = onRow
         self.logger = logger
