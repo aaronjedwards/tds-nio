@@ -48,7 +48,6 @@ extension TDSData {
                 fatalError("Unexpected number of readable bytes for MONEYNTYPE data type.")
             }
         case .numeric, .decimal:
-            print(UINT64_MAX)
             guard
                 value.readableBytes != 0,
                 let scale = metadata.scale,

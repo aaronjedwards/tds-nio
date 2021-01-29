@@ -17,6 +17,8 @@ jobs:
         env:
           ACCEPT_EULA: Y
           SA_PASSWORD: SwiftTDS!
+        ports:
+          - 1433:1433
     # Checkout source and run tests
     steps:
       - name: Check out code
