@@ -20,7 +20,7 @@ extension TDSConnection {
             return conn.login(
                 username: env("TDS_USERNAME") ?? "swift_tds_user",
                 password: env("TDS_PASSWORD") ?? "SwiftTDS!",
-                server: env("TDS_SEVERNAME") ?? "localhost",
+                server: env("TDS_HOSTNAME") ?? "localhost",
                 database: env("TDS_DATABASE") ?? "swift_tds_database"
             ).map {
                 return conn
