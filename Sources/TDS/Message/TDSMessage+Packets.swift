@@ -3,7 +3,7 @@ import NIO
 import NIO
 
 extension TDSMessage {
-    init(packingDataWith buffer: inout ByteBuffer, headerType: TDSPacket.HeaderType, allocator: ByteBufferAllocator) throws {
+    init(from buffer: inout ByteBuffer, ofType type: TDSPacket.HeaderType, allocator: ByteBufferAllocator) throws {
         var packets = [TDSPacket]()
         
         var packetId: UInt8 = 0
@@ -12,27 +12,13 @@ extension TDSMessage {
                 throw TDSError.protocolError("Serialization Error: Expected")
             }
             
-            packets.append(TDSPacket(message: &packetData, headerType: headerType, isLastPacket: false, packetId: packetId, allocator: allocator))
+            packets.append(TDSPacket(from: &packetData, ofType: type, isLastPacket: false, packetId: packetId, allocator: allocator))
             packetId = packetId &+ 1
         }
         
         var lastPacket = buffer.slice()
-        packets.append(TDSPacket(message: &lastPacket, headerType: headerType, isLastPacket: true, packetId: packetId, allocator: allocator))
+        packets.append(TDSPacket(from: &lastPacket, ofType: type, isLastPacket: true, packetId: packetId, allocator: allocator))
         
         self.init(packets: packets)
-    }
-}
-
-extension ByteBuffer {
-    init(unpackingDataFrom message: TDSMessage, allocator: ByteBufferAllocator) throws {
-        let size = message.packets.reduce(0, { $0 + $1.messageBuffer.readableBytes })
-        var buffer = allocator.buffer(capacity: size)
-        
-        for packet in message.packets {
-            var messageBuffer = packet.messageBuffer
-            buffer.writeBuffer(&messageBuffer)
-        }
-        
-        self = buffer
     }
 }

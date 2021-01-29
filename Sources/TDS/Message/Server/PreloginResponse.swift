@@ -3,15 +3,17 @@ import NIO
 extension TDSMessages {
     /// `PRELOGIN`
     /// https://docs.microsoft.com/en-us/openspecs/windows_protocols/ms-tds/60f56408-0188-4cd5-8b90-25c6f2423868
-    public struct PreloginResponse: TDSMessageType {
-        public static var headerType: TDSPacket.HeaderType {
+    public struct PreloginResponse: TDSMessagePayload {
+        public static var packetType: TDSPacket.HeaderType {
             return .preloginResponse
         }
         
-        public var body: Prelogin
+        public var version: String
+        public var encryption: PreloginEncryption?
         
         public init(version: String, encryption: PreloginEncryption?) {
-            body = Prelogin(version: version, encryption: encryption)
+            self.version = version
+            self.encryption = encryption
         }
         
         /// Parses an instance of this message type from a byte buffer.
@@ -23,7 +25,7 @@ extension TDSMessages {
             // Parse *PRELOGIN_OPTION
             while readOptions {
                 // Check if we have parsed at least the required VERSION token
-                guard let mappedToken = _buffer.readInteger(as: Byte.self).map(PreloginToken.init), let token = mappedToken else {
+                guard let mappedToken = _buffer.readByte().map(PreloginToken.init), let token = mappedToken else {
                     throw TDSError.protocolError("Invalid Prelogin Response: Invalid PL_OPTION_TOKEN value.")
                 }
                 
@@ -38,8 +40,8 @@ extension TDSMessages {
                 
                 // Read PRELOGIN_OPTION
                 guard
-                    let offset = _buffer.readInteger(as: UShort.self),
-                    let length = _buffer.readInteger(as: UShort.self)
+                    let offset = _buffer.readUShort(endianess: .big),
+                    let length = _buffer.readUShort(endianess: .big)
                     else {
                         throw TDSError.protocolError("Invalid Prelogin Response: Invalid *PRELOGIN_OPTION segment.")
                 }
@@ -48,7 +50,7 @@ extension TDSMessages {
                 preloginOptions.append(option)
             }
             
-            // Parse PL_OPTION_DATA
+            // Parse big
             // Reset _buffer
             _buffer = buffer
             

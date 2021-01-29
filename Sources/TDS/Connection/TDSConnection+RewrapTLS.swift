@@ -1,18 +1,23 @@
 import NIO
 import NIOSSL
 import NIOTLS
+import Logging
+
+/// TODO: This handler needs documentation
 
 public final class PipelineOrganizationHandler: ChannelDuplexHandler, RemovableChannelHandler {
-    public typealias InboundIn = TDSMessage
+    public typealias InboundIn = TDSPacket
     public typealias InboundOut = ByteBuffer
     public typealias OutboundIn = ByteBuffer
-    public typealias OutboundOut = TDSMessage
-    
+    public typealias OutboundOut = TDSPacket
+
+    let logger: Logger
+
     /// `TDSMessage` decoders/encoders
-    var firstDecoder: ByteToMessageHandler<TDSMessageDecoder>
-    var firstEncoder: MessageToByteHandler<TDSMessageEncoder>
-    var secondEncoder: MessageToByteHandler<TDSMessageEncoder>?
-    var secondDecoder: ByteToMessageHandler<TDSMessageDecoder>?
+    var firstDecoder: ByteToMessageHandler<TDSPacketDecoder>
+    var firstEncoder: MessageToByteHandler<TDSPacketEncoder>
+    var secondEncoder: MessageToByteHandler<TDSPacketEncoder>?
+    var secondDecoder: ByteToMessageHandler<TDSPacketDecoder>?
     var sslClientHandler: NIOSSLClientHandler
     
     enum State {
@@ -24,30 +29,39 @@ public final class PipelineOrganizationHandler: ChannelDuplexHandler, RemovableC
     var state = State.start
     
     public init(
-        _ firstDecoder: ByteToMessageHandler<TDSMessageDecoder>,
-        _ firstEncoder: MessageToByteHandler<TDSMessageEncoder>,
+        logger: Logger,
+        _ firstDecoder: ByteToMessageHandler<TDSPacketDecoder>,
+        _ firstEncoder: MessageToByteHandler<TDSPacketEncoder>,
         _ sslClientHandler: NIOSSLClientHandler
     ) {
+        self.logger = logger
         self.firstDecoder = firstDecoder
         self.firstEncoder = firstEncoder
         self.sslClientHandler = sslClientHandler
     }
+    
+    private var storedPackets = [TDSPacket]()
     
     
     // Inbound
     private func _channelRead(context: ChannelHandlerContext, data: NIOAny) throws {
         switch self.state {
         case .sslHandshake(var sslHandshakeState):
-            let message = self.unwrapInboundIn(data)
+            let packet = self.unwrapInboundIn(data)
             
-            switch message.headerType {
+            switch packet.type {
             case .prelogin:
-                let message = try ByteBuffer(unpackingDataFrom: message, allocator: context.channel.allocator)
-                sslHandshakeState.addReceivedData(message)
-                self.state = .sslHandshake(sslHandshakeState)
-                context.fireChannelRead(self.wrapInboundOut(sslHandshakeState.inputBuffer))
-                sslHandshakeState.inputBuffer.clear()
-                state = .sslHandshake(sslHandshakeState)
+                storedPackets.append(packet)
+                if (packet.header.status == .eom) {
+                    let messageBuffer = ByteBuffer(from: storedPackets, allocator: context.channel.allocator)
+                    sslHandshakeState.addReceivedData(messageBuffer)
+                    logger.debug("Unpacking data from Prelogin TLS message")
+                    self.state = .sslHandshake(sslHandshakeState)
+                    context.fireChannelRead(self.wrapInboundOut(sslHandshakeState.inputBuffer))
+                    sslHandshakeState.inputBuffer.clear()
+                    state = .sslHandshake(sslHandshakeState)
+                    storedPackets.removeAll(keepingCapacity: true)
+                }
             default:
                 throw TDSError.protocolError("Expected PRELOGIN SSL Handshake Response")
             }
@@ -72,10 +86,14 @@ public final class PipelineOrganizationHandler: ChannelDuplexHandler, RemovableC
     private func _flush(context: ChannelHandlerContext) throws {
         switch self.state {
         case .sslHandshake(var sslHandshakeState):
-            let message = try TDSMessage(packingDataWith: &sslHandshakeState.outputBuffer, headerType: .prelogin, allocator: context.channel.allocator)
-            context.writeAndFlush(self.wrapOutboundOut(message), promise: sslHandshakeState.outputPromise)
+            let message = try TDSMessage(from: &sslHandshakeState.outputBuffer, ofType: .prelogin, allocator: context.channel.allocator)
+            for packet in message.packets {
+                context.write(self.wrapOutboundOut(packet), promise: sslHandshakeState.outputPromise)
+            }
+            context.flush()
             sslHandshakeState.outputBuffer.clear()
             state = .sslHandshake(sslHandshakeState)
+            logger.debug("Flushed Prelogin TLS message")
         default:
             context.flush()
         }

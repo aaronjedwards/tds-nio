@@ -5,36 +5,29 @@ import Foundation
 extension TDSMessages {
     /// `LOGIN7`
     /// https://docs.microsoft.com/en-us/openspecs/windows_protocols/ms-tds/773a62b6-ee89-4c02-9e5e-344882630aac
-    public struct Login7Message: TDSMessageType {
-        public static var headerType: TDSPacket.HeaderType {
+    public struct Login7Message: TDSMessagePayload {
+        public static var packetType: TDSPacket.HeaderType {
             return .tds7Login
         }
 
-         static var clientPID: UInt32 = UInt32(ProcessInfo.processInfo.processIdentifier)
+        static var clientPID = UInt32(ProcessInfo.processInfo.processIdentifier)
         
-        var hostname: String
         var username: String
         var password: String
-        var appName: String
         var serverName: String
-        var clientInterfaceName: String
-        var language: String
         var database: String
-        var sspiData: String
-        var atchDBFile: String = "" // the filename for a database that is to be attached during the connection process
-        var changePassword: String = ""
         
         public func serialize(into buffer: inout ByteBuffer) throws {
             // Each basic field needs to serialize the length & offset
             let basicFields = [
-                (hostname, false),
+                (Host.current().name ?? "", false),
                 (username, false),
                 (password, true),
-                (appName, false),
+                ("", false),
                 (serverName, false),
                 ("", false), // unused field
-                (clientInterfaceName, false),
-                (language, false),
+                ("swift-tds", false),
+                ("", false),
                 (database, false)
             ]
             
@@ -43,12 +36,10 @@ extension TDSMessages {
             
             // Each extended field needs to serialize the length & offset
             let extendedFields = [
-                (sspiData, false),
-                (atchDBFile, false),
-                (changePassword, true)
+                ("", false),
+                ("", false),
+                ("", true)
             ]
-            
-            let sspiLong: UInt32 = 0
             
             // Stores the position and skips an UInt32 so the length can be added later
             let login7HeaderPosition = buffer.writerIndex
