@@ -24,4 +24,4 @@ jobs:
       - name: Run tests with Thread Sanitizer
         run: swift test --enable-test-discovery --sanitize=thread
         env:
-          TDS_HOSTNAME: 'localhost'
+          TDS_HOSTNAME: 'mssql'
