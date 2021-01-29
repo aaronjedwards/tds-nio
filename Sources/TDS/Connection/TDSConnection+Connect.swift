@@ -21,6 +21,7 @@ extension TDSConnection {
             .channelOption(ChannelOptions.socket(SocketOptionLevel(SOL_SOCKET), SO_REUSEADDR), value: 1)
         
         let logger = Logger(label: "swift-tds")
+        logger.debug("Connecting to \(serverHostname)")
         
         // TDSMessage decoders
         let firstDecoder = ByteToMessageHandler(TDSPacketDecoder(logger: logger))
@@ -63,9 +64,10 @@ private final class TDSErrorHandler: ChannelInboundHandler {
         case NIOSSLError.uncleanShutdown:
             // TODO: Verify this is because the server didn't reply with a CLOSE_NOTIFY
             // Ignore this only if the channel is already shut down
-            if context.channel.isActive {
-                fallthrough
-            }
+//            if context.channel.isActive {
+//                fallthrough
+//            }
+        fallthrough
         default:
             self.logger.error("Uncaught error: \(error)")
             context.close(promise: nil)

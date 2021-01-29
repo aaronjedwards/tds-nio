@@ -46,6 +46,6 @@ class LoginRequest: TDSRequest {
     }
 
     func log(to logger: Logger) {
-        logger.debug("Logging in as \(payload.username)")
+        logger.debug("Logging in as user: \(payload.username) to database: \(payload.database) and server: \(payload.serverName)")
     }
 }
