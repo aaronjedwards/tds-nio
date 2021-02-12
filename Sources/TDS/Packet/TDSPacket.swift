@@ -17,6 +17,10 @@ public struct TDSPacket {
     /// Packet Data
     internal var buffer: ByteBuffer
     
+    public var isEom: Bool {
+        return header.status == .eom
+    }
+    
     init?(from buffer: inout ByteBuffer) {
         guard
             buffer.readableBytes >= Header.length,
@@ -53,11 +57,11 @@ public struct TDSPacket {
         self.buffer = buffer
     }
     
-    init(from inputBuffer: inout ByteBuffer, ofType type: HeaderType, isLastPacket: Bool, packetId: UInt8 = 0, allocator: ByteBufferAllocator) {
+    init(from inputBuffer: inout ByteBuffer, ofType type: HeaderType, status: TDSPacket.Status, packetId: UInt8 = 0, allocator: ByteBufferAllocator) {
         var buffer = allocator.buffer(capacity: inputBuffer.readableBytes + TDSPacket.headerLength)
         
         buffer.writeInteger(type.value)
-        buffer.writeInteger(isLastPacket ? TDSPacket.Status.eom.value : TDSPacket.Status.normal.value) // status
+        buffer.writeInteger(status.value) // status
         
         // Skip length, it will be set later
         buffer.moveWriterIndex(forwardBy: 2)

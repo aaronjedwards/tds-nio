@@ -4,6 +4,7 @@ public enum TDSError: Error, LocalizedError, CustomStringConvertible {
     case protocolError(String)
     case connectionClosed
     case invalidCredentials
+    case invalidTransition(String)
     
     /// See `LocalizedError`.
     public var errorDescription: String? {
@@ -20,6 +21,8 @@ public enum TDSError: Error, LocalizedError, CustomStringConvertible {
             description = "connection closed"
         case .invalidCredentials:
             description = "Invalid login credentials"
+        case .invalidTransition(let message):
+            description = "Invalid State Transition: \(message)"
         }
         return "TDS error: \(description)"
     }

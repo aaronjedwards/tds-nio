@@ -32,6 +32,20 @@ public struct TypeMetadata: Metadata {
 }
 
 public enum TDSTokens {
+    
+    public static func row(_ token: TDSToken) throws -> TDSTokens.RowToken {
+        guard token.type == .row, let row = token as? TDSTokens.RowToken else {
+            throw TDSError.protocolError("Unable able to cast row token to token of type \(token.type).")
+        }
+        return row
+    }
+    
+    public static func colMetadata(_ token: TDSToken) throws -> TDSTokens.ColMetadataToken {
+        guard token.type == .colMetadata, let row = token as? TDSTokens.ColMetadataToken else {
+            throw TDSError.protocolError("Unable able to cast column metadata token to token of type \(token.type).")
+        }
+        return row
+    }
 
     public enum TokenType: UInt8 {
         /// ALTMETADATA
@@ -97,8 +111,8 @@ public enum TDSTokens {
 
     public struct ColMetadataToken: TDSToken {
         public var type: TokenType = .colMetadata
-        var count: UShort
-        var colData: [ColumnData]
+        public var count: UShort
+        public var colData: [ColumnData]
 
         public struct ColumnData: Metadata {
             public var userType: ULong

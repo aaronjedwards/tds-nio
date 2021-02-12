@@ -14,7 +14,8 @@ extension TDSConnection {
     }
 }
 
-class LoginRequest: TDSRequest {
+class LoginRequest: TDSTokenStreamRequest {
+    
     private let payload: TDSMessages.Login7Message
     private let logger: Logger
     
@@ -26,23 +27,17 @@ class LoginRequest: TDSRequest {
         self.tokenParser = TDSTokenParser(logger: logger)
     }
 
-    func handle(packet: TDSPacket, allocator: ByteBufferAllocator) throws -> TDSPacketResponse {
-        // Add packet to token parser stream
-        let tokens = tokenParser.writeAndParseTokens(packet.messageBuffer)
-        
-        guard packet.header.status == .eom else {
-            return .continue
-        }
-        
-        // TODO: Set logged in ready state
-        // TODO: React to envchange request from server
-        
-        return .done
-    }
-
     func start(allocator: ByteBufferAllocator) throws -> [TDSPacket] {
         let message = try TDSMessage(payload: payload, allocator: allocator)
         return message.packets
+    }
+    
+    func handle(token: TDSToken) throws {
+        return
+    }
+    
+    func complete(message: inout ByteBuffer, allocator: ByteBufferAllocator) throws -> TDSRequestResponse {
+        return .done
     }
 
     func log(to logger: Logger) {

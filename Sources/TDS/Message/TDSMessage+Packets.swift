@@ -9,15 +9,15 @@ extension TDSMessage {
         var packetId: UInt8 = 0
         while buffer.readableBytes >= TDSPacket.maximumPacketDataLength {
             guard var packetData = buffer.readSlice(length: TDSPacket.maximumPacketDataLength) else {
-                throw TDSError.protocolError("Serialization Error: Expected")
+                throw TDSError.protocolError("Unable to read packet of size: \(TDSPacket.maximumPacketDataLength)")
             }
-            
-            packets.append(TDSPacket(from: &packetData, ofType: type, isLastPacket: false, packetId: packetId, allocator: allocator))
+            let packet = TDSPacket(from: &packetData, ofType: type, status: .normal, packetId: packetId, allocator: allocator)
+            packets.append(packet)
             packetId = packetId &+ 1
         }
         
         var lastPacket = buffer.slice()
-        packets.append(TDSPacket(from: &lastPacket, ofType: type, isLastPacket: true, packetId: packetId, allocator: allocator))
+        packets.append(TDSPacket(from: &lastPacket, ofType: type, status: .eom, packetId: packetId, allocator: allocator))
         
         self.init(packets: packets)
     }

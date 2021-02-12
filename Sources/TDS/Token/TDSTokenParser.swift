@@ -8,15 +8,11 @@ public class TDSTokenParser {
         self.buffer = ByteBufferAllocator().buffer(capacity: 0)
     }
     
-    func writeAndParseTokens(_ inputBuffer: ByteBuffer) -> [TDSToken] {
+    func parseTokens(_ inputBuffer: ByteBuffer, onToken: (TDSToken) throws -> ()) {
         var packetMessageBuffer = inputBuffer
         buffer.writeBuffer(&packetMessageBuffer)
-        return parseTokens()
-    }
-    
-    func parseTokens() -> [TDSToken] {
+        
         var bufferCopy = buffer
-        var parsedTokens: [TDSToken] = []
         while buffer.readableBytes > 0 {
             do {
                 var token: TDSToken
@@ -49,16 +45,13 @@ public class TDSTokenParser {
                     throw TDSError.protocolError("Parsing implementation incomplete")
                 }
                 
-                parsedTokens.append(token)
+                try onToken(token)
                 
             } catch {
                 buffer = bufferCopy
-                return parsedTokens
             }
             
             bufferCopy = buffer
         }
-        
-        return parsedTokens
     }
 }

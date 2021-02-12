@@ -93,6 +93,95 @@ public enum TDSDataType: UInt8 {
     case nText = 0x63
     /// SSVARIANTTYPE / Sql_Variant
     case sqlVariant = 0x62
+    
+    var description: String {
+        switch self {
+        case .null:
+            return "null"
+        case .tinyInt:
+            return "tinyInt"
+        case .bit:
+            return "bit"
+        case .smallInt:
+            return "smallInt"
+        case .int:
+            return "int"
+        case .smallDateTime:
+            return "smalldatetime"
+        case .real:
+            return "real"
+        case .money:
+            return "money"
+        case .datetime:
+            return "datetime"
+        case .float:
+            return "float"
+        case .smallMoney:
+            return "smallmoney"
+        case .bigInt:
+            return "bigint"
+        case .guid:
+            return "guid"
+        case .intn:
+            return "int"
+        case .decimalLegacy:
+            return "decimal"
+        case .numericLegacy:
+            return "numeric"
+        case .bitn:
+            return "bit"
+        case .decimal:
+            return "decimal"
+        case .numeric:
+            return "numeric"
+        case .floatn:
+            return "float"
+        case .moneyn:
+            return "money"
+        case .datetimen:
+            return "datetime"
+        case .date:
+            return "date"
+        case .time:
+            return "time"
+        case .datetime2:
+            return "datetime2"
+        case .datetimeOffset:
+            return "datetimeoffset"
+        case .charLegacy:
+            return "char"
+        case .varcharLegacy:
+            return "varchar"
+        case .binaryLegacy:
+            return "binary"
+        case .varbinaryLegacy:
+            return "varbinary"
+        case .varbinary:
+            return "varbinary"
+        case .varchar:
+            return "varchar"
+        case .binary:
+            return "binary"
+        case .char:
+            return "char"
+        case .nvarchar:
+            return "nvarchar"
+        case .nchar:
+            return "nchar"
+        case .xml:
+            return "xml"
+        case .clrUdt:
+            return "clrudt"
+        case .text:
+            return "text"
+        case .image:
+            return "image"
+        case .nText:
+            return "ntext"
+        case .sqlVariant:
+            return "sql_variant"
+        }
+    }
 
     func isCollationType() -> Bool {
         switch self {

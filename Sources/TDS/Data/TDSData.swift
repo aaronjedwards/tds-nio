@@ -2,6 +2,11 @@ import NIO
 import Foundation
 
 public struct TDSData: CustomStringConvertible, CustomDebugStringConvertible {
+    
+    public static var null: TDSData {
+        return .init(metadata: TypeMetadata(dataType: .null))
+    }
+    
     /// The object ID of the field's data type.
     public var metadata: Metadata
 
@@ -70,6 +75,10 @@ public struct TDSData: CustomStringConvertible, CustomDebugStringConvertible {
 
     public var debugDescription: String {
         return self.description
+    }
+    
+    public var declaration: String {
+        return metadata.dataType.description
     }
 }
 
