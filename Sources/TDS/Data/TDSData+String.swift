@@ -12,7 +12,10 @@ extension TDSData {
         
         // TODO
         switch self.metadata.dataType {
-        case .charLegacy, .varcharLegacy, .char, .varchar, .nvarchar, .nchar, .text, .nText:
+        case .charLegacy, .varcharLegacy, .char, .varchar, .text:// UTF-8 Encoding
+            let val = value.readUTF8String(length: value.readableBytes)
+            return val
+        case .nvarchar, .nchar, .nText:// UTF-16 Encoding
             let val = value.readUTF16String(length: value.readableBytes)
             return val
         default:

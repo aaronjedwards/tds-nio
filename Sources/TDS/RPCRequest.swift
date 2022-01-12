@@ -3,33 +3,38 @@ import NIO
 import Foundation
 
 extension TDSConnection {
-    public func rawSql(_ sqlText: String) -> EventLoopFuture<[TDSRow]> {
+
+    /// Execute remote procedure using proc name
+    /// - Parameter procName: Procedure name
+    /// - Returns: Array of TDSRow structs [TDSRow]
+    public func rpc(_ procName: String, _ inputParameters: [RPCInputParameter]?, _ outputParameters: [RPCOutputParameter]?) -> EventLoopFuture<[TDSRow]> {
         var rows: [TDSRow] = []
-        return rawSql(sqlText, onRow: { rows.append($0) }).map { rows }
+        return rpc(procName, inputParameters, outputParameters, onRow: { rows.append($0) }).map { rows }
     }
     
-    public func rawSql(_ sqlText: String, onRow: @escaping (TDSRow) throws -> ()) -> EventLoopFuture<Void> {
-        let request = RawSqlBatchRequest(sqlBatch: TDSMessages.RawSqlBatchMessage(sqlText: sqlText), logger: logger, onRow)
+    /// Execute remote procedure. Requires implmentation of custom handling of onRow parameter called every time a TDSRow is parsed from server response.
+    /// - Parameters:
+    ///   - procName: Procedure name
+    ///   - onRow: @escaping parameter called every time a TDSRow Struct is parsed from server response and throws on parse error
+    /// - Returns: Void
+    public func rpc(_ procName: String, _ inputParameters: [RPCInputParameter]?, _ outputParameters: [RPCOutputParameter]?, onRow: @escaping (TDSRow) throws -> ()) -> EventLoopFuture<Void> {
+        let request = RPCRequest(messagePayload: TDSMessages.RPCMessage(procName: procName, inputParameters: inputParameters, outputParameters: outputParameters), logger: logger, onRow)
         return self.send(request, logger: logger)
     }
-
-
-    func query(_ message: TDSMessages.RawSqlBatchMessage, _ onRow: @escaping (TDSRow) throws -> ()) -> EventLoopFuture<Void> {
-        let request = RawSqlBatchRequest(sqlBatch: message, logger: logger, onRow)
-        return self.send(request, logger: logger)
-    }
+    
 }
 
-class RawSqlBatchRequest: TDSRequest {
-    let sqlBatch: TDSMessages.RawSqlBatchMessage
+/// Request object for creation of RPC message and response handling.
+class RPCRequest: TDSRequest {
+    let messagePayload: TDSMessages.RPCMessage
     var onRow: (TDSRow) throws -> ()
     var rowLookupTable: TDSRow.LookupTable?
     
     private let logger: Logger
     private let tokenParser: TDSTokenParser
 
-    init(sqlBatch: TDSMessages.RawSqlBatchMessage, logger: Logger, _ onRow: @escaping (TDSRow) throws -> ()) {
-        self.sqlBatch = sqlBatch
+    init(messagePayload: TDSMessages.RPCMessage, logger: Logger, _ onRow: @escaping (TDSRow) throws -> ()) {
+        self.messagePayload = messagePayload
         self.onRow = onRow
         self.logger = logger
         self.tokenParser = TDSTokenParser(logger: logger)
@@ -47,7 +52,7 @@ class RawSqlBatchRequest: TDSRequest {
     }
 
     func start(allocator: ByteBufferAllocator) throws -> [TDSPacket] {
-        return try TDSMessage(payload: sqlBatch, allocator: allocator).packets
+        return try TDSMessage(payload: messagePayload, allocator: allocator).packets
     }
 
     func log(to logger: Logger) {
@@ -70,6 +75,15 @@ class RawSqlBatchRequest: TDSRequest {
                     throw TDSError.protocolError("Error reading column metadata token.")
                 }
                 rowLookupTable = TDSRow.LookupTable(colMetadata: colMetadataToken)
+                
+            case .done:
+                guard let doneToken = token as? TDSTokens.DoneToken else {
+                    throw TDSError.protocolError("Error while parsing done token")
+                }
+            case .returnStatus:
+                throw TDSError.protocolError("Error while parsing Return Status Token")
+            case .returnValue:
+                throw TDSError.protocolError("Error while parsing Return Value Token")
             case .error:
                 guard let errorToken = token as? TDSTokens.ErrorInfoToken else {
                     throw TDSError.protocolError("Error reading error token.")

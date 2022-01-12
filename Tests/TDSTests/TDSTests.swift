@@ -31,6 +31,7 @@ final class TDSTests: XCTestCase {
         let conn = try TDSConnection.test(on: eventLoop).wait()
         defer { try! conn.close().wait() }
         let rows = try conn.rawSql("SELECT @@VERSION AS version").wait()
+        print(rows)
         XCTAssertEqual(rows.count, 1)
         
         let version = rows[0].column("version")?.string
@@ -74,6 +75,51 @@ final class TDSTests: XCTestCase {
         let regex = try NSRegularExpression(pattern: sqlServerVersionPattern)
         XCTAssertEqual(regex.matches(version), true)
     }
+}
+
+
+final class TDSProcTests: XCTestCase {
+    private var group: EventLoopGroup!
+    
+    private var eventLoop: EventLoop { self.group.next() }
+    
+    override func setUpWithError() throws {
+        try super.setUpWithError()
+        XCTAssertTrue(isLoggingConfigured)
+        self.group = MultiThreadedEventLoopGroup(numberOfThreads: 1)
+    }
+    
+    override func tearDownWithError() throws {
+        try self.group?.syncShutdownGracefully()
+        self.group = nil
+        try super.tearDownWithError()
+    }
+    
+    func testTop10Mock() throws {
+        let conn = try TDSConnection.test(on: eventLoop).wait()
+        defer { try! conn.close().wait() }
+        let rows = try conn.rpc("getTop10MockData", nil, nil).wait()
+        XCTAssertEqual(rows.count, 10)
+    }
+    
+    func testTopAllMock() throws {
+        let conn = try TDSConnection.test(on: eventLoop).wait()
+        defer { try! conn.close().wait() }
+        let rows = try conn.rpc("getAllMockData", nil, nil).wait()
+        XCTAssertEqual(rows.count, 1000)
+    }
+    
+    func testStoredProcParams() throws {
+
+        let conn = try TDSConnection.test(on: eventLoop).wait()
+        defer { try! conn.close().wait() }
+        let input = RPCInputParameter(name: "inputVal", data: RPCParamData(data: "hello world", dataType: .varchar))
+        let output = RPCOutputParameter(name: "returnValue")
+        let rows = try conn.rpc("inOutProc", [input], [output])
+        print(rows)
+        
+    }
+    
 }
 
 func env(_ name: String) -> String? {
