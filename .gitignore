@@ -5,5 +5,5 @@
 DerivedData
 xcuserdata/
 /.swiftpm
-Package.Resolved
+Package.resolved
 Tests/LinuxMain.swift
