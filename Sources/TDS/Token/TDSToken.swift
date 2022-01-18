@@ -1,4 +1,5 @@
 import NIO
+import Foundation
 
 public protocol TDSToken {
     var type: TDSTokens.TokenType { get set }
@@ -160,6 +161,40 @@ public enum TDSTokens {
         var envchangeType: EnvchangeType
         var newValue: RoutingData
         var oldValue: [Byte]
+    }
+    
+    public struct DoneInProcToken: TDSToken {
+        public var type: TDSTokens.TokenType = .doneInProc
+        
+        var status: UShort
+        var curCmd: UShort
+        var DoneRowCount: Int //ULongLong
+    }
+    
+    public struct DoneProcToken: TDSToken {
+        public var type: TDSTokens.TokenType = .doneProc
+        
+        var status: UShort
+        var curCmd: UShort
+        var DoneRowCount: Int //ULongLong
+    }
+    
+    public struct ReturnStatusToken: TDSToken {
+        public var type: TDSTokens.TokenType = .returnStatus
+        
+        var value: Int //Long
+    }
+    
+    public struct ReturnValueToken: TDSToken {
+        public var type: TDSTokens.TokenType
+        
+        var paramName: String
+        var paramOridinal: UShort //Position of paramter in request. Large value reordered to return last
+        var status: Byte
+        var userType: ULong
+        var flags: Byte
+        var typeInfo: Byte
+        var value: Data
     }
 
     enum EnvchangeType: Byte {

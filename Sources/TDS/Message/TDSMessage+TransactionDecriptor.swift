@@ -11,7 +11,7 @@ extension TDSMessage {
         buffer.writeInteger(18 as DWord, endianness: .little) // HeaderLength
         buffer.writeInteger(0x02 as UShort, endianness: .little) // HeaderType
         buffer.writeInteger(0 as ULongLong, endianness: .little) // TransactionDescriptor
-        buffer.writeInteger(1 as DWord) // OutstandingRequestCount
+        buffer.writeInteger(1 as DWord, endianness: .little) // OutstandingRequestCount
 
         buffer.setInteger(DWord(buffer.writerIndex - startWriterIndex), at: startWriterIndex, endianness: .little)
         return

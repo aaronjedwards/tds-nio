@@ -76,12 +76,14 @@ class RPCRequest: TDSRequest {
                 }
                 rowLookupTable = TDSRow.LookupTable(colMetadata: colMetadataToken)
                 
-            case .done:
+            case .done, .doneProc, .doneInProc:
                 guard let doneToken = token as? TDSTokens.DoneToken else {
                     throw TDSError.protocolError("Error while parsing done token")
                 }
             case .returnStatus:
-                throw TDSError.protocolError("Error while parsing Return Status Token")
+                guard let returnStatusToken = token as? TDSTokens.ReturnStatusToken else {
+                    throw TDSError.protocolError("Error while parsing Return Status Token")
+                }
             case .returnValue:
                 throw TDSError.protocolError("Error while parsing Return Value Token")
             case .error:
