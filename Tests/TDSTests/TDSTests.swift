@@ -95,6 +95,13 @@ final class TDSProcTests: XCTestCase {
         try super.tearDownWithError()
     }
     
+    func testRawMockData() throws {
+        let conn = try TDSConnection.test(on: eventLoop).wait()
+        defer { try! conn.close().wait() }
+        let rows = try conn.rawSql("SELECT TOP(60) * FROM MOCK_DATA").wait()
+        print(rows.count)
+    }
+    
     func testTop10Mock() throws {
         let conn = try TDSConnection.test(on: eventLoop).wait()
         defer { try! conn.close().wait() }
@@ -109,16 +116,16 @@ final class TDSProcTests: XCTestCase {
         XCTAssertEqual(rows.count, 1000)
     }
     
-    func testStoredProcParams() throws {
-
-        let conn = try TDSConnection.test(on: eventLoop).wait()
-        defer { try! conn.close().wait() }
-        let input = RPCInputParameter(name: "inputVal", data: RPCParamData(data: "hello world", dataType: .varchar))
-        let output = RPCOutputParameter(name: "returnValue")
-        let rows = try conn.rpc("inOutProc", [input], [output])
-        print(rows)
-        
-    }
+//    func testStoredProcParams() throws {
+//
+//        let conn = try TDSConnection.test(on: eventLoop).wait()
+//        defer { try! conn.close().wait() }
+//        let input = RPCInputParameter(name: "inputVal", data: RPCParamData(data: "hello world", dataType: .varchar))
+//        let output = RPCOutputParameter(name: "returnValue")
+//        let rows = try conn.rpc("inOutProc", [input], [output])
+//        print(rows)
+//
+//    }
     
 }
 
