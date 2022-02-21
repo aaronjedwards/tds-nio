@@ -1,6 +1,5 @@
 extension TDSTokenParser {
     public static func parseReturnValueToken(from buffer: inout ByteBuffer) throws -> TDSTokens.ReturnValueToken {
-//        print(Data(buffer: buffer).hexEncodedString(options: .upperCase))
         
         guard
             let paramOrdinal = buffer.readUShortCharBinLen(),
