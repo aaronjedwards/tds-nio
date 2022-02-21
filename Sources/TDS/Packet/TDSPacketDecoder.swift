@@ -24,7 +24,7 @@ public final class TDSPacketDecoder: ByteToMessageDecoder {
         else {
             return .needMoreData
         }
-
+        
         // Intialise vars used for lift of struct
         self.lastHeaderReceived = header
         self.fragments.append(slice)
@@ -89,7 +89,8 @@ public final class TDSPacketDecoder: ByteToMessageDecoder {
         guard let packet = TDSPacket(from: &tempBuffer) else {
             throw TDSError.protocolError("Failed to parse TDSPacket")
         }
-        // Discard parser
+        
+        // Send packet to parse tokens
         context.fireChannelRead(wrapInboundOut(packet))
         completion()
         return .continue

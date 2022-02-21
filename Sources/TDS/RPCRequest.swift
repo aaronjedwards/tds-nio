@@ -7,9 +7,9 @@ extension TDSConnection {
     /// Execute remote procedure using proc name
     /// - Parameter procName: Procedure name
     /// - Returns: Array of TDSRow structs [TDSRow]
-    public func rpc(_ procName: String, _ inputParameters: [RPCInputParameter]?, _ outputParameters: [RPCOutputParameter]?) -> EventLoopFuture<[TDSRow]> {
+    public func rpc(_ procName: String, _ inputParameters: [RPCInputParameter]?, _ outputParameters: [RPCOutputParameter]?) throws -> EventLoopFuture<[TDSRow]> {
         var rows: [TDSRow] = []
-        return rpc(procName, inputParameters, outputParameters, onRow: { rows.append($0) }).map { rows }
+        return rpc(procName, inputParameters, outputParameters, onRow: { rows.append($0 as! TDSRow) }).map { rows }
     }
     
     /// Execute remote procedure. Requires implmentation of custom handling of onRow parameter called every time a TDSRow is parsed from server response.
@@ -17,7 +17,7 @@ extension TDSConnection {
     ///   - procName: Procedure name
     ///   - onRow: @escaping parameter called every time a TDSRow Struct is parsed from server response and throws on parse error
     /// - Returns: Void
-    public func rpc(_ procName: String, _ inputParameters: [RPCInputParameter]?, _ outputParameters: [RPCOutputParameter]?, onRow: @escaping (TDSRow) throws -> ()) -> EventLoopFuture<Void> {
+    public func rpc(_ procName: String, _ inputParameters: [RPCInputParameter]?, _ outputParameters: [RPCOutputParameter]?, onRow: @escaping (Any) throws -> ()) -> EventLoopFuture<Void> {
         let request = RPCRequest(messagePayload: TDSMessages.RPCMessage(procName: procName, inputParameters: inputParameters, outputParameters: outputParameters), logger: logger, onRow)
         return self.send(request, logger: logger)
     }
@@ -85,7 +85,9 @@ class RPCRequest: TDSRequest {
                     throw TDSError.protocolError("Error while parsing Return Status Token")
                 }
             case .returnValue:
-                throw TDSError.protocolError("Error while parsing Return Value Token")
+                guard let returnValueToken = token as? TDSTokens.ReturnValueToken else {
+                    throw TDSError.protocolError("Error while parsing Return Value Token")
+                }
             case .error:
                 guard let errorToken = token as? TDSTokens.ErrorInfoToken else {
                     throw TDSError.protocolError("Error reading error token.")

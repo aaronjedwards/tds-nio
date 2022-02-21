@@ -1,4 +1,5 @@
 import NIO
+import Foundation
 
 extension ByteBuffer {
     mutating func writeUTF8String(_ str: String, endianness: Endianness = .little) {

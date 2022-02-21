@@ -116,16 +116,25 @@ final class TDSProcTests: XCTestCase {
         XCTAssertEqual(rows.count, 1000)
     }
     
-//    func testStoredProcParams() throws {
-//
-//        let conn = try TDSConnection.test(on: eventLoop).wait()
-//        defer { try! conn.close().wait() }
-//        let input = RPCInputParameter(name: "inputVal", data: RPCParamData(data: "hello world", dataType: .varchar))
-//        let output = RPCOutputParameter(name: "returnValue")
-//        let rows = try conn.rpc("inOutProc", [input], [output])
-//        print(rows)
-//
-//    }
+    func testStoredProcIn() throws {
+        let numOfResultsToReturn = 5
+        let conn = try TDSConnection.test(on: eventLoop).wait()
+        defer { try! conn.close().wait() }
+        let input = RPCInputParameter(name: "inputVal", inputValue: RPCParamData(value: numOfResultsToReturn, valueType: .int))
+        let rows = try conn.rpc("test_oneInputProc", [input], nil).wait()
+        XCTAssertEqual(rows.count, numOfResultsToReturn)
+    }
+    
+    func testStoredProcInOut() throws {
+        let conn = try TDSConnection.test(on: eventLoop).wait()
+        defer { try! conn.close().wait() }
+        let inOutString = "Hello World"
+        let input = RPCInputParameter(name: "inputVal", inputValue: RPCParamData(value: inOutString, valueType: .varchar) )
+        let output = RPCOutputParameter(name: "output", dataType: .varchar)
+        try conn.rpc("inOutEcho", [input], [output], onRow: { result in
+            XCTAssertEqual(result as! String, inOutString)
+        }).wait()
+    }
     
 }
 

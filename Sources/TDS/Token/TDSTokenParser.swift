@@ -47,6 +47,8 @@ public class TDSTokenParser {
                     token = try TDSTokenParser.parseRowToken(from: &buffer, with: colMetadata)
                 case .returnStatus:
                     token = try TDSTokenParser.parseReturnStatusToken(from: &buffer)
+                case .returnValue:
+                    token = try TDSTokenParser.parseReturnValueToken(from: &buffer)
                 default:
                     throw TDSError.protocolError("Parsing implementation incomplete")
                 }

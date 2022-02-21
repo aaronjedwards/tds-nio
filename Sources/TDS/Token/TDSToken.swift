@@ -186,15 +186,15 @@ public enum TDSTokens {
     }
     
     public struct ReturnValueToken: TDSToken {
-        public var type: TDSTokens.TokenType
+        public var type: TDSTokens.TokenType = .returnValue
         
         var paramName: String
-        var paramOridinal: UShort //Position of paramter in request. Large value reordered to return last
-        var status: Byte
+        var paramOrdinal: UShort //Position of parameter in request. Large value reordered to return last
+        var status: Byte // 0x01 Stored Procedure, 0x02 User Defined Function
         var userType: ULong
         var flags: Byte
-        var typeInfo: Byte
-        var value: Data
+        var dataType: TDSDataType
+        var data: Any?
     }
 
     enum EnvchangeType: Byte {
