@@ -75,6 +75,13 @@ final class TDSTests: XCTestCase {
         let regex = try NSRegularExpression(pattern: sqlServerVersionPattern)
         XCTAssertEqual(regex.matches(version), true)
     }
+    
+    func testRawMockData() throws {
+        let conn = try TDSConnection.test(on: eventLoop).wait()
+        defer { try! conn.close().wait() }
+        let rows = try conn.rawSql("SELECT TOP(60) * FROM MOCK_DATA").wait()
+        XCTAssertEqual(rows.count, 60)
+    }
 }
 
 
@@ -95,13 +102,6 @@ final class TDSProcTests: XCTestCase {
         try super.tearDownWithError()
     }
     
-    func testRawMockData() throws {
-        let conn = try TDSConnection.test(on: eventLoop).wait()
-        defer { try! conn.close().wait() }
-        let rows = try conn.rawSql("SELECT TOP(60) * FROM MOCK_DATA").wait()
-        print(rows.count)
-    }
-    
     func testTop10Mock() throws {
         let conn = try TDSConnection.test(on: eventLoop).wait()
         defer { try! conn.close().wait() }
@@ -109,6 +109,7 @@ final class TDSProcTests: XCTestCase {
         XCTAssertEqual(rows.count, 10)
     }
     
+    // Test for TCP Packet issue with large returned data sets.
     func testTopAllMock() throws {
         let conn = try TDSConnection.test(on: eventLoop).wait()
         defer { try! conn.close().wait() }
