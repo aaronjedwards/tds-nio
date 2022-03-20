@@ -25,7 +25,7 @@ public final class TDSPacketDecoder: ByteToMessageDecoder {
             return .needMoreData
         }
         
-        // Intialise vars used for lift of struct
+        // Intialise vars used for creation of struct
         self.lastHeaderReceived = header
         self.fragments.append(slice)
         
