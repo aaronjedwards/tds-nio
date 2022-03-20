@@ -70,6 +70,11 @@ class RawSqlBatchRequest: TDSRequest {
                     throw TDSError.protocolError("Error reading column metadata token.")
                 }
                 rowLookupTable = TDSRow.LookupTable(colMetadata: colMetadataToken)
+            case .error:
+                guard let errorToken = token as? TDSTokens.ErrorInfoToken else {
+                    throw TDSError.protocolError("Error reading error token.")
+                }
+                throw TDSError.errorToken(errorToken.messageText)
             default:
                 break
             }

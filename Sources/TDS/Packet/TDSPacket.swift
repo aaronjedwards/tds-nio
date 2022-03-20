@@ -21,9 +21,7 @@ public struct TDSPacket {
         guard
             buffer.readableBytes >= Header.length,
             let typeByte: UInt8 = buffer.getInteger(at: 0),
-            let length: UInt16 = buffer.getInteger(at: 2), // After type and status
-            length <= buffer.readableBytes,
-            let slice = buffer.readSlice(length: Int(length))
+            let slice = buffer.readSlice(length: buffer.readableBytes) // TDSPacketDecoder creates fully formed TDSPacket to be intialised from.
         else {
             return nil
         }

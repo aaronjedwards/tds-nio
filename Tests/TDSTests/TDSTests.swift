@@ -31,6 +31,7 @@ final class TDSTests: XCTestCase {
         let conn = try TDSConnection.test(on: eventLoop).wait()
         defer { try! conn.close().wait() }
         let rows = try conn.rawSql("SELECT @@VERSION AS version").wait()
+        print(rows)
         XCTAssertEqual(rows.count, 1)
         
         let version = rows[0].column("version")?.string
@@ -74,6 +75,68 @@ final class TDSTests: XCTestCase {
         let regex = try NSRegularExpression(pattern: sqlServerVersionPattern)
         XCTAssertEqual(regex.matches(version), true)
     }
+    
+    func testRawMockData() throws {
+        let conn = try TDSConnection.test(on: eventLoop).wait()
+        defer { try! conn.close().wait() }
+        let rows = try conn.rawSql("SELECT TOP(60) * FROM MOCK_DATA").wait()
+        XCTAssertEqual(rows.count, 60)
+    }
+}
+
+
+final class TDSProcTests: XCTestCase {
+    private var group: EventLoopGroup!
+    
+    private var eventLoop: EventLoop { self.group.next() }
+    
+    override func setUpWithError() throws {
+        try super.setUpWithError()
+        XCTAssertTrue(isLoggingConfigured)
+        self.group = MultiThreadedEventLoopGroup(numberOfThreads: 1)
+    }
+    
+    override func tearDownWithError() throws {
+        try self.group?.syncShutdownGracefully()
+        self.group = nil
+        try super.tearDownWithError()
+    }
+    
+    func testTop10Mock() throws {
+        let conn = try TDSConnection.test(on: eventLoop).wait()
+        defer { try! conn.close().wait() }
+        let rows = try conn.rpc("getTop10MockData", nil, nil).wait()
+        XCTAssertEqual(rows.count, 10)
+    }
+    
+    // Test for TCP Packet issue with large returned data sets.
+    func testTopAllMock() throws {
+        let conn = try TDSConnection.test(on: eventLoop).wait()
+        defer { try! conn.close().wait() }
+        let rows = try conn.rpc("getAllMockData", nil, nil).wait()
+        XCTAssertEqual(rows.count, 1000)
+    }
+    
+    func testStoredProcIn() throws {
+        let numOfResultsToReturn = 5
+        let conn = try TDSConnection.test(on: eventLoop).wait()
+        defer { try! conn.close().wait() }
+        let input = RPCInputParameter(name: "inputVal", inputValue: RPCParamData(value: numOfResultsToReturn, valueType: .int))
+        let rows = try conn.rpc("test_oneInputProc", [input], nil).wait()
+        XCTAssertEqual(rows.count, numOfResultsToReturn)
+    }
+    
+    func testStoredProcInOut() throws {
+        let conn = try TDSConnection.test(on: eventLoop).wait()
+        defer { try! conn.close().wait() }
+        let inOutString = "Hello World"
+        let input = RPCInputParameter(name: "inputVal", inputValue: RPCParamData(value: inOutString, valueType: .varchar) )
+        let output = RPCOutputParameter(name: "output", dataType: .varchar)
+        try conn.rpc("inOutEcho", [input], [output], onRow: { result in
+            XCTAssertEqual(result as! String, inOutString)
+        }).wait()
+    }
+    
 }
 
 func env(_ name: String) -> String? {

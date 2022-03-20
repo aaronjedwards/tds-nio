@@ -1,6 +1,13 @@
 import NIO
+import Foundation
 
 extension ByteBuffer {
+    mutating func writeUTF8String(_ str: String, endianness: Endianness = .little) {
+        for character in str.utf8 {
+            self.writeInteger(character, endianness: endianness)
+        }
+    }
+    
     mutating func writeUTF16String(_ str: String, endianness: Endianness = .little) {
         for character in str.utf16 {
             self.writeInteger(character, endianness: endianness)
@@ -59,6 +66,16 @@ extension ByteBuffer {
             return nil
         }
         return bytes
+    }
+    
+    mutating func readUTF8String(length: Int) -> String? {
+        guard
+            let bytes = self.readBytes(length: length),
+            let utf8 = String(bytes: bytes, encoding: .utf8)
+        else {
+            return nil
+        }
+        return utf8
     }
 
     mutating func readUTF16String(length: Int) -> String? {

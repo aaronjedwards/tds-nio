@@ -1,6 +1,9 @@
 import Logging
 import NIO
 import Foundation
+#if os(iOS)
+import UIKit.UIDevice
+#endif
 
 extension TDSMessages {
     /// `LOGIN7`
@@ -18,9 +21,22 @@ extension TDSMessages {
         var database: String
         
         public func serialize(into buffer: inout ByteBuffer) throws {
+            
+            var hostName = ""
+            
+            #if os(macOS)
+            hostName = Host.current().name ?? ""
+            #endif
+            
+            // iOS hostname requires parsing the device name and formatting for hostname equivalant.
+            #if os(iOS)
+            let device = UIDevice().name.replacingOccurrences(of: " ", with: "-")
+            hostName = device + ".local"
+            #endif
+            
             // Each basic field needs to serialize the length & offset
             let basicFields = [
-                (Host.current().name ?? "", false),
+                (hostName, false),
                 (username, false),
                 (password, true),
                 ("", false),

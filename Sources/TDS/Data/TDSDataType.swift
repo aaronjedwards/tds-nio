@@ -8,12 +8,15 @@ public enum TDSDataType: UInt8 {
     /// NULLTYPE / Null
     case null = 0x1F
     /// INT1TYPE / TinyInt
+    /// 0 - 255
     case tinyInt = 0x30
     /// BITTYPE / Bit
     case bit = 0x32
     /// INT2TYPE / SmallInt
+    /// -32,767 to 32,767
     case smallInt = 0x34
     /// INT4TYPE / Int
+    /// -2,147,483,647 to 2,147,483,647
     case int = 0x38
     /// DATETIM4TYPE / SmallDateTime
     case smallDateTime = 0x3A
@@ -28,6 +31,7 @@ public enum TDSDataType: UInt8 {
     /// MONEY4TYPE / SmallMoney
     case smallMoney = 0x7A
     /// INT8TYPE / BigInt
+    /// -9,223,372,036,854,775,807 to 9,223,372,036,854,775,807
     case bigInt = 0x7F
 
     /// Variable-Length Data Types
@@ -35,7 +39,8 @@ public enum TDSDataType: UInt8 {
 
     /// GUIDTYPE / UniqueIdentifier
     case guid = 0x24
-    /// INTNTYPE
+    /// INTNTYPE.
+    /// For INTNTYPE, the only valid lengths are 0x01, 0x02, 0x04, and 0x08, which map to tinyint, smallint, int, and bigint SQL data types respectively.
     case intn = 0x26
     /// DECIMALTYPE / Decimal (Legacy)
     case decimalLegacy = 0x37

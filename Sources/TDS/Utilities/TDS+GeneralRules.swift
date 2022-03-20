@@ -7,6 +7,9 @@ public typealias Byte = UInt8
 /// BYTELEN
 public typealias ByteLen = Byte
 
+/// SHORT
+public typealias Short = Int16
+
 /// USHORT
 public typealias UShort = UInt16
 
