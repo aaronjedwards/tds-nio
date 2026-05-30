@@ -35,9 +35,11 @@ extension TDSTests {
         XCTAssertEqual(options.map(\.0), [0x00, 0x01, 0x02, 0x03, 0x04])
         XCTAssertEqual(options.map(\.1), [0x001A, 0x0020, 0x0021, 0x0022, 0x0026])
         XCTAssertEqual(options.map(\.2), [6, 1, 1, 4, 1])
-        XCTAssertEqual(packet.getBytes(at: TDSPacket.headerLength + Int(options[0].1), length: 6), [
-            0x09, 0x00, 0x00, 0x00, 0x00, 0x00,
-        ])
+        XCTAssertEqual(
+            packet.getBytes(at: TDSPacket.headerLength + Int(options[0].1), length: 6),
+            [
+                0x09, 0x00, 0x00, 0x00, 0x00, 0x00,
+            ])
         XCTAssertEqual(packet.getInteger(at: TDSPacket.headerLength + Int(options[1].1), as: UInt8.self), 0x01)
         XCTAssertEqual(packet.getInteger(at: TDSPacket.headerLength + Int(options[2].1), as: UInt8.self), 0x00)
         XCTAssertEqual(packet.getInteger(at: TDSPacket.headerLength + Int(options[4].1), as: UInt8.self), 0x00)
@@ -62,9 +64,11 @@ extension TDSTests {
         XCTAssertEqual(options.map(\.0), [0x00, 0x02, 0x03, 0x04])
         XCTAssertEqual(options.map(\.1), [0x0015, 0x001B, 0x001C, 0x0020])
         XCTAssertEqual(options.map(\.2), [6, 1, 4, 1])
-        XCTAssertEqual(packet.getBytes(at: TDSPacket.headerLength + Int(options[0].1), length: 6), [
-            0x09, 0x00, 0x00, 0x00, 0x00, 0x00,
-        ])
+        XCTAssertEqual(
+            packet.getBytes(at: TDSPacket.headerLength + Int(options[0].1), length: 6),
+            [
+                0x09, 0x00, 0x00, 0x00, 0x00, 0x00,
+            ])
     }
 
     func testLoginPacketEncodesTDS74FeatureExtensions() throws {
@@ -85,26 +89,35 @@ extension TDSTests {
         let loginStart = TDSPacket.headerLength
 
         XCTAssertEqual(packet.getInteger(at: 0, as: UInt8.self), TDSPacket.MessageType.tds7Login.rawValue)
-        XCTAssertEqual(packet.getInteger(at: loginStart, endianness: .little, as: UInt32.self), UInt32(packet.writerIndex - loginStart))
-        XCTAssertEqual(packet.getInteger(at: loginStart + 4, endianness: .little, as: UInt32.self), TDSProtocolVersion.v7_4.wireValue)
-        XCTAssertEqual(packet.getInteger(at: loginStart + 8, endianness: .little, as: UInt32.self), UInt32(configuration.packetSize))
+        XCTAssertEqual(
+            packet.getInteger(at: loginStart, endianness: .little, as: UInt32.self),
+            UInt32(packet.writerIndex - loginStart))
+        XCTAssertEqual(
+            packet.getInteger(at: loginStart + 4, endianness: .little, as: UInt32.self),
+            TDSProtocolVersion.v7_4.wireValue)
+        XCTAssertEqual(
+            packet.getInteger(at: loginStart + 8, endianness: .little, as: UInt32.self),
+            UInt32(configuration.packetSize))
         XCTAssertEqual(packet.getInteger(at: loginStart + 26, as: UInt8.self), 0x00)
         XCTAssertEqual(packet.getInteger(at: loginStart + 27, as: UInt8.self), 0x10)
 
         let extensionEntry = loginStart + 36 + 5 * 4
         let extensionOffset = try XCTUnwrap(packet.getInteger(at: extensionEntry, endianness: .little, as: UInt16.self))
-        let extensionLength = try XCTUnwrap(packet.getInteger(at: extensionEntry + 2, endianness: .little, as: UInt16.self))
+        let extensionLength = try XCTUnwrap(
+            packet.getInteger(at: extensionEntry + 2, endianness: .little, as: UInt16.self))
         XCTAssertEqual(extensionLength, 4)
 
-        let featureExtOffset = try XCTUnwrap(packet.getInteger(
-            at: loginStart + Int(extensionOffset),
-            endianness: .little,
-            as: UInt32.self
-        ))
-        var featureExt = try XCTUnwrap(packet.getSlice(
-            at: loginStart + Int(featureExtOffset),
-            length: packet.writerIndex - (loginStart + Int(featureExtOffset))
-        ))
+        let featureExtOffset = try XCTUnwrap(
+            packet.getInteger(
+                at: loginStart + Int(extensionOffset),
+                endianness: .little,
+                as: UInt32.self
+            ))
+        var featureExt = try XCTUnwrap(
+            packet.getSlice(
+                at: loginStart + Int(featureExtOffset),
+                length: packet.writerIndex - (loginStart + Int(featureExtOffset))
+            ))
 
         XCTAssertEqual(featureExt.readInteger(as: UInt8.self), 0x09)
         XCTAssertEqual(featureExt.readInteger(endianness: .little, as: UInt32.self), 1)
@@ -178,21 +191,24 @@ extension TDSTests {
         var packet = encoder.flush()
         let loginStart = TDSPacket.headerLength
         let sspiEntry = loginStart + 36 + 9 * 4 + 6
-        let sspiOffset = try XCTUnwrap(packet.getInteger(
-            at: sspiEntry,
-            endianness: .little,
-            as: UInt16.self
-        ))
-        let sspiLength = try XCTUnwrap(packet.getInteger(
-            at: sspiEntry + 2,
-            endianness: .little,
-            as: UInt16.self
-        ))
-        let sspiLongLength = try XCTUnwrap(packet.getInteger(
-            at: sspiEntry + 12,
-            endianness: .little,
-            as: UInt32.self
-        ))
+        let sspiOffset = try XCTUnwrap(
+            packet.getInteger(
+                at: sspiEntry,
+                endianness: .little,
+                as: UInt16.self
+            ))
+        let sspiLength = try XCTUnwrap(
+            packet.getInteger(
+                at: sspiEntry + 2,
+                endianness: .little,
+                as: UInt16.self
+            ))
+        let sspiLongLength = try XCTUnwrap(
+            packet.getInteger(
+                at: sspiEntry + 12,
+                endianness: .little,
+                as: UInt32.self
+            ))
 
         XCTAssertEqual(packet.getInteger(at: loginStart + 25, as: UInt8.self), 0x83)
         XCTAssertEqual(try Self.loginStringField(index: 1, in: &packet), "")
@@ -239,16 +255,18 @@ extension TDSTests {
         let packet = encoder.flush()
         let loginStart = TDSPacket.headerLength
         let languageEntry = loginStart + 36 + 7 * 4
-        let languageOffset = try XCTUnwrap(packet.getInteger(
-            at: languageEntry,
-            endianness: .little,
-            as: UInt16.self
-        ))
-        let languageLength = try XCTUnwrap(packet.getInteger(
-            at: languageEntry + 2,
-            endianness: .little,
-            as: UInt16.self
-        ))
+        let languageOffset = try XCTUnwrap(
+            packet.getInteger(
+                at: languageEntry,
+                endianness: .little,
+                as: UInt16.self
+            ))
+        let languageLength = try XCTUnwrap(
+            packet.getInteger(
+                at: languageEntry + 2,
+                endianness: .little,
+                as: UInt16.self
+            ))
 
         let expectedLength = UInt16((Int(UInt16.max) - Int(languageOffset)) / 2)
         XCTAssertEqual(languageLength, expectedLength)
@@ -283,26 +301,31 @@ extension TDSTests {
         let packet = encoder.flush()
         let loginStart = TDSPacket.headerLength
         let passwordEntry = loginStart + 36 + 2 * 4
-        let passwordOffset = try XCTUnwrap(packet.getInteger(
-            at: passwordEntry,
-            endianness: .little,
-            as: UInt16.self
-        ))
-        let passwordLength = try XCTUnwrap(packet.getInteger(
-            at: passwordEntry + 2,
-            endianness: .little,
-            as: UInt16.self
-        ))
+        let passwordOffset = try XCTUnwrap(
+            packet.getInteger(
+                at: passwordEntry,
+                endianness: .little,
+                as: UInt16.self
+            ))
+        let passwordLength = try XCTUnwrap(
+            packet.getInteger(
+                at: passwordEntry + 2,
+                endianness: .little,
+                as: UInt16.self
+            ))
 
         XCTAssertEqual(passwordLength, UInt16(configuration.password.utf16.count))
-        let encodedPassword = try XCTUnwrap(packet.getBytes(
-            at: loginStart + Int(passwordOffset),
-            length: Int(passwordLength) * 2
-        ))
+        let encodedPassword = try XCTUnwrap(
+            packet.getBytes(
+                at: loginStart + Int(passwordOffset),
+                length: Int(passwordLength) * 2
+            ))
         XCTAssertEqual(encodedPassword, Self.loginPasswordBytes(configuration.password))
-        XCTAssertNotEqual(encodedPassword, Array(configuration.password.utf16).flatMap {
-            [UInt8($0 & 0x00FF), UInt8($0 >> 8)]
-        })
+        XCTAssertNotEqual(
+            encodedPassword,
+            Array(configuration.password.utf16).flatMap {
+                [UInt8($0 & 0x00FF), UInt8($0 >> 8)]
+            })
     }
 
     func testCapabilitiesTrackLoginAckAndFeatureExtAck() throws {
@@ -315,12 +338,13 @@ extension TDSTests {
         )
 
         capabilities.adjustForLoginAck(loginAck)
-        capabilities.adjustForFeatureExtAck(.init(options: [
-            .init(featureID: Capabilities.FeatureID.dataClassification.rawValue, data: [0x02]),
-            .init(featureID: Capabilities.FeatureID.jsonSupport.rawValue, data: [0x01]),
-            .init(featureID: Capabilities.FeatureID.utf8Support.rawValue, data: [0x00]),
-            .init(featureID: 0xFE, data: [0xAA]),
-        ]))
+        capabilities.adjustForFeatureExtAck(
+            .init(options: [
+                .init(featureID: Capabilities.FeatureID.dataClassification.rawValue, data: [0x02]),
+                .init(featureID: Capabilities.FeatureID.jsonSupport.rawValue, data: [0x01]),
+                .init(featureID: Capabilities.FeatureID.utf8Support.rawValue, data: [0x00]),
+                .init(featureID: 0xFE, data: [0xAA]),
+            ]))
 
         XCTAssertEqual(capabilities.requestedProtocolVersion.description, "7.4")
         XCTAssertEqual(capabilities.negotiatedProtocolVersion?.description, "7.4")
@@ -416,12 +440,13 @@ extension TDSTests {
         var encoder = TDSFrontendMessageEncoder(
             buffer: ByteBufferAllocator().buffer(capacity: 128)
         )
-        encoder.rpc(.init(
-            procedure: "dbo.emptyText",
-            parameters: [
-                .init(name: "@text", value: .string("")),
-            ]
-        ))
+        encoder.rpc(
+            .init(
+                procedure: "dbo.emptyText",
+                parameters: [
+                    .init(name: "@text", value: .string(""))
+                ]
+            ))
 
         var packet = encoder.flush()
         packet.moveReaderIndex(forwardBy: TDSPacket.headerLength + 22 + 2 + "dbo.emptyText".utf16.count * 2 + 2)
@@ -440,14 +465,15 @@ extension TDSTests {
         var encoder = TDSFrontendMessageEncoder(
             buffer: ByteBufferAllocator().buffer(capacity: 256)
         )
-        encoder.rpc(.init(
-            procedure: "dbo.widths",
-            parameters: [
-                .init(name: "@tiny", value: .tinyInt(255)),
-                .init(name: "@small", value: .smallInt(-123)),
-                .init(name: "@integer", value: .int32(123_456)),
-            ]
-        ))
+        encoder.rpc(
+            .init(
+                procedure: "dbo.widths",
+                parameters: [
+                    .init(name: "@tiny", value: .tinyInt(255)),
+                    .init(name: "@small", value: .smallInt(-123)),
+                    .init(name: "@integer", value: .int32(123_456)),
+                ]
+            ))
 
         var packet = encoder.flush()
         packet.moveReaderIndex(forwardBy: TDSPacket.headerLength + 22 + 2 + "dbo.widths".utf16.count * 2 + 2)
@@ -482,13 +508,14 @@ extension TDSTests {
         var encoder = TDSFrontendMessageEncoder(
             buffer: ByteBufferAllocator().buffer(capacity: 256)
         )
-        encoder.rpc(.init(
-            procedure: "dbo.echo",
-            parameters: [
-                .init(name: "@id", value: .int(42)),
-                .init(name: "@label", value: .string("forty-two")),
-            ]
-        ))
+        encoder.rpc(
+            .init(
+                procedure: "dbo.echo",
+                parameters: [
+                    .init(name: "@id", value: .int(42)),
+                    .init(name: "@label", value: .string("forty-two")),
+                ]
+            ))
 
         var packet = encoder.flush()
         XCTAssertEqual(packet.readInteger(as: UInt8.self), TDSPacket.MessageType.rpc.rawValue)
@@ -528,12 +555,13 @@ extension TDSTests {
         var encoder = TDSFrontendMessageEncoder(
             buffer: ByteBufferAllocator().buffer(capacity: 256)
         )
-        encoder.rpc(.init(
-            procedure: "dbo.answer",
-            parameters: [
-                .init(name: "@answer", value: .int(0), isOutput: true),
-            ]
-        ))
+        encoder.rpc(
+            .init(
+                procedure: "dbo.answer",
+                parameters: [
+                    .init(name: "@answer", value: .int(0), isOutput: true)
+                ]
+            ))
 
         var packet = encoder.flush()
         packet.moveReaderIndex(forwardBy: TDSPacket.headerLength + 22 + 2 + "dbo.answer".utf16.count * 2 + 2)
@@ -552,12 +580,13 @@ extension TDSTests {
         var encoder = TDSFrontendMessageEncoder(
             buffer: ByteBufferAllocator().buffer(capacity: 256)
         )
-        encoder.rpc(.init(
-            procedure: "dbo.money",
-            parameters: [
-                .init(name: "@amount", value: .decimal("123.45")),
-            ]
-        ))
+        encoder.rpc(
+            .init(
+                procedure: "dbo.money",
+                parameters: [
+                    .init(name: "@amount", value: .decimal("123.45"))
+                ]
+            ))
 
         var packet = encoder.flush()
         packet.moveReaderIndex(forwardBy: TDSPacket.headerLength + 22 + 2 + "dbo.money".utf16.count * 2 + 2)
@@ -579,12 +608,13 @@ extension TDSTests {
         var encoder = TDSFrontendMessageEncoder(
             buffer: ByteBufferAllocator().buffer(capacity: 256)
         )
-        encoder.rpc(.init(
-            procedure: "dbo.guid",
-            parameters: [
-                .init(name: "@id", value: .guid(Self.guid)),
-            ]
-        ))
+        encoder.rpc(
+            .init(
+                procedure: "dbo.guid",
+                parameters: [
+                    .init(name: "@id", value: .guid(Self.guid))
+                ]
+            ))
 
         var packet = encoder.flush()
         packet.moveReaderIndex(forwardBy: TDSPacket.headerLength + 22 + 2 + "dbo.guid".utf16.count * 2 + 2)
@@ -595,24 +625,27 @@ extension TDSTests {
         XCTAssertEqual(packet.readInteger(as: UInt8.self), TDSDataType.guid.rawValue)
         XCTAssertEqual(packet.readInteger(as: UInt8.self), 16)
         XCTAssertEqual(packet.readInteger(as: UInt8.self), 16)
-        XCTAssertEqual(packet.readBytes(length: 16), [
-            0x33, 0x22, 0x11, 0x00,
-            0x55, 0x44,
-            0x77, 0x66,
-            0x88, 0x99, 0xAA, 0xBB, 0xCC, 0xDD, 0xEE, 0xFF,
-        ])
+        XCTAssertEqual(
+            packet.readBytes(length: 16),
+            [
+                0x33, 0x22, 0x11, 0x00,
+                0x55, 0x44,
+                0x77, 0x66,
+                0x88, 0x99, 0xAA, 0xBB, 0xCC, 0xDD, 0xEE, 0xFF,
+            ])
     }
 
     func testRPCPacketEncodesXMLParameter() throws {
         var encoder = TDSFrontendMessageEncoder(
             buffer: ByteBufferAllocator().buffer(capacity: 256)
         )
-        encoder.rpc(.init(
-            procedure: "dbo.xml",
-            parameters: [
-                .init(name: "@doc", value: .xml([0x3C, 0x72, 0x2F, 0x3E])),
-            ]
-        ))
+        encoder.rpc(
+            .init(
+                procedure: "dbo.xml",
+                parameters: [
+                    .init(name: "@doc", value: .xml([0x3C, 0x72, 0x2F, 0x3E]))
+                ]
+            ))
 
         var packet = encoder.flush()
         packet.moveReaderIndex(forwardBy: TDSPacket.headerLength + 22 + 2 + "dbo.xml".utf16.count * 2 + 2)
@@ -632,12 +665,13 @@ extension TDSTests {
         var encoder = TDSFrontendMessageEncoder(
             buffer: ByteBufferAllocator().buffer(capacity: 256)
         )
-        encoder.rpc(.init(
-            procedure: "dbo.json",
-            parameters: [
-                .init(name: "@doc", value: .json(Array(#"{"ok":true}"#.utf8))),
-            ]
-        ))
+        encoder.rpc(
+            .init(
+                procedure: "dbo.json",
+                parameters: [
+                    .init(name: "@doc", value: .json(Array(#"{"ok":true}"#.utf8)))
+                ]
+            ))
 
         var packet = encoder.flush()
         packet.moveReaderIndex(forwardBy: TDSPacket.headerLength + 22 + 2 + "dbo.json".utf16.count * 2 + 2)
@@ -657,12 +691,13 @@ extension TDSTests {
         var encoder = TDSFrontendMessageEncoder(
             buffer: ByteBufferAllocator().buffer(capacity: 12_000)
         )
-        encoder.rpc(.init(
-            procedure: "dbo.longText",
-            parameters: [
-                .init(name: "@text", value: .string(value)),
-            ]
-        ))
+        encoder.rpc(
+            .init(
+                procedure: "dbo.longText",
+                parameters: [
+                    .init(name: "@text", value: .string(value))
+                ]
+            ))
 
         var packet = encoder.flush()
         packet.moveReaderIndex(forwardBy: TDSPacket.headerLength + 22 + 2 + "dbo.longText".utf16.count * 2 + 2)
@@ -686,12 +721,13 @@ extension TDSTests {
         var encoder = TDSFrontendMessageEncoder(
             buffer: ByteBufferAllocator().buffer(capacity: 10_000)
         )
-        encoder.rpc(.init(
-            procedure: "dbo.longBytes",
-            parameters: [
-                .init(name: "@data", value: .bytes(value)),
-            ]
-        ))
+        encoder.rpc(
+            .init(
+                procedure: "dbo.longBytes",
+                parameters: [
+                    .init(name: "@data", value: .bytes(value))
+                ]
+            ))
 
         var packet = encoder.flush()
         packet.moveReaderIndex(forwardBy: TDSPacket.headerLength + 22 + 2 + "dbo.longBytes".utf16.count * 2 + 2)
@@ -726,10 +762,11 @@ extension TDSTests {
         var encoder = TDSFrontendMessageEncoder(
             buffer: ByteBufferAllocator().buffer(capacity: 512)
         )
-        encoder.rpc(.init(
-            procedure: "dbo.use_tvp",
-            parameters: [.init(name: "@items", value: .table(tvp))]
-        ))
+        encoder.rpc(
+            .init(
+                procedure: "dbo.use_tvp",
+                parameters: [.init(name: "@items", value: .table(tvp))]
+            ))
 
         var packet = encoder.flush()
         packet.moveReaderIndex(forwardBy: TDSPacket.headerLength + 22 + 2 + "dbo.use_tvp".utf16.count * 2 + 2)
@@ -783,16 +820,17 @@ extension TDSTests {
                 .init(dataType: .varBinary(maxBytes: 3)),
             ],
             rows: [
-                [.string("abcdef"), .bytes([1, 2, 3, 4, 5])],
+                [.string("abcdef"), .bytes([1, 2, 3, 4, 5])]
             ]
         )
         var encoder = TDSFrontendMessageEncoder(
             buffer: ByteBufferAllocator().buffer(capacity: 512)
         )
-        encoder.rpc(.init(
-            procedure: "dbo.use_tvp",
-            parameters: [.init(name: "@items", value: .table(tvp))]
-        ))
+        encoder.rpc(
+            .init(
+                procedure: "dbo.use_tvp",
+                parameters: [.init(name: "@items", value: .table(tvp))]
+            ))
 
         var packet = encoder.flush()
         packet.moveReaderIndex(forwardBy: TDSPacket.headerLength + 22 + 2 + "dbo.use_tvp".utf16.count * 2 + 2)
@@ -885,9 +923,11 @@ extension TDSTests {
     func testFederatedAuthenticationOutboundEventRejectsInvalidNonceLength() throws {
         let channel = try Self.loggedInChannel()
 
-        XCTAssertThrowsError(try channel.pipeline.triggerUserOutboundEvent(
-            TDSAuthenticationToken.federated(token: [0xAA], nonce: [0x01])
-        ).wait()) { error in
+        XCTAssertThrowsError(
+            try channel.pipeline.triggerUserOutboundEvent(
+                TDSAuthenticationToken.federated(token: [0xAA], nonce: [0x01])
+            ).wait()
+        ) { error in
             let sqlError = error as? TDSSQLError
             XCTAssertEqual(sqlError?.code, .connectionError)
         }
@@ -908,10 +948,11 @@ extension TDSTests {
         XCTAssertEqual(packet.readInteger(as: UInt8.self), 0)
         XCTAssertEqual(packet.readableBytes, 0)
 
-        try channel.writeInbound(Self.packet(
-            type: .preloginLoginOrTablularResponse,
-            payload: Self.donePayload()
-        ))
+        try channel.writeInbound(
+            Self.packet(
+                type: .preloginLoginOrTablularResponse,
+                payload: Self.donePayload()
+            ))
         let result = try promise.futureResult.wait()
         XCTAssertEqual(result.rows.count, 0)
         XCTAssertEqual(result.resultSets.count, 0)
@@ -921,15 +962,16 @@ extension TDSTests {
         var encoder = TDSFrontendMessageEncoder(
             buffer: ByteBufferAllocator().buffer(capacity: 256)
         )
-        encoder.bulkLoad(.init(
-            columns: [
-                .init(name: "label", dataType: .nVarChar(maxBytes: 4)),
-                .init(name: "payload", dataType: .varBinary(maxBytes: 3)),
-            ],
-            rows: [
-                [.string("abcdef"), .bytes([1, 2, 3, 4, 5])],
-            ]
-        ))
+        encoder.bulkLoad(
+            .init(
+                columns: [
+                    .init(name: "label", dataType: .nVarChar(maxBytes: 4)),
+                    .init(name: "payload", dataType: .varBinary(maxBytes: 3)),
+                ],
+                rows: [
+                    [.string("abcdef"), .bytes([1, 2, 3, 4, 5])]
+                ]
+            ))
 
         var packet = encoder.flush()
         packet.moveReaderIndex(forwardBy: TDSPacket.headerLength)
@@ -959,18 +1001,21 @@ extension TDSTests {
         let channel = try Self.loggedInChannel()
 
         let promise = channel.eventLoop.makePromise(of: TDSQueryResult.self)
-        try channel.writeOutbound(TDSTask.bulkLoad(.init(
-            columns: [.init(name: "id", dataType: .int)],
-            rows: [[.int(1)]]
-        ), promise))
+        try channel.writeOutbound(
+            TDSTask.bulkLoad(
+                .init(
+                    columns: [.init(name: "id", dataType: .int)],
+                    rows: [[.int(1)]]
+                ), promise))
 
         let packet: ByteBuffer = try XCTUnwrap(channel.readOutbound())
         XCTAssertEqual(packet.getInteger(at: 0, as: UInt8.self), TDSPacket.MessageType.bulkLoadData.rawValue)
 
-        try channel.writeInbound(Self.packet(
-            type: .preloginLoginOrTablularResponse,
-            payload: Self.donePayload(status: .count, rowCount: 1)
-        ))
+        try channel.writeInbound(
+            Self.packet(
+                type: .preloginLoginOrTablularResponse,
+                payload: Self.donePayload(status: .count, rowCount: 1)
+            ))
         let result = try promise.futureResult.wait()
         XCTAssertEqual(result.rowsAffected, 1)
     }
@@ -1024,10 +1069,11 @@ extension TDSTests {
     func testPacketSizeEnvChangeUpdatesOutboundPacketSplitting() throws {
         let channel = try Self.loggedInChannel()
 
-        try channel.writeInbound(Self.packet(
-            type: .preloginLoginOrTablularResponse,
-            payload: Self.stringEnvChangePayload(type: 4, new: "512", old: "\(TDSPacket.maximumPacketLength)")
-        ))
+        try channel.writeInbound(
+            Self.packet(
+                type: .preloginLoginOrTablularResponse,
+                payload: Self.stringEnvChangePayload(type: 4, new: "512", old: "\(TDSPacket.maximumPacketLength)")
+            ))
 
         let queryPromise = channel.eventLoop.makePromise(of: TDSQueryResult.self)
         try channel.writeOutbound(TDSTask.sqlBatch("SELECT '\(String(repeating: "x", count: 700))'", queryPromise))
@@ -1051,10 +1097,11 @@ extension TDSTests {
     func testPacketSizeEnvChangeClampsInvalidSmallValues() throws {
         let channel = try Self.loggedInChannel()
 
-        try channel.writeInbound(Self.packet(
-            type: .preloginLoginOrTablularResponse,
-            payload: Self.stringEnvChangePayload(type: 4, new: "8", old: "\(TDSPacket.maximumPacketLength)")
-        ))
+        try channel.writeInbound(
+            Self.packet(
+                type: .preloginLoginOrTablularResponse,
+                payload: Self.stringEnvChangePayload(type: 4, new: "8", old: "\(TDSPacket.maximumPacketLength)")
+            ))
 
         let queryPromise = channel.eventLoop.makePromise(of: TDSQueryResult.self)
         try channel.writeOutbound(TDSTask.sqlBatch("SELECT '\(String(repeating: "x", count: 600))'", queryPromise))
@@ -1125,17 +1172,19 @@ extension TDSTests {
         let decoder = ByteToMessageHandler(TDSBackendMessageDecoder())
         let channel = EmbeddedChannel(handler: decoder)
 
-        try channel.writeInbound(Self.packet(
-            type: .preloginLoginOrTablularResponse,
-            statusFlags: [],
-            payload: firstPayload
-        ))
+        try channel.writeInbound(
+            Self.packet(
+                type: .preloginLoginOrTablularResponse,
+                statusFlags: [],
+                payload: firstPayload
+            ))
         XCTAssertNil(try channel.readInbound(as: TinySequence<TDSBackendMessageDecoder.Container>.self))
 
-        try channel.writeInbound(Self.packet(
-            type: .preloginLoginOrTablularResponse,
-            payload: secondPayload
-        ))
+        try channel.writeInbound(
+            Self.packet(
+                type: .preloginLoginOrTablularResponse,
+                payload: secondPayload
+            ))
 
         var messages: [TDSBackendMessage] = []
         while let containers = try channel.readInbound(as: TinySequence<TDSBackendMessageDecoder.Container>.self) {
@@ -1331,12 +1380,16 @@ extension TDSTests {
         guard case .dataClassification(let dataClassification) = messages[2] else {
             return XCTFail("Expected DATACLASSIFICATION")
         }
-        XCTAssertEqual(dataClassification.labels, [
-            .init(name: "Confidential", id: "label-id")
-        ])
-        XCTAssertEqual(dataClassification.informationTypes, [
-            .init(name: "Financial", id: "info-id")
-        ])
+        XCTAssertEqual(
+            dataClassification.labels,
+            [
+                .init(name: "Confidential", id: "label-id")
+            ])
+        XCTAssertEqual(
+            dataClassification.informationTypes,
+            [
+                .init(name: "Financial", id: "info-id")
+            ])
         XCTAssertEqual(dataClassification.columns.count, 1)
         XCTAssertEqual(dataClassification.columns[0].properties.count, 1)
         XCTAssertEqual(dataClassification.columns[0].properties[0].labelIndex, 0)
@@ -1409,11 +1462,13 @@ extension TDSTests {
         }
         XCTAssertEqual(metadata.columns.map(\.name), ["doc", "typedDoc"])
         XCTAssertNil(metadata.columns[0].typeInfo.xmlInfo)
-        XCTAssertEqual(metadata.columns[1].typeInfo.xmlInfo, .init(
-            databaseName: "master",
-            owningSchema: "dbo",
-            schemaCollection: "docSchema"
-        ))
+        XCTAssertEqual(
+            metadata.columns[1].typeInfo.xmlInfo,
+            .init(
+                databaseName: "master",
+                owningSchema: "dbo",
+                schemaCollection: "docSchema"
+            ))
         guard case .row(let firstRow) = messages[1] else {
             return XCTFail("Expected first ROW")
         }
@@ -1558,7 +1613,8 @@ extension TDSTests {
         XCTAssertEqual(metadata.columns[0].typeInfo.udtInfo?.databaseName, "master")
         XCTAssertEqual(metadata.columns[0].typeInfo.udtInfo?.schemaName, "sys")
         XCTAssertEqual(metadata.columns[0].typeInfo.udtInfo?.typeName, "geography")
-        XCTAssertEqual(metadata.columns[0].typeInfo.udtInfo?.assemblyQualifiedName, "Microsoft.SqlServer.Types.SqlGeography")
+        XCTAssertEqual(
+            metadata.columns[0].typeInfo.udtInfo?.assemblyQualifiedName, "Microsoft.SqlServer.Types.SqlGeography")
         guard case .row(let firstRow) = messages[1] else {
             return XCTFail("Expected first ROW")
         }
@@ -1597,7 +1653,8 @@ extension TDSTests {
         guard case .row(let firstRow) = messages[1] else {
             return XCTFail("Expected first ROW")
         }
-        XCTAssertEqual(firstRow.values, [.string("hello"), .string("abc"), .bytes([0xDE, 0xAD]), .bytes([0xBE, 0xEF])])
+        XCTAssertEqual(
+            firstRow.values, [.string("hello"), .string("abc"), .bytes([0xDE, 0xAD]), .bytes([0xBE, 0xEF])])
         guard case .row(let secondRow) = messages[2] else {
             return XCTFail("Expected second ROW")
         }
@@ -1755,19 +1812,21 @@ extension TDSTests {
             TDSFrontendMessageEncoder.PreloginEncryption.encryptNotSup.rawValue
         )
 
-        try channel.writeInbound(Self.packet(
-            type: .preloginLoginOrTablularResponse,
-            payload: Self.preloginResponsePayload(encryption: .encryptOff)
-        ))
+        try channel.writeInbound(
+            Self.packet(
+                type: .preloginLoginOrTablularResponse,
+                payload: Self.preloginResponsePayload(encryption: .encryptOff)
+            ))
 
         let login: ByteBuffer = try XCTUnwrap(channel.readOutbound())
         XCTAssertEqual(login.getInteger(at: 0, as: UInt8.self), TDSPacket.MessageType.tds7Login.rawValue)
         XCTAssertEqual(login.getInteger(at: 2, endianness: .big, as: UInt16.self), UInt16(login.writerIndex))
 
-        try channel.writeInbound(Self.packet(
-            type: .preloginLoginOrTablularResponse,
-            payload: Self.loginAckAndDonePayload()
-        ))
+        try channel.writeInbound(
+            Self.packet(
+                type: .preloginLoginOrTablularResponse,
+                payload: Self.loginAckAndDonePayload()
+            ))
 
         let context = try eventHandler.startupDoneFuture.wait()
         XCTAssertEqual(context.version, .v7_4)
@@ -1779,10 +1838,11 @@ extension TDSTests {
         let sqlBatch: ByteBuffer = try XCTUnwrap(channel.readOutbound())
         XCTAssertEqual(sqlBatch.getInteger(at: 0, as: UInt8.self), TDSPacket.MessageType.sqlBatch.rawValue)
 
-        try channel.writeInbound(Self.packet(
-            type: .preloginLoginOrTablularResponse,
-            payload: Self.selectOneTokenStreamPayload()
-        ))
+        try channel.writeInbound(
+            Self.packet(
+                type: .preloginLoginOrTablularResponse,
+                payload: Self.selectOneTokenStreamPayload()
+            ))
         let result = try queryPromise.futureResult.wait()
         XCTAssertEqual(result.columns.map(\.name), ["id", "label"])
         XCTAssertEqual(result.rows.count, 1)
@@ -1790,17 +1850,19 @@ extension TDSTests {
         XCTAssertEqual(result.rows[0]["label"], .string("one"))
 
         let rpcPromise = channel.eventLoop.makePromise(of: TDSQueryResult.self)
-        try channel.writeOutbound(TDSTask.rpc(
-            .init(procedure: "dbo.echo", parameters: [.init(name: "@id", value: .int(1))]),
-            rpcPromise
-        ))
+        try channel.writeOutbound(
+            TDSTask.rpc(
+                .init(procedure: "dbo.echo", parameters: [.init(name: "@id", value: .int(1))]),
+                rpcPromise
+            ))
         let rpc: ByteBuffer = try XCTUnwrap(channel.readOutbound())
         XCTAssertEqual(rpc.getInteger(at: 0, as: UInt8.self), TDSPacket.MessageType.rpc.rawValue)
 
-        try channel.writeInbound(Self.packet(
-            type: .preloginLoginOrTablularResponse,
-            payload: Self.selectOneTokenStreamPayload()
-        ))
+        try channel.writeInbound(
+            Self.packet(
+                type: .preloginLoginOrTablularResponse,
+                payload: Self.selectOneTokenStreamPayload()
+            ))
         let rpcResult = try rpcPromise.futureResult.wait()
         XCTAssertEqual(rpcResult.rows[0]["id"], .int32(1))
     }
@@ -1830,15 +1892,19 @@ extension TDSTests {
 
         channel.pipeline.fireChannelActive()
         _ = try channel.readOutbound(as: ByteBuffer.self)
-        try channel.writeInbound(Self.packet(
-            type: .preloginLoginOrTablularResponse,
-            payload: Self.preloginResponsePayload(encryption: .encryptOff)
-        ))
+        try channel.writeInbound(
+            Self.packet(
+                type: .preloginLoginOrTablularResponse,
+                payload: Self.preloginResponsePayload(encryption: .encryptOff)
+            ))
         _ = try channel.readOutbound(as: ByteBuffer.self)
-        XCTAssertThrowsError(try channel.writeInbound(Self.packet(
-            type: .preloginLoginOrTablularResponse,
-            payload: Self.errorPayload(message: "Login failed for user 'sa'.", number: 18456)
-        ))) { error in
+        XCTAssertThrowsError(
+            try channel.writeInbound(
+                Self.packet(
+                    type: .preloginLoginOrTablularResponse,
+                    payload: Self.errorPayload(message: "Login failed for user 'sa'.", number: 18456)
+                ))
+        ) { error in
             let sqlError = error as? TDSSQLError
             XCTAssertEqual(sqlError?.code, .server)
             XCTAssertEqual(sqlError?.serverInfo?.number, 18456)

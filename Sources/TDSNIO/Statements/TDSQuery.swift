@@ -12,9 +12,9 @@
 //
 //===----------------------------------------------------------------------===//
 
+public import Foundation
 import NIOConcurrencyHelpers
 import NIOCore
-public import Foundation
 
 /// A TDS SQL query, that can be executed on a TDS server. Contains the raw sql string and bindings.
 public struct TDSQuery: Sendable, Hashable {

@@ -365,10 +365,12 @@ extension TDSBackendMessage {
             case 0x78:
                 messages.append(.offset(try Self.decodeOffset(from: &buffer)))
             case 0xA3:
-                messages.append(.dataClassification(try Self.decodeDataClassification(
-                    from: &buffer,
-                    version: context.dataClassificationVersion
-                )))
+                messages.append(
+                    .dataClassification(
+                        try Self.decodeDataClassification(
+                            from: &buffer,
+                            version: context.dataClassificationVersion
+                        )))
             case 0xD3:
                 messages.append(.altRow(try Self.decodeAltRow(from: &buffer, columnsByID: context.altColumns)))
             case 0xD1:
@@ -435,10 +437,12 @@ extension TDSBackendMessage {
 
         var response = PreloginResponse()
         for option in options {
-            guard var data = buffer.getSlice(
-                at: buffer.readerIndex + Int(option.offset),
-                length: Int(option.length)
-            ) else {
+            guard
+                var data = buffer.getSlice(
+                    at: buffer.readerIndex + Int(option.offset),
+                    length: Int(option.length)
+                )
+            else {
                 throw TDSPartialDecodingError.fieldNotDecodable(type: ByteBuffer.self)
             }
 
@@ -567,10 +571,11 @@ extension TDSBackendMessage {
             }
 
             let length = Int(try buffer.readRequiredInteger(endianness: .little, as: UInt32.self))
-            options.append(.init(
-                featureID: featureID,
-                data: try buffer.readRequiredBytes(length: length)
-            ))
+            options.append(
+                .init(
+                    featureID: featureID,
+                    data: try buffer.readRequiredBytes(length: length)
+                ))
         }
     }
 
@@ -607,12 +612,13 @@ extension TDSBackendMessage {
                 baseColumnName = nil
             }
 
-            columns.append(.init(
-                columnNumber: columnNumber,
-                tableNumber: tableNumber,
-                status: status,
-                baseColumnName: baseColumnName
-            ))
+            columns.append(
+                .init(
+                    columnNumber: columnNumber,
+                    tableNumber: tableNumber,
+                    status: status,
+                    baseColumnName: baseColumnName
+                ))
         }
 
         return .init(columns: columns)
@@ -668,14 +674,16 @@ extension TDSBackendMessage {
             for _ in 0..<propertyCount {
                 let labelIndex = try buffer.readRequiredInteger(endianness: .little, as: UInt16.self)
                 let informationTypeIndex = try buffer.readRequiredInteger(endianness: .little, as: UInt16.self)
-                let rank = version >= 2
+                let rank =
+                    version >= 2
                     ? try buffer.readRequiredInteger(endianness: .little, as: Int32.self)
                     : nil
-                properties.append(.init(
-                    labelIndex: labelIndex,
-                    informationTypeIndex: informationTypeIndex,
-                    rank: rank
-                ))
+                properties.append(
+                    .init(
+                        labelIndex: labelIndex,
+                        informationTypeIndex: informationTypeIndex,
+                        rank: rank
+                    ))
             }
             columns.append(.init(properties: properties))
         }
@@ -705,14 +713,15 @@ extension TDSBackendMessage {
             guard let name = buffer.readBVarchar() else {
                 throw TDSPartialDecodingError.fieldNotDecodable(type: AltMetadata.self)
             }
-            columns.append(.init(
-                op: op,
-                operand: operand,
-                userType: userType,
-                flags: flags,
-                typeInfo: typeInfo,
-                name: name
-            ))
+            columns.append(
+                .init(
+                    op: op,
+                    operand: operand,
+                    userType: userType,
+                    flags: flags,
+                    typeInfo: typeInfo,
+                    name: name
+                ))
         }
 
         return .init(count: count, id: id, byColumns: byColumns, columns: columns)
@@ -738,10 +747,11 @@ extension TDSBackendMessage {
             } else {
                 length = Int(shortLength)
             }
-            entries.append(.init(
-                stateID: stateID,
-                value: try data.readRequiredBytes(length: length)
-            ))
+            entries.append(
+                .init(
+                    stateID: stateID,
+                    value: try data.readRequiredBytes(length: length)
+                ))
         }
 
         return .init(sequenceNumber: sequenceNumber, status: status, entries: entries)
@@ -754,11 +764,12 @@ extension TDSBackendMessage {
         descriptors.reserveCapacity(count)
 
         for _ in 0..<count {
-            descriptors.append((
-                id: try data.readRequiredInteger(as: UInt8.self),
-                length: try data.readRequiredInteger(endianness: .little, as: UInt32.self),
-                offset: try data.readRequiredInteger(endianness: .little, as: UInt32.self)
-            ))
+            descriptors.append(
+                (
+                    id: try data.readRequiredInteger(as: UInt8.self),
+                    length: try data.readRequiredInteger(endianness: .little, as: UInt32.self),
+                    offset: try data.readRequiredInteger(endianness: .little, as: UInt32.self)
+                ))
         }
 
         let tokenStart = data.readerIndex - (4 + count * 9)
@@ -775,10 +786,11 @@ extension TDSBackendMessage {
             else {
                 throw TDSPartialDecodingError.fieldNotDecodable(type: FedAuthInfo.self)
             }
-            options.append(.init(
-                id: descriptor.id,
-                data: Array(slice.readableBytesView)
-            ))
+            options.append(
+                .init(
+                    id: descriptor.id,
+                    data: Array(slice.readableBytesView)
+                ))
         }
 
         return .init(options: options)
@@ -869,12 +881,13 @@ extension TDSBackendMessage {
                 throw TDSPartialDecodingError.fieldNotDecodable(type: ByteBuffer.self)
             }
 
-            columns.append(.init(
-                userType: userType,
-                flags: flags,
-                typeInfo: typeInfo,
-                name: name
-            ))
+            columns.append(
+                .init(
+                    userType: userType,
+                    flags: flags,
+                    typeInfo: typeInfo,
+                    name: name
+                ))
         }
 
         return .init(columnCount: count, columns: columns)
@@ -1176,7 +1189,8 @@ extension TDSBackendMessage {
         case .nChar:
             let length = Int(try buffer.readRequiredInteger(endianness: .little, as: UInt16.self))
             if length == Int(UInt16.max) { return .null }
-            guard let string = String(bytes: try buffer.readRequiredBytes(length: length), encoding: .utf16LittleEndian) else {
+            guard let string = String(bytes: try buffer.readRequiredBytes(length: length), encoding: .utf16LittleEndian)
+            else {
                 throw TDSPartialDecodingError.fieldNotDecodable(type: String.self)
             }
             return .string(string)
@@ -1357,10 +1371,11 @@ extension TDSBackendMessage {
             let date = try Self.decodeDateValue(from: &value)
             let offset = try value.readRequiredInteger(endianness: .little, as: Int16.self)
             let dateTime = Self.localDateTime(fromUTCDate: date, time: time, offsetMinutes: Int(offset))
-            return .datetimeOffset(.init(
-                dateTime: dateTime,
-                offsetMinutes: Int(offset)
-            ))
+            return .datetimeOffset(
+                .init(
+                    dateTime: dateTime,
+                    offsetMinutes: Int(offset)
+                ))
         case .decimalN, .numericN:
             guard properties.count == 2 else {
                 throw TDSPartialDecodingError.fieldNotDecodable(type: TDSData.self)
@@ -1378,10 +1393,12 @@ extension TDSBackendMessage {
         case .bigVarChar, .bigChar:
             return .string(String(decoding: try value.readRequiredBytes(length: value.readableBytes), as: UTF8.self))
         case .nVarChar, .nChar:
-            guard let string = String(
-                bytes: try value.readRequiredBytes(length: value.readableBytes),
-                encoding: .utf16LittleEndian
-            ) else {
+            guard
+                let string = String(
+                    bytes: try value.readRequiredBytes(length: value.readableBytes),
+                    encoding: .utf16LittleEndian
+                )
+            else {
                 throw TDSPartialDecodingError.fieldNotDecodable(type: String.self)
             }
             return .string(string)
@@ -1517,10 +1534,11 @@ extension TDSBackendMessage {
         let date = try Self.decodeDateValue(from: &buffer)
         let offset = try buffer.readRequiredInteger(endianness: .little, as: Int16.self)
         let dateTime = Self.localDateTime(fromUTCDate: date, time: time, offsetMinutes: Int(offset))
-        return .datetimeOffset(.init(
-            dateTime: dateTime,
-            offsetMinutes: Int(offset)
-        ))
+        return .datetimeOffset(
+            .init(
+                dateTime: dateTime,
+                offsetMinutes: Int(offset)
+            ))
     }
 
     private static func localDateTime(
@@ -1635,9 +1653,9 @@ extension TDSBackendMessage {
         day -= years1 * 365
 
         let year = years400 * 400 + years100 * 100 + years4 * 4 + years1 + 1
-        let monthLengths = Self.isLeapYear(year) ?
-            [31, 29, 31, 30, 31, 30, 31, 31, 30, 31, 30, 31] :
-            [31, 28, 31, 30, 31, 30, 31, 31, 30, 31, 30, 31]
+        let monthLengths =
+            Self.isLeapYear(year)
+            ? [31, 29, 31, 30, 31, 30, 31, 31, 30, 31, 30, 31] : [31, 28, 31, 30, 31, 30, 31, 31, 30, 31, 30, 31]
         var month = 1
         while day >= monthLengths[month - 1] {
             day -= monthLengths[month - 1]
@@ -1770,47 +1788,47 @@ extension TDSBackendMessage: CustomDebugStringConvertible {
     }
 }
 
-private extension FixedWidthInteger {
-    var asUInt64: UInt64 { UInt64(self) }
+extension FixedWidthInteger {
+    fileprivate var asUInt64: UInt64 { UInt64(self) }
 }
 
-private extension ByteBuffer {
-    mutating func readUTF16String(characterCount: Int) -> String? {
+extension ByteBuffer {
+    fileprivate mutating func readUTF16String(characterCount: Int) -> String? {
         guard let bytes = self.readBytes(length: characterCount * 2) else {
             return nil
         }
         return String(bytes: bytes, encoding: .utf16LittleEndian)
     }
 
-    mutating func readBVarchar() -> String? {
+    fileprivate mutating func readBVarchar() -> String? {
         guard let characterCount = self.readInteger(as: UInt8.self) else {
             return nil
         }
         return self.readUTF16String(characterCount: Int(characterCount))
     }
 
-    mutating func readUSVarchar() -> String? {
+    fileprivate mutating func readUSVarchar() -> String? {
         guard let characterCount = self.readInteger(endianness: .little, as: UInt16.self) else {
             return nil
         }
         return self.readUTF16String(characterCount: Int(characterCount))
     }
 
-    mutating func readBVarbyte() throws -> [UInt8] {
+    fileprivate mutating func readBVarbyte() throws -> [UInt8] {
         guard let length = self.readInteger(as: UInt8.self) else {
             throw TDSPartialDecodingError.fieldNotDecodable(type: [UInt8].self)
         }
         return try self.readRequiredBytes(length: Int(length))
     }
 
-    mutating func readLVarbyte() throws -> [UInt8] {
+    fileprivate mutating func readLVarbyte() throws -> [UInt8] {
         guard let length = self.readInteger(endianness: .little, as: UInt32.self) else {
             throw TDSPartialDecodingError.fieldNotDecodable(type: [UInt8].self)
         }
         return try self.readRequiredBytes(length: Int(length))
     }
 
-    mutating func readRequiredInteger<T: FixedWidthInteger>(
+    fileprivate mutating func readRequiredInteger<T: FixedWidthInteger>(
         endianness: Endianness = .big,
         as type: T.Type = T.self
     ) throws -> T {
@@ -1820,7 +1838,7 @@ private extension ByteBuffer {
         return value
     }
 
-    mutating func readRequiredBytes(length: Int) throws -> [UInt8] {
+    fileprivate mutating func readRequiredBytes(length: Int) throws -> [UInt8] {
         guard let bytes = self.readBytes(length: length) else {
             throw TDSPartialDecodingError.expectedAtLeastNRemainingBytes(length, actual: self.readableBytes)
         }

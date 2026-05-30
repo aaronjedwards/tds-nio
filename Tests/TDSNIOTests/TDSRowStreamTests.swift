@@ -60,10 +60,11 @@ extension TDSTests {
         let sqlBatch: ByteBuffer = try XCTUnwrap(channel.readOutbound())
         XCTAssertEqual(sqlBatch.getInteger(at: 0, as: UInt8.self), TDSPacket.MessageType.sqlBatch.rawValue)
 
-        try channel.writeInbound(Self.packet(
-            type: .preloginLoginOrTablularResponse,
-            payload: Self.errorPayload(message: "Invalid object name")
-        ))
+        try channel.writeInbound(
+            Self.packet(
+                type: .preloginLoginOrTablularResponse,
+                payload: Self.errorPayload(message: "Invalid object name")
+            ))
 
         XCTAssertThrowsError(try streamPromise.futureResult.wait()) { error in
             let sqlError = error as? TDSSQLError
@@ -85,22 +86,25 @@ extension TDSTests {
         let sqlBatch: ByteBuffer = try XCTUnwrap(channel.readOutbound())
         XCTAssertEqual(sqlBatch.getInteger(at: 0, as: UInt8.self), TDSPacket.MessageType.sqlBatch.rawValue)
 
-        try channel.writeInbound(Self.packet(
-            type: .preloginLoginOrTablularResponse,
-            payload: Self.selectOneMetadataPayload()
-        ))
+        try channel.writeInbound(
+            Self.packet(
+                type: .preloginLoginOrTablularResponse,
+                payload: Self.selectOneMetadataPayload()
+            ))
 
         let stream = try streamPromise.futureResult.wait()
         let rowsFuture = stream.all()
 
-        try channel.writeInbound(Self.packet(
-            type: .preloginLoginOrTablularResponse,
-            payload: Self.selectOneRowPayload(id: 1, label: "one")
-        ))
-        try channel.writeInbound(Self.packet(
-            type: .preloginLoginOrTablularResponse,
-            payload: Self.errorPayload(message: "Arithmetic overflow")
-        ))
+        try channel.writeInbound(
+            Self.packet(
+                type: .preloginLoginOrTablularResponse,
+                payload: Self.selectOneRowPayload(id: 1, label: "one")
+            ))
+        try channel.writeInbound(
+            Self.packet(
+                type: .preloginLoginOrTablularResponse,
+                payload: Self.errorPayload(message: "Arithmetic overflow")
+            ))
 
         XCTAssertThrowsError(try rowsFuture.wait()) { error in
             let sqlError = error as? TDSSQLError

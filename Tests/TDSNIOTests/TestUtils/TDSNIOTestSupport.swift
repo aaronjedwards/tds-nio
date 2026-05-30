@@ -59,31 +59,35 @@ final class TDSTests: XCTestCase {
     static let temporalValues: [TDSData] = [
         .date(.init(year: 2024, month: 2, day: 29)),
         .time(.init(hour: 12, minute: 34, second: 56, nanosecond: 123_456_700, scale: 7)),
-        .datetime2(.init(
-            date: .init(year: 2024, month: 2, day: 29),
-            time: .init(hour: 1, minute: 2, second: 3, nanosecond: 456_000_000, scale: 3)
-        )),
-        .datetimeOffset(.init(
-            dateTime: .init(
+        .datetime2(
+            .init(
                 date: .init(year: 2024, month: 2, day: 29),
-                time: .init(hour: 23, minute: 59, second: 59, nanosecond: 0, scale: 0)
-            ),
-            offsetMinutes: -420
-        )),
+                time: .init(hour: 1, minute: 2, second: 3, nanosecond: 456_000_000, scale: 3)
+            )),
+        .datetimeOffset(
+            .init(
+                dateTime: .init(
+                    date: .init(year: 2024, month: 2, day: 29),
+                    time: .init(hour: 23, minute: 59, second: 59, nanosecond: 0, scale: 0)
+                ),
+                offsetMinutes: -420
+            )),
     ]
 
     static let legacyTemporalMoneyValues: [TDSData] = [
         .money("123.4567"),
         .money("-12.3400"),
         .null,
-        .datetime(.init(
-            date: .init(year: 2024, month: 2, day: 29),
-            time: .init(hour: 1, minute: 2, second: 3, nanosecond: 0, scale: 3)
-        )),
-        .datetime(.init(
-            date: .init(year: 2024, month: 2, day: 29),
-            time: .init(hour: 12, minute: 34, second: 0, nanosecond: 0, scale: 0)
-        )),
+        .datetime(
+            .init(
+                date: .init(year: 2024, month: 2, day: 29),
+                time: .init(hour: 1, minute: 2, second: 3, nanosecond: 0, scale: 3)
+            )),
+        .datetime(
+            .init(
+                date: .init(year: 2024, month: 2, day: 29),
+                time: .init(hour: 12, minute: 34, second: 0, nanosecond: 0, scale: 0)
+            )),
         .null,
     ]
 
@@ -101,290 +105,18 @@ final class TDSTests: XCTestCase {
         var calendar = Calendar(identifier: .gregorian)
         calendar.locale = Locale(identifier: "en_US_POSIX")
         calendar.timeZone = TimeZone(secondsFromGMT: 0)!
-        return calendar.date(from: DateComponents(
-            timeZone: calendar.timeZone,
-            year: year,
-            month: month,
-            day: day,
-            hour: hour,
-            minute: minute,
-            second: second,
-            nanosecond: nanosecond
-        ))!
+        return calendar.date(
+            from: DateComponents(
+                timeZone: calendar.timeZone,
+                year: year,
+                month: month,
+                day: day,
+                hour: hour,
+                minute: minute,
+                second: second,
+                nanosecond: nanosecond
+            ))!
     }
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
 
 
     static func packet(
@@ -1201,15 +933,17 @@ final class TDSTests: XCTestCase {
 
         channel.pipeline.fireChannelActive()
         _ = try channel.readOutbound(as: ByteBuffer.self)
-        try channel.writeInbound(Self.packet(
-            type: .preloginLoginOrTablularResponse,
-            payload: Self.preloginResponsePayload(encryption: .encryptOff)
-        ))
+        try channel.writeInbound(
+            Self.packet(
+                type: .preloginLoginOrTablularResponse,
+                payload: Self.preloginResponsePayload(encryption: .encryptOff)
+            ))
         _ = try channel.readOutbound(as: ByteBuffer.self)
-        try channel.writeInbound(Self.packet(
-            type: .preloginLoginOrTablularResponse,
-            payload: Self.loginAckAndDonePayload()
-        ))
+        try channel.writeInbound(
+            Self.packet(
+                type: .preloginLoginOrTablularResponse,
+                payload: Self.loginAckAndDonePayload()
+            ))
         _ = try eventHandler.startupDoneFuture.wait()
         return channel
     }
@@ -1226,20 +960,23 @@ final class TDSTests: XCTestCase {
     static func loginStringField(index: Int, in packet: inout ByteBuffer) throws -> String {
         let loginStart = TDSPacket.headerLength
         let entry = loginStart + 36 + index * 4
-        let offset = try XCTUnwrap(packet.getInteger(
-            at: entry,
-            endianness: .little,
-            as: UInt16.self
-        ))
-        let length = try XCTUnwrap(packet.getInteger(
-            at: entry + 2,
-            endianness: .little,
-            as: UInt16.self
-        ))
-        var field = try XCTUnwrap(packet.getSlice(
-            at: loginStart + Int(offset),
-            length: Int(length) * 2
-        ))
+        let offset = try XCTUnwrap(
+            packet.getInteger(
+                at: entry,
+                endianness: .little,
+                as: UInt16.self
+            ))
+        let length = try XCTUnwrap(
+            packet.getInteger(
+                at: entry + 2,
+                endianness: .little,
+                as: UInt16.self
+            ))
+        var field = try XCTUnwrap(
+            packet.getSlice(
+                at: loginStart + Int(offset),
+                length: Int(length) * 2
+            ))
         return try XCTUnwrap(field.readUTF16(characterCount: Int(length)))
     }
 
@@ -1431,7 +1168,8 @@ extension ByteBuffer {
     }
 
     mutating func writeDate(year: Int, month: Int, day: Int) {
-        self.writeLittleEndianUnsignedInteger(UInt64(Self.daysSince0001(year: year, month: month, day: day)), byteCount: 3)
+        self.writeLittleEndianUnsignedInteger(
+            UInt64(Self.daysSince0001(year: year, month: month, day: day)), byteCount: 3)
     }
 
     mutating func writeTime(
@@ -1543,9 +1281,9 @@ extension ByteBuffer {
                 days += Self.isLeapYear(y) ? 366 : 365
             }
         }
-        let monthLengths = Self.isLeapYear(year) ?
-            [31, 29, 31, 30, 31, 30, 31, 31, 30, 31, 30, 31] :
-            [31, 28, 31, 30, 31, 30, 31, 31, 30, 31, 30, 31]
+        let monthLengths =
+            Self.isLeapYear(year)
+            ? [31, 29, 31, 30, 31, 30, 31, 31, 30, 31, 30, 31] : [31, 28, 31, 30, 31, 30, 31, 31, 30, 31, 30, 31]
         days += monthLengths.prefix(month - 1).reduce(0, +)
         days += day - 1
         return days

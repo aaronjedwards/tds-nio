@@ -13,8 +13,8 @@
 //===----------------------------------------------------------------------===//
 
 import Crypto
-import NIOCore
 import Foundation
+import NIOCore
 
 struct TDSFrontendMessageEncoder {
 
@@ -58,10 +58,13 @@ struct TDSFrontendMessageEncoder {
         self.startRequest()
 
         var options: [(token: UInt8, data: [UInt8])] = [
-            (0x00, [
-            0x09, 0x00, 0x00, 0x00,  // UL_VERSION (9.0.0)
-            0x00, 0x00,  // US_SUBBUILD (0)
-            ]),
+            (
+                0x00,
+                [
+                    0x09, 0x00, 0x00, 0x00,  // UL_VERSION (9.0.0)
+                    0x00, 0x00,  // US_SUBBUILD (0)
+                ]
+            ),
             (0x02, [0x00]),  // Default instance.
             (0x03, Self.processIDBytes()),
             (0x04, [0x00]),  // MARS off.
@@ -126,11 +129,13 @@ struct TDSFrontendMessageEncoder {
             Self.loginStringField(password, password: true),
             Self.loginStringField(configuration.applicationName),
             Self.loginStringField(configuration.host),
-            featureExt.isEmpty ? Self.loginStringField("") : .init(
-                bytes: [0, 0, 0, 0],
-                length: 4,
-                bytesPerLengthUnit: 1
-            ),
+            featureExt.isEmpty
+                ? Self.loginStringField("")
+                : .init(
+                    bytes: [0, 0, 0, 0],
+                    length: 4,
+                    bytesPerLengthUnit: 1
+                ),
             Self.loginStringField("TDSNIO"),
             Self.loginStringField(configuration.language ?? ""),
             Self.loginStringField(configuration.database ?? ""),
@@ -192,9 +197,11 @@ struct TDSFrontendMessageEncoder {
             endianness: .little
         )
         self.buffer.setInteger(UInt16(clamping: sspiBytes.count), at: sspiOffsetPosition + 2, endianness: .little)
-        self.buffer.setInteger(UInt16(clamping: attachDatabaseFileOffset), at: attachDatabaseFileOffsetPosition, endianness: .little)
+        self.buffer.setInteger(
+            UInt16(clamping: attachDatabaseFileOffset), at: attachDatabaseFileOffsetPosition, endianness: .little)
         self.buffer.setInteger(attachDatabaseFile.length, at: attachDatabaseFileOffsetPosition + 2, endianness: .little)
-        self.buffer.setInteger(UInt16(clamping: changePasswordOffset), at: changePasswordOffsetPosition, endianness: .little)
+        self.buffer.setInteger(
+            UInt16(clamping: changePasswordOffset), at: changePasswordOffsetPosition, endianness: .little)
         self.buffer.setInteger(changePassword.length, at: changePasswordOffsetPosition + 2, endianness: .little)
         self.buffer.setInteger(UInt32(clamping: sspiBytes.count), at: sspiLongLengthPosition, endianness: .little)
         self.buffer.setInteger(UInt32(self.buffer.writerIndex - loginStart), at: loginStart, endianness: .little)
@@ -217,7 +224,7 @@ struct TDSFrontendMessageEncoder {
         self.startRequest()
         self.allHeaders()
         self.usVarchar(rpc.procedure)
-        self.buffer.writeInteger(0 as UInt16, endianness: .little) // OptionFlags
+        self.buffer.writeInteger(0 as UInt16, endianness: .little)  // OptionFlags
 
         for parameter in rpc.parameters {
             self.bVarchar(parameter.name)
@@ -515,8 +522,8 @@ struct TDSFrontendMessageEncoder {
 
     private static func loginFeatureExtBytes() -> [UInt8] {
         var bytes: [UInt8] = []
-        Self.appendFeatureExt(id: 0x09, data: [0x02], to: &bytes) // DATACLASSIFICATION v2.
-        Self.appendFeatureExt(id: 0x0D, data: [0x01], to: &bytes) // JSONSUPPORT v1.
+        Self.appendFeatureExt(id: 0x09, data: [0x02], to: &bytes)  // DATACLASSIFICATION v2.
+        Self.appendFeatureExt(id: 0x0D, data: [0x01], to: &bytes)  // JSONSUPPORT v1.
         bytes.append(0xFF)
         return bytes
     }
@@ -625,9 +632,10 @@ struct TDSFrontendMessageEncoder {
             self.writeTime(value.time)
             self.writeDate(value.date)
         case .datetimeOffset(let value):
-            let utcDateTime = value.dateValue().map {
-                TDSDateTime($0, scale: value.dateTime.time.scale)
-            } ?? value.dateTime
+            let utcDateTime =
+                value.dateValue().map {
+                    TDSDateTime($0, scale: value.dateTime.time.scale)
+                } ?? value.dateTime
             self.buffer.writeInteger(TDSDataType.datetimeOffsetN.rawValue)
             self.buffer.writeInteger(value.dateTime.time.scale)
             self.buffer.writeInteger(Self.timeStorageLength(scale: value.dateTime.time.scale) + 5)
@@ -637,11 +645,12 @@ struct TDSFrontendMessageEncoder {
         case .datetime(let value):
             self.buffer.writeInteger(TDSDataType.datetimeN.rawValue)
             self.buffer.writeInteger(8 as UInt8)
-            let days = Self.daysSince0001(
-                year: value.date.year,
-                month: value.date.month,
-                day: value.date.day
-            ) - Self.daysBeforeYear(1900)
+            let days =
+                Self.daysSince0001(
+                    year: value.date.year,
+                    month: value.date.month,
+                    day: value.date.day
+                ) - Self.daysBeforeYear(1900)
             self.buffer.writeInteger(Int32(days), endianness: .little)
             let seconds = value.time.hour * 3600 + value.time.minute * 60 + value.time.second
             let ticks = seconds * 300 + value.time.nanosecond * 300 / 1_000_000_000
@@ -1031,9 +1040,9 @@ struct TDSFrontendMessageEncoder {
                 days += Self.isLeapYear(y) ? 366 : 365
             }
         }
-        let monthLengths = Self.isLeapYear(year) ?
-            [31, 29, 31, 30, 31, 30, 31, 31, 30, 31, 30, 31] :
-            [31, 28, 31, 30, 31, 30, 31, 31, 30, 31, 30, 31]
+        let monthLengths =
+            Self.isLeapYear(year)
+            ? [31, 29, 31, 30, 31, 30, 31, 31, 30, 31, 30, 31] : [31, 28, 31, 30, 31, 30, 31, 31, 30, 31, 30, 31]
         days += monthLengths.prefix(month - 1).reduce(0, +)
         days += day - 1
         return days

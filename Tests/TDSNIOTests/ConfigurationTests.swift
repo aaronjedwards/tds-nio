@@ -20,11 +20,12 @@ extension TDSTests {
         )
         configuration.options.routingRedirectLimit = 2
 
-        let redirected = try configuration.redirected(to: .init(
-            protocolByte: 0,
-            port: 1444,
-            server: "redirect.sql.example.test"
-        ))
+        let redirected = try configuration.redirected(
+            to: .init(
+                protocolByte: 0,
+                port: 1444,
+                server: "redirect.sql.example.test"
+            ))
 
         XCTAssertEqual(redirected.host, "redirect.sql.example.test")
         XCTAssertEqual(redirected.port, 1444)
@@ -36,17 +37,18 @@ extension TDSTests {
     }
 
     func testConfigurationParsesSQLServerConnectionString() throws {
-        let configuration = try TDSConnection.Configuration(connectionString: """
-            Server=tcp:sql.example.test,1444;\
-            Database=appdb;\
-            User ID=sa;\
-            Password={Secret;123!};\
-            Application Name=App;\
-            Language=us_english;\
-            Packet Size=32768;\
-            Encrypt=no;\
-            Application Intent=ReadOnly
-            """)
+        let configuration = try TDSConnection.Configuration(
+            connectionString: """
+                Server=tcp:sql.example.test,1444;\
+                Database=appdb;\
+                User ID=sa;\
+                Password={Secret;123!};\
+                Application Name=App;\
+                Language=us_english;\
+                Packet Size=32768;\
+                Encrypt=no;\
+                Application Intent=ReadOnly
+                """)
 
         XCTAssertEqual(configuration.host, "sql.example.test")
         XCTAssertEqual(configuration.port, 1444)
@@ -62,11 +64,12 @@ extension TDSTests {
     }
 
     func testConfigurationParsesIntegratedSecurityConnectionString() throws {
-        let configuration = try TDSConnection.Configuration(connectionString: """
-            Data Source=sql.example.test;\
-            Initial Catalog=appdb;\
-            Integrated Security=SSPI
-            """)
+        let configuration = try TDSConnection.Configuration(
+            connectionString: """
+                Data Source=sql.example.test;\
+                Initial Catalog=appdb;\
+                Integrated Security=SSPI
+                """)
 
         XCTAssertEqual(configuration.host, "sql.example.test")
         XCTAssertEqual(configuration.port, 1433)
@@ -80,10 +83,13 @@ extension TDSTests {
         XCTAssertThrowsError(try TDSConnection.Configuration(connectionString: "Database=appdb")) { error in
             XCTAssertEqual(error as? TDSConnectionStringError, .missingServer)
         }
-        XCTAssertThrowsError(try TDSConnection.Configuration(connectionString: "Server=sql.example.test;User ID=sa")) { error in
+        XCTAssertThrowsError(try TDSConnection.Configuration(connectionString: "Server=sql.example.test;User ID=sa")) {
+            error in
             XCTAssertEqual(error as? TDSConnectionStringError, .missingPassword)
         }
-        XCTAssertThrowsError(try TDSConnection.Configuration(connectionString: "Server=sql.example.test,nope;Integrated Security=true")) { error in
+        XCTAssertThrowsError(
+            try TDSConnection.Configuration(connectionString: "Server=sql.example.test,nope;Integrated Security=true")
+        ) { error in
             XCTAssertEqual(error as? TDSConnectionStringError, .invalidPort("nope"))
         }
     }

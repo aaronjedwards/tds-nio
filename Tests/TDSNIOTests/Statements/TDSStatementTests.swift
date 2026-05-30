@@ -27,10 +27,11 @@ extension TDSTests {
         var encoder = TDSFrontendMessageEncoder(
             buffer: ByteBufferAllocator().buffer(capacity: 64)
         )
-        encoder.transactionManagerRequest(.begin(
-            isolationLevel: .snapshot,
-            name: Array("txn".utf8)
-        ))
+        encoder.transactionManagerRequest(
+            .begin(
+                isolationLevel: .snapshot,
+                name: Array("txn".utf8)
+            ))
 
         var packet = encoder.flush()
         XCTAssertEqual(packet.readInteger(as: UInt8.self), TDSPacket.MessageType.transactionManagerRequest.rawValue)
@@ -45,7 +46,8 @@ extension TDSTests {
         XCTAssertEqual(packet.readInteger(endianness: .little, as: UInt32.self), 1)
 
         XCTAssertEqual(packet.readInteger(endianness: .little, as: UInt16.self), 5)
-        XCTAssertEqual(packet.readInteger(as: UInt8.self), TDSTransactionManagerRequest.IsolationLevel.snapshot.rawValue)
+        XCTAssertEqual(
+            packet.readInteger(as: UInt8.self), TDSTransactionManagerRequest.IsolationLevel.snapshot.rawValue)
         XCTAssertEqual(packet.readInteger(as: UInt8.self), 3)
         XCTAssertEqual(packet.readBytes(length: 3), Array("txn".utf8))
         XCTAssertEqual(packet.readableBytes, 0)
@@ -55,10 +57,11 @@ extension TDSTests {
         var encoder = TDSFrontendMessageEncoder(
             buffer: ByteBufferAllocator().buffer(capacity: 64)
         )
-        encoder.transactionManagerRequest(.commit(
-            name: Array("outer".utf8),
-            beginAfterwards: (isolationLevel: .readCommitted, name: Array("next".utf8))
-        ))
+        encoder.transactionManagerRequest(
+            .commit(
+                name: Array("outer".utf8),
+                beginAfterwards: (isolationLevel: .readCommitted, name: Array("next".utf8))
+            ))
 
         var packet = encoder.flush()
         packet.moveReaderIndex(forwardBy: TDSPacket.headerLength + 22)
@@ -67,7 +70,8 @@ extension TDSTests {
         XCTAssertEqual(packet.readInteger(as: UInt8.self), 5)
         XCTAssertEqual(packet.readBytes(length: 5), Array("outer".utf8))
         XCTAssertEqual(packet.readInteger(as: UInt8.self), 0x01)
-        XCTAssertEqual(packet.readInteger(as: UInt8.self), TDSTransactionManagerRequest.IsolationLevel.readCommitted.rawValue)
+        XCTAssertEqual(
+            packet.readInteger(as: UInt8.self), TDSTransactionManagerRequest.IsolationLevel.readCommitted.rawValue)
         XCTAssertEqual(packet.readInteger(as: UInt8.self), 4)
         XCTAssertEqual(packet.readBytes(length: 4), Array("next".utf8))
         XCTAssertEqual(packet.readableBytes, 0)
@@ -78,10 +82,11 @@ extension TDSTests {
             buffer: ByteBufferAllocator().buffer(capacity: 512)
         )
         let longName = Array(repeating: UInt8(0xA5), count: 300)
-        encoder.transactionManagerRequest(.rollback(
-            name: longName,
-            beginAfterwards: (isolationLevel: .serializable, name: longName)
-        ))
+        encoder.transactionManagerRequest(
+            .rollback(
+                name: longName,
+                beginAfterwards: (isolationLevel: .serializable, name: longName)
+            ))
 
         var packet = encoder.flush()
         packet.moveReaderIndex(forwardBy: TDSPacket.headerLength + 22)
@@ -90,7 +95,8 @@ extension TDSTests {
         XCTAssertEqual(packet.readInteger(as: UInt8.self), UInt8.max)
         XCTAssertEqual(packet.readBytes(length: Int(UInt8.max)), Array(repeating: UInt8(0xA5), count: Int(UInt8.max)))
         XCTAssertEqual(packet.readInteger(as: UInt8.self), 0x01)
-        XCTAssertEqual(packet.readInteger(as: UInt8.self), TDSTransactionManagerRequest.IsolationLevel.serializable.rawValue)
+        XCTAssertEqual(
+            packet.readInteger(as: UInt8.self), TDSTransactionManagerRequest.IsolationLevel.serializable.rawValue)
         XCTAssertEqual(packet.readInteger(as: UInt8.self), UInt8.max)
         XCTAssertEqual(packet.readBytes(length: Int(UInt8.max)), Array(repeating: UInt8(0xA5), count: Int(UInt8.max)))
         XCTAssertEqual(packet.readableBytes, 0)
@@ -116,13 +122,14 @@ extension TDSTests {
         let channel = try Self.loggedInChannel()
 
         let promise = channel.eventLoop.makePromise(of: TDSQueryResult.self)
-        try channel.writeOutbound(TDSTask.transactionManager(
-            .commit(
-                name: Array("current".utf8),
-                beginAfterwards: (isolationLevel: .readCommitted, name: Array("next".utf8))
-            ),
-            promise
-        ))
+        try channel.writeOutbound(
+            TDSTask.transactionManager(
+                .commit(
+                    name: Array("current".utf8),
+                    beginAfterwards: (isolationLevel: .readCommitted, name: Array("next".utf8))
+                ),
+                promise
+            ))
 
         var packet: ByteBuffer = try XCTUnwrap(channel.readOutbound())
         XCTAssertEqual(packet.readInteger(as: UInt8.self), TDSPacket.MessageType.transactionManagerRequest.rawValue)
@@ -131,7 +138,8 @@ extension TDSTests {
         XCTAssertEqual(packet.readInteger(as: UInt8.self), 7)
         XCTAssertEqual(packet.readBytes(length: 7), Array("current".utf8))
         XCTAssertEqual(packet.readInteger(as: UInt8.self), 1)
-        XCTAssertEqual(packet.readInteger(as: UInt8.self), TDSTransactionManagerRequest.IsolationLevel.readCommitted.rawValue)
+        XCTAssertEqual(
+            packet.readInteger(as: UInt8.self), TDSTransactionManagerRequest.IsolationLevel.readCommitted.rawValue)
         XCTAssertEqual(packet.readInteger(as: UInt8.self), 4)
         XCTAssertEqual(packet.readBytes(length: 4), Array("next".utf8))
         XCTAssertEqual(packet.readableBytes, 0)
@@ -148,10 +156,11 @@ extension TDSTests {
         packet.moveReaderIndex(forwardBy: TDSPacket.headerLength + 22 - 1)
         XCTAssertEqual(try XCTUnwrap(packet.readUTF16(characterCount: packet.readableBytes / 2)), "SELECT 1")
 
-        try channel.writeInbound(Self.packet(
-            type: .preloginLoginOrTablularResponse,
-            payload: Self.donePayload()
-        ))
+        try channel.writeInbound(
+            Self.packet(
+                type: .preloginLoginOrTablularResponse,
+                payload: Self.donePayload()
+            ))
 
         XCTAssertNoThrow(try promise.futureResult.wait())
     }
@@ -163,10 +172,11 @@ extension TDSTests {
         try channel.writeOutbound(TDSTask.ping(pingPromise))
         _ = try XCTUnwrap(channel.readOutbound(as: ByteBuffer.self))
 
-        try channel.writeInbound(Self.packet(
-            type: .preloginLoginOrTablularResponse,
-            payload: Self.errorPayload(message: "Ping failed")
-        ))
+        try channel.writeInbound(
+            Self.packet(
+                type: .preloginLoginOrTablularResponse,
+                payload: Self.errorPayload(message: "Ping failed")
+            ))
 
         XCTAssertThrowsError(try pingPromise.futureResult.wait()) { error in
             XCTAssertEqual((error as? TDSSQLError)?.serverInfo?.message, "Ping failed")
@@ -176,10 +186,11 @@ extension TDSTests {
         try channel.writeOutbound(TDSTask.sqlBatch("SELECT 2", queryPromise))
         XCTAssertNil(try channel.readOutbound(as: ByteBuffer.self))
 
-        try channel.writeInbound(Self.packet(
-            type: .preloginLoginOrTablularResponse,
-            payload: Self.donePayload(status: .error)
-        ))
+        try channel.writeInbound(
+            Self.packet(
+                type: .preloginLoginOrTablularResponse,
+                payload: Self.donePayload(status: .error)
+            ))
 
         let packet = try XCTUnwrap(channel.readOutbound(as: ByteBuffer.self))
         XCTAssertEqual(packet.getInteger(at: 0, as: UInt8.self), TDSPacket.MessageType.sqlBatch.rawValue)
@@ -189,10 +200,11 @@ extension TDSTests {
         let channel = try Self.loggedInChannel()
         let descriptor: [UInt8] = [0x08, 0x07, 0x06, 0x05, 0x04, 0x03, 0x02, 0x01]
 
-        try channel.writeInbound(Self.packet(
-            type: .preloginLoginOrTablularResponse,
-            payload: Self.transactionDescriptorEnvChangePayload(descriptor)
-        ))
+        try channel.writeInbound(
+            Self.packet(
+                type: .preloginLoginOrTablularResponse,
+                payload: Self.transactionDescriptorEnvChangePayload(descriptor)
+            ))
 
         let promise = channel.eventLoop.makePromise(of: TDSQueryResult.self)
         try channel.writeOutbound(TDSTask.sqlBatch("SELECT 1", promise))
@@ -210,14 +222,16 @@ extension TDSTests {
         let channel = try Self.loggedInChannel()
         let descriptor: [UInt8] = [0x08, 0x07, 0x06, 0x05, 0x04, 0x03, 0x02, 0x01]
 
-        try channel.writeInbound(Self.packet(
-            type: .preloginLoginOrTablularResponse,
-            payload: Self.transactionDescriptorEnvChangePayload(descriptor)
-        ))
-        try channel.writeInbound(Self.packet(
-            type: .preloginLoginOrTablularResponse,
-            payload: Self.transactionDescriptorEnvChangePayload([], old: descriptor, type: 9)
-        ))
+        try channel.writeInbound(
+            Self.packet(
+                type: .preloginLoginOrTablularResponse,
+                payload: Self.transactionDescriptorEnvChangePayload(descriptor)
+            ))
+        try channel.writeInbound(
+            Self.packet(
+                type: .preloginLoginOrTablularResponse,
+                payload: Self.transactionDescriptorEnvChangePayload([], old: descriptor, type: 9)
+            ))
 
         let promise = channel.eventLoop.makePromise(of: TDSQueryResult.self)
         try channel.writeOutbound(TDSTask.sqlBatch("SELECT 1", promise))
@@ -238,14 +252,16 @@ extension TDSTests {
         let channel = try Self.loggedInChannel()
         let descriptor: [UInt8] = [0x18, 0x17, 0x16, 0x15, 0x14, 0x13, 0x12, 0x11]
 
-        try channel.writeInbound(Self.packet(
-            type: .preloginLoginOrTablularResponse,
-            payload: Self.transactionDescriptorEnvChangePayload(descriptor)
-        ))
-        try channel.writeInbound(Self.packet(
-            type: .preloginLoginOrTablularResponse,
-            payload: Self.transactionDescriptorEnvChangePayload([], old: descriptor, type: 10)
-        ))
+        try channel.writeInbound(
+            Self.packet(
+                type: .preloginLoginOrTablularResponse,
+                payload: Self.transactionDescriptorEnvChangePayload(descriptor)
+            ))
+        try channel.writeInbound(
+            Self.packet(
+                type: .preloginLoginOrTablularResponse,
+                payload: Self.transactionDescriptorEnvChangePayload([], old: descriptor, type: 10)
+            ))
 
         let promise = channel.eventLoop.makePromise(of: TDSQueryResult.self)
         try channel.writeOutbound(TDSTask.sqlBatch("SELECT 1", promise))
@@ -272,10 +288,11 @@ extension TDSTests {
         XCTAssertEqual(attention.getInteger(at: 0, as: UInt8.self), TDSPacket.MessageType.attentionSignal.rawValue)
         XCTAssertEqual(attention.getInteger(at: 2, endianness: .big, as: UInt16.self), UInt16(TDSPacket.headerLength))
 
-        try channel.writeInbound(Self.packet(
-            type: .preloginLoginOrTablularResponse,
-            payload: Self.donePayload(status: .attention)
-        ))
+        try channel.writeInbound(
+            Self.packet(
+                type: .preloginLoginOrTablularResponse,
+                payload: Self.donePayload(status: .attention)
+            ))
 
         XCTAssertThrowsError(try queryPromise.futureResult.wait()) { error in
             guard let sqlError = error as? TDSSQLError else {

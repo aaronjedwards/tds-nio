@@ -34,11 +34,13 @@ extension TDSTests {
         let query: TDSQuery = "SELECT * FROM dbo.items WHERE id = \(id) AND label = \(label) AND flag = \(flag)"
 
         XCTAssertEqual(query.sql, "SELECT * FROM dbo.items WHERE id = @p0 AND label = @p1 AND flag = @p2")
-        XCTAssertEqual(query.binds.parameters.map(\.value), [
-            .typedNull(.bigInt),
-            .typedNull(.nvarchar()),
-            .typedNull(.bit),
-        ])
+        XCTAssertEqual(
+            query.binds.parameters.map(\.value),
+            [
+                .typedNull(.bigInt),
+                .typedNull(.nvarchar()),
+                .typedNull(.bit),
+            ])
         XCTAssertEqual(query.binds.declarationList, "@p0 bigint, @p1 nvarchar(max), @p2 bit")
     }
 
@@ -49,11 +51,13 @@ extension TDSTests {
         let query: TDSQuery = "SELECT \(tiny), \(small), \(integer)"
 
         XCTAssertEqual(query.sql, "SELECT @p0, @p1, @p2")
-        XCTAssertEqual(query.binds.parameters.map(\.value), [
-            .tinyInt(7),
-            .smallInt(-12),
-            .int32(123_456),
-        ])
+        XCTAssertEqual(
+            query.binds.parameters.map(\.value),
+            [
+                .tinyInt(7),
+                .smallInt(-12),
+                .int32(123_456),
+            ])
         XCTAssertEqual(query.binds.declarationList, "@p0 tinyint, @p1 smallint, @p2 int")
     }
 
@@ -63,10 +67,12 @@ extension TDSTests {
         let query: TDSQuery = "SELECT * FROM dbo.items WHERE id = \(uuid) OR parent_id = \(nilUUID)"
 
         XCTAssertEqual(query.sql, "SELECT * FROM dbo.items WHERE id = @p0 OR parent_id = @p1")
-        XCTAssertEqual(query.binds.parameters.map(\.value), [
-            .guid(TDSGUID(uuid)),
-            .typedNull(.uniqueIdentifier),
-        ])
+        XCTAssertEqual(
+            query.binds.parameters.map(\.value),
+            [
+                .guid(TDSGUID(uuid)),
+                .typedNull(.uniqueIdentifier),
+            ])
         XCTAssertEqual(query.binds.declarationList, "@p0 uniqueidentifier, @p1 uniqueidentifier")
     }
 
@@ -76,23 +82,28 @@ extension TDSTests {
         let query: TDSQuery = "SELECT * FROM dbo.items WHERE amount = \(amount) OR discount = \(nilAmount)"
 
         XCTAssertEqual(query.sql, "SELECT * FROM dbo.items WHERE amount = @p0 OR discount = @p1")
-        XCTAssertEqual(query.binds.parameters.map(\.value), [
-            .decimal("123.45"),
-            .typedNull(.decimal()),
-        ])
+        XCTAssertEqual(
+            query.binds.parameters.map(\.value),
+            [
+                .decimal("123.45"),
+                .typedNull(.decimal()),
+            ])
         XCTAssertEqual(query.binds.declarationList, "@p0 decimal(5, 2), @p1 decimal(38, 0)")
     }
 
     func testQueryInterpolationBindsFoundationDataValues() throws {
         let payload = Data([0x01, 0x02, 0x03])
         let archivedPayload: Data? = nil
-        let query: TDSQuery = "SELECT * FROM dbo.items WHERE payload = \(payload) OR archived_payload = \(archivedPayload)"
+        let query: TDSQuery =
+            "SELECT * FROM dbo.items WHERE payload = \(payload) OR archived_payload = \(archivedPayload)"
 
         XCTAssertEqual(query.sql, "SELECT * FROM dbo.items WHERE payload = @p0 OR archived_payload = @p1")
-        XCTAssertEqual(query.binds.parameters.map(\.value), [
-            .bytes([0x01, 0x02, 0x03]),
-            .typedNull(.varbinary()),
-        ])
+        XCTAssertEqual(
+            query.binds.parameters.map(\.value),
+            [
+                .bytes([0x01, 0x02, 0x03]),
+                .typedNull(.varbinary()),
+            ])
         XCTAssertEqual(query.binds.declarationList, "@p0 varbinary(max), @p1 varbinary(max)")
     }
 
@@ -101,13 +112,16 @@ extension TDSTests {
         encoder.outputFormatting = [.sortedKeys]
         let payload = try TDSJSON(JSONPayload(ok: true, count: 2), encoder: encoder)
         let missingPayload: TDSJSON<JSONPayload>? = nil
-        let query: TDSQuery = "SELECT * FROM dbo.items WHERE payload = \(payload) OR missing_payload = \(missingPayload)"
+        let query: TDSQuery =
+            "SELECT * FROM dbo.items WHERE payload = \(payload) OR missing_payload = \(missingPayload)"
 
         XCTAssertEqual(query.sql, "SELECT * FROM dbo.items WHERE payload = @p0 OR missing_payload = @p1")
-        XCTAssertEqual(query.binds.parameters.map(\.value), [
-            .json(Array(#"{"count":2,"ok":true}"#.utf8)),
-            .typedNull(.json),
-        ])
+        XCTAssertEqual(
+            query.binds.parameters.map(\.value),
+            [
+                .json(Array(#"{"count":2,"ok":true}"#.utf8)),
+                .typedNull(.json),
+            ])
         XCTAssertEqual(query.binds.declarationList, "@p0 nvarchar(max), @p1 nvarchar(max)")
     }
 
@@ -117,10 +131,12 @@ extension TDSTests {
         let query: TDSQuery = "SELECT * FROM dbo.accounts WHERE id = \(accountID) OR parent_id = \(parentID)"
 
         XCTAssertEqual(query.sql, "SELECT * FROM dbo.accounts WHERE id = @p0 OR parent_id = @p1")
-        XCTAssertEqual(query.binds.parameters.map(\.value), [
-            .int32(42),
-            .typedNull(.int),
-        ])
+        XCTAssertEqual(
+            query.binds.parameters.map(\.value),
+            [
+                .int32(42),
+                .typedNull(.int),
+            ])
         XCTAssertEqual(query.binds.declarationList, "@p0 int, @p1 int")
     }
 
@@ -130,10 +146,12 @@ extension TDSTests {
         let query: TDSQuery = "SELECT * FROM dbo.items WHERE created_at = \(createdAt) OR deleted_at = \(deletedAt)"
 
         XCTAssertEqual(query.sql, "SELECT * FROM dbo.items WHERE created_at = @p0 OR deleted_at = @p1")
-        XCTAssertEqual(query.binds.parameters.map(\.value), [
-            .datetime2(TDSDateTime(createdAt)),
-            .typedNull(.datetime2()),
-        ])
+        XCTAssertEqual(
+            query.binds.parameters.map(\.value),
+            [
+                .datetime2(TDSDateTime(createdAt)),
+                .typedNull(.datetime2()),
+            ])
         XCTAssertEqual(query.binds.declarationList, "@p0 datetime2(7), @p1 datetime2(7)")
     }
 
@@ -155,8 +173,12 @@ extension TDSTests {
         XCTAssertEqual(offsetDateTime.dateTime.date, TDSDate(year: 2024, month: 2, day: 29))
         XCTAssertEqual(offsetDateTime.dateTime.time.hour, 5)
         XCTAssertEqual(offsetDateTime.offsetMinutes, -420)
-        XCTAssertEqual(try XCTUnwrap(dateTime.dateValue()).timeIntervalSince1970, instant.timeIntervalSince1970, accuracy: 0.000_001)
-        XCTAssertEqual(try XCTUnwrap(offsetDateTime.dateValue()).timeIntervalSince1970, instant.timeIntervalSince1970, accuracy: 0.000_001)
+        XCTAssertEqual(
+            try XCTUnwrap(dateTime.dateValue()).timeIntervalSince1970, instant.timeIntervalSince1970,
+            accuracy: 0.000_001)
+        XCTAssertEqual(
+            try XCTUnwrap(offsetDateTime.dateValue()).timeIntervalSince1970, instant.timeIntervalSince1970,
+            accuracy: 0.000_001)
 
         let decoded: Date = try Date.decode(from: .datetimeOffset(offsetDateTime))
         XCTAssertEqual(decoded.timeIntervalSince1970, instant.timeIntervalSince1970, accuracy: 0.000_001)
@@ -204,16 +226,20 @@ extension TDSTests {
             TDSColumn(name: "payload", dataType: .json),
         ]
         let rows = [
-            TDSRow(columns: columns, values: [
-                .int32(1),
-                .string("one"),
-                .json(Array(#"{"ok":true}"#.utf8)),
-            ]),
-            TDSRow(columns: columns, values: [
-                .int32(2),
-                .string("two"),
-                .json(Array(#"{"ok":false,"count":3}"#.utf8)),
-            ]),
+            TDSRow(
+                columns: columns,
+                values: [
+                    .int32(1),
+                    .string("one"),
+                    .json(Array(#"{"ok":true}"#.utf8)),
+                ]),
+            TDSRow(
+                columns: columns,
+                values: [
+                    .int32(2),
+                    .string("two"),
+                    .json(Array(#"{"ok":false,"count":3}"#.utf8)),
+                ]),
         ]
         let result = TDSQueryResult(
             columns: columns,
@@ -224,19 +250,25 @@ extension TDSTests {
             resultSets: [.init(columns: columns, rows: rows, rowsAffected: nil)]
         )
 
-        XCTAssertEqual(try result.decodeRows(as: ItemRow.self), [
-            ItemRow(id: 1, label: "one", payload: .init(ok: true, count: nil)),
-            ItemRow(id: 2, label: "two", payload: .init(ok: false, count: 3)),
-        ])
-        XCTAssertEqual(try result.resultSets[0].decodeRows(as: ItemRow.self), [
-            ItemRow(id: 1, label: "one", payload: .init(ok: true, count: nil)),
-            ItemRow(id: 2, label: "two", payload: .init(ok: false, count: 3)),
-        ])
+        XCTAssertEqual(
+            try result.decodeRows(as: ItemRow.self),
+            [
+                ItemRow(id: 1, label: "one", payload: .init(ok: true, count: nil)),
+                ItemRow(id: 2, label: "two", payload: .init(ok: false, count: 3)),
+            ])
+        XCTAssertEqual(
+            try result.resultSets[0].decodeRows(as: ItemRow.self),
+            [
+                ItemRow(id: 1, label: "one", payload: .init(ok: true, count: nil)),
+                ItemRow(id: 2, label: "two", payload: .init(ok: false, count: 3)),
+            ])
         let collected = try await result.rowSequence.collect(as: ItemRow.self)
-        XCTAssertEqual(collected, [
-            ItemRow(id: 1, label: "one", payload: .init(ok: true, count: nil)),
-            ItemRow(id: 2, label: "two", payload: .init(ok: false, count: 3)),
-        ])
+        XCTAssertEqual(
+            collected,
+            [
+                ItemRow(id: 1, label: "one", payload: .init(ok: true, count: nil)),
+                ItemRow(id: 2, label: "two", payload: .init(ok: false, count: 3)),
+            ])
     }
 
     func testRowModelDecodingPreservesColumnContext() throws {
@@ -408,22 +440,25 @@ extension TDSTests {
         let sqlBatch: ByteBuffer = try XCTUnwrap(channel.readOutbound())
         XCTAssertEqual(sqlBatch.getInteger(at: 0, as: UInt8.self), TDSPacket.MessageType.sqlBatch.rawValue)
 
-        try channel.writeInbound(Self.packet(
-            type: .preloginLoginOrTablularResponse,
-            payload: Self.selectOneMetadataPayload()
-        ))
+        try channel.writeInbound(
+            Self.packet(
+                type: .preloginLoginOrTablularResponse,
+                payload: Self.selectOneMetadataPayload()
+            ))
 
         let stream = try streamPromise.futureResult.wait()
         let rowsFuture = stream.all()
 
-        try channel.writeInbound(Self.packet(
-            type: .preloginLoginOrTablularResponse,
-            payload: Self.selectOneRowPayload()
-        ))
-        try channel.writeInbound(Self.packet(
-            type: .preloginLoginOrTablularResponse,
-            payload: Self.donePayload()
-        ))
+        try channel.writeInbound(
+            Self.packet(
+                type: .preloginLoginOrTablularResponse,
+                payload: Self.selectOneRowPayload()
+            ))
+        try channel.writeInbound(
+            Self.packet(
+                type: .preloginLoginOrTablularResponse,
+                payload: Self.donePayload()
+            ))
 
         let rows = try rowsFuture.wait()
         XCTAssertEqual(rows.count, 1)
@@ -439,15 +474,16 @@ extension TDSTests {
         var encoder = TDSFrontendMessageEncoder(
             buffer: ByteBufferAllocator().buffer(capacity: 256)
         )
-        encoder.rpc(.init(
-            procedure: "dbo.temporal",
-            parameters: [
-                .init(name: "@date", value: .date(date)),
-                .init(name: "@time", value: .time(time)),
-                .init(name: "@dt2", value: .datetime2(dateTime)),
-                .init(name: "@dto", value: .datetimeOffset(offset)),
-            ]
-        ))
+        encoder.rpc(
+            .init(
+                procedure: "dbo.temporal",
+                parameters: [
+                    .init(name: "@date", value: .date(date)),
+                    .init(name: "@time", value: .time(time)),
+                    .init(name: "@dt2", value: .datetime2(dateTime)),
+                    .init(name: "@dto", value: .datetimeOffset(offset)),
+                ]
+            ))
 
         var packet = encoder.flush()
         packet.moveReaderIndex(forwardBy: TDSPacket.headerLength + 22 + 2 + "dbo.temporal".utf16.count * 2 + 2)
@@ -489,18 +525,19 @@ extension TDSTests {
         var encoder = TDSFrontendMessageEncoder(
             buffer: ByteBufferAllocator().buffer(capacity: 256)
         )
-        encoder.bulkLoad(.init(
-            columns: [
-                .init(name: "id", dataType: .int),
-                .init(name: "flag", dataType: .bit),
-                .init(name: "label", dataType: .nVarChar(maxBytes: 40)),
-                .init(name: "payload", dataType: .varBinary(maxBytes: 16)),
-            ],
-            rows: [
-                [.int(1), .bool(true), .string("one"), .bytes([0xAA, 0xBB])],
-                [.int(2), .null, .null, .null],
-            ]
-        ))
+        encoder.bulkLoad(
+            .init(
+                columns: [
+                    .init(name: "id", dataType: .int),
+                    .init(name: "flag", dataType: .bit),
+                    .init(name: "label", dataType: .nVarChar(maxBytes: 40)),
+                    .init(name: "payload", dataType: .varBinary(maxBytes: 16)),
+                ],
+                rows: [
+                    [.int(1), .bool(true), .string("one"), .bytes([0xAA, 0xBB])],
+                    [.int(2), .null, .null, .null],
+                ]
+            ))
 
         var packet = encoder.flush()
         XCTAssertEqual(packet.readInteger(as: UInt8.self), TDSPacket.MessageType.bulkLoadData.rawValue)
@@ -693,7 +730,8 @@ extension TDSTests {
         guard case .colMetadata(let metadata) = messages[0] else {
             return XCTFail("Expected COLMETADATA")
         }
-        XCTAssertEqual(metadata.columns.map(\.name), ["money", "smallmoney", "nullablemoney", "datetime", "smalldt", "nullabledt"])
+        XCTAssertEqual(
+            metadata.columns.map(\.name), ["money", "smallmoney", "nullablemoney", "datetime", "smalldt", "nullabledt"])
         guard case .row(let row) = messages[1] else {
             return XCTFail("Expected ROW")
         }
@@ -711,10 +749,11 @@ extension TDSTests {
         let sqlBatch: ByteBuffer = try XCTUnwrap(channel.readOutbound())
         XCTAssertEqual(sqlBatch.getInteger(at: 0, as: UInt8.self), TDSPacket.MessageType.sqlBatch.rawValue)
 
-        try channel.writeInbound(Self.packet(
-            type: .preloginLoginOrTablularResponse,
-            payload: Self.altMetadataTokenStreamPayload()
-        ))
+        try channel.writeInbound(
+            Self.packet(
+                type: .preloginLoginOrTablularResponse,
+                payload: Self.altMetadataTokenStreamPayload()
+            ))
 
         let result = try queryPromise.futureResult.wait()
         XCTAssertEqual(result.columns.map(\.name), ["amount"])
@@ -737,10 +776,11 @@ extension TDSTests {
         let sqlBatch: ByteBuffer = try XCTUnwrap(channel.readOutbound())
         XCTAssertEqual(sqlBatch.getInteger(at: 0, as: UInt8.self), TDSPacket.MessageType.sqlBatch.rawValue)
 
-        try channel.writeInbound(Self.packet(
-            type: .preloginLoginOrTablularResponse,
-            payload: Self.nbcRowTokenStreamPayload()
-        ))
+        try channel.writeInbound(
+            Self.packet(
+                type: .preloginLoginOrTablularResponse,
+                payload: Self.nbcRowTokenStreamPayload()
+            ))
 
         let result = try queryPromise.futureResult.wait()
         XCTAssertEqual(result.columns.map(\.name), ["id", "label"])
@@ -757,10 +797,11 @@ extension TDSTests {
         let sqlBatch: ByteBuffer = try XCTUnwrap(channel.readOutbound())
         XCTAssertEqual(sqlBatch.getInteger(at: 0, as: UInt8.self), TDSPacket.MessageType.sqlBatch.rawValue)
 
-        try channel.writeInbound(Self.packet(
-            type: .preloginLoginOrTablularResponse,
-            payload: Self.temporalTokenStreamPayload()
-        ))
+        try channel.writeInbound(
+            Self.packet(
+                type: .preloginLoginOrTablularResponse,
+                payload: Self.temporalTokenStreamPayload()
+            ))
 
         let result = try queryPromise.futureResult.wait()
         XCTAssertEqual(result.columns.map(\.name), ["date", "time", "dt2", "dto"])
@@ -777,13 +818,15 @@ extension TDSTests {
         let sqlBatch: ByteBuffer = try XCTUnwrap(channel.readOutbound())
         XCTAssertEqual(sqlBatch.getInteger(at: 0, as: UInt8.self), TDSPacket.MessageType.sqlBatch.rawValue)
 
-        try channel.writeInbound(Self.packet(
-            type: .preloginLoginOrTablularResponse,
-            payload: Self.legacyTemporalMoneyTokenStreamPayload()
-        ))
+        try channel.writeInbound(
+            Self.packet(
+                type: .preloginLoginOrTablularResponse,
+                payload: Self.legacyTemporalMoneyTokenStreamPayload()
+            ))
 
         let result = try queryPromise.futureResult.wait()
-        XCTAssertEqual(result.columns.map(\.name), ["money", "smallmoney", "nullablemoney", "datetime", "smalldt", "nullabledt"])
+        XCTAssertEqual(
+            result.columns.map(\.name), ["money", "smallmoney", "nullablemoney", "datetime", "smalldt", "nullabledt"])
         XCTAssertEqual(result.rows.count, 1)
         XCTAssertEqual(result.rows[0].values, Self.legacyTemporalMoneyValues)
         XCTAssertEqual(result.rows[0]["smallmoney"], .money("-12.3400"))

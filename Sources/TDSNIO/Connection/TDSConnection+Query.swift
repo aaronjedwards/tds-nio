@@ -210,7 +210,8 @@ extension TDSConnection {
         func startSpan(for rpc: TDSRPC) -> (any Span)? {
             let span = self.tracer?.startSpan("RPC", ofKind: .client)
             span?.updateAttributes { attributes in
-                self.applyCommonAttributes(to: &attributes, querySummary: "RPC \(rpc.procedure)", queryText: rpc.procedure)
+                self.applyCommonAttributes(
+                    to: &attributes, querySummary: "RPC \(rpc.procedure)", queryText: rpc.procedure)
                 attributes[self.configuration.tracing.attributeNames.databaseOperationName] = rpc.procedure
             }
             return span

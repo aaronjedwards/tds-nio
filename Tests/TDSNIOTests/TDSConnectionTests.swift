@@ -18,35 +18,41 @@ extension TDSTests {
         let sqlBatch: ByteBuffer = try XCTUnwrap(channel.readOutbound())
         XCTAssertEqual(sqlBatch.getInteger(at: 0, as: UInt8.self), TDSPacket.MessageType.sqlBatch.rawValue)
 
-        try channel.writeInbound(Self.packet(
-            type: .preloginLoginOrTablularResponse,
-            payload: Self.selectOneMetadataPayload()
-        ))
+        try channel.writeInbound(
+            Self.packet(
+                type: .preloginLoginOrTablularResponse,
+                payload: Self.selectOneMetadataPayload()
+            ))
 
         let stream = try streamPromise.futureResult.wait()
         let rowsFuture = stream.all()
 
-        try channel.writeInbound(Self.packet(
-            type: .preloginLoginOrTablularResponse,
-            payload: Self.selectOneRowPayload(id: 1, label: "one")
-        ))
-        try channel.writeInbound(Self.packet(
-            type: .preloginLoginOrTablularResponse,
-            payload: Self.donePayload(status: .more)
-        ))
+        try channel.writeInbound(
+            Self.packet(
+                type: .preloginLoginOrTablularResponse,
+                payload: Self.selectOneRowPayload(id: 1, label: "one")
+            ))
+        try channel.writeInbound(
+            Self.packet(
+                type: .preloginLoginOrTablularResponse,
+                payload: Self.donePayload(status: .more)
+            ))
 
-        try channel.writeInbound(Self.packet(
-            type: .preloginLoginOrTablularResponse,
-            payload: Self.selectOneMetadataPayload()
-        ))
-        try channel.writeInbound(Self.packet(
-            type: .preloginLoginOrTablularResponse,
-            payload: Self.selectOneRowPayload(id: 2, label: "two")
-        ))
-        try channel.writeInbound(Self.packet(
-            type: .preloginLoginOrTablularResponse,
-            payload: Self.donePayload()
-        ))
+        try channel.writeInbound(
+            Self.packet(
+                type: .preloginLoginOrTablularResponse,
+                payload: Self.selectOneMetadataPayload()
+            ))
+        try channel.writeInbound(
+            Self.packet(
+                type: .preloginLoginOrTablularResponse,
+                payload: Self.selectOneRowPayload(id: 2, label: "two")
+            ))
+        try channel.writeInbound(
+            Self.packet(
+                type: .preloginLoginOrTablularResponse,
+                payload: Self.donePayload()
+            ))
 
         let rows = try rowsFuture.wait()
         XCTAssertEqual(rows.count, 1)
@@ -62,10 +68,11 @@ extension TDSTests {
         let sqlBatch: ByteBuffer = try XCTUnwrap(channel.readOutbound())
         XCTAssertEqual(sqlBatch.getInteger(at: 0, as: UInt8.self), TDSPacket.MessageType.sqlBatch.rawValue)
 
-        try channel.writeInbound(Self.packet(
-            type: .preloginLoginOrTablularResponse,
-            payload: Self.donePayload(status: .error)
-        ))
+        try channel.writeInbound(
+            Self.packet(
+                type: .preloginLoginOrTablularResponse,
+                payload: Self.donePayload(status: .error)
+            ))
 
         XCTAssertThrowsError(try queryPromise.futureResult.wait()) { error in
             let sqlError = error as? TDSSQLError
@@ -81,10 +88,11 @@ extension TDSTests {
         try channel.writeOutbound(TDSTask.sqlBatch("SELECT broken", firstPromise))
         _ = try XCTUnwrap(channel.readOutbound(as: ByteBuffer.self))
 
-        try channel.writeInbound(Self.packet(
-            type: .preloginLoginOrTablularResponse,
-            payload: Self.errorPayload(message: "Invalid object name")
-        ))
+        try channel.writeInbound(
+            Self.packet(
+                type: .preloginLoginOrTablularResponse,
+                payload: Self.errorPayload(message: "Invalid object name")
+            ))
 
         XCTAssertThrowsError(try firstPromise.futureResult.wait()) { error in
             XCTAssertEqual((error as? TDSSQLError)?.serverInfo?.message, "Invalid object name")
@@ -99,10 +107,11 @@ extension TDSTests {
         XCTAssertNil(try channel.readOutbound(as: ByteBuffer.self))
         XCTAssertFalse(secondCompleted.withLockedValue { $0 })
 
-        try channel.writeInbound(Self.packet(
-            type: .preloginLoginOrTablularResponse,
-            payload: Self.donePayload(status: .error)
-        ))
+        try channel.writeInbound(
+            Self.packet(
+                type: .preloginLoginOrTablularResponse,
+                payload: Self.donePayload(status: .error)
+            ))
 
         let sqlBatch = try XCTUnwrap(channel.readOutbound(as: ByteBuffer.self))
         XCTAssertEqual(sqlBatch.getInteger(at: 0, as: UInt8.self), TDSPacket.MessageType.sqlBatch.rawValue)
@@ -120,20 +129,22 @@ extension TDSTests {
         try channel.writeOutbound(TDSTask.sqlBatch("SELECT 2", secondPromise))
         XCTAssertNil(try channel.readOutbound(as: ByteBuffer.self))
 
-        try channel.writeInbound(Self.packet(
-            type: .preloginLoginOrTablularResponse,
-            payload: Self.selectOneTokenStreamPayload()
-        ))
+        try channel.writeInbound(
+            Self.packet(
+                type: .preloginLoginOrTablularResponse,
+                payload: Self.selectOneTokenStreamPayload()
+            ))
 
         let firstResult = try firstPromise.futureResult.wait()
         XCTAssertEqual(firstResult.rows.map(\.values), [[.int32(1), .string("one")]])
         let secondOutbound = try XCTUnwrap(channel.readOutbound(as: ByteBuffer.self))
         XCTAssertEqual(secondOutbound.getInteger(at: 0, as: UInt8.self), TDSPacket.MessageType.sqlBatch.rawValue)
 
-        try channel.writeInbound(Self.packet(
-            type: .preloginLoginOrTablularResponse,
-            payload: Self.selectOneTokenStreamPayload()
-        ))
+        try channel.writeInbound(
+            Self.packet(
+                type: .preloginLoginOrTablularResponse,
+                payload: Self.selectOneTokenStreamPayload()
+            ))
 
         let secondResult = try secondPromise.futureResult.wait()
         XCTAssertEqual(secondResult.rows.map(\.values), [[.int32(1), .string("one")]])
@@ -153,10 +164,11 @@ extension TDSTests {
             TDSPacket.StatusFlag.eom.rawValue | TDSPacket.StatusFlag.resetConnection.rawValue
         )
 
-        try channel.writeInbound(Self.packet(
-            type: .preloginLoginOrTablularResponse,
-            payload: Self.selectOneTokenStreamPayload()
-        ))
+        try channel.writeInbound(
+            Self.packet(
+                type: .preloginLoginOrTablularResponse,
+                payload: Self.selectOneTokenStreamPayload()
+            ))
         _ = try firstPromise.futureResult.wait()
 
         let secondPromise = channel.eventLoop.makePromise(of: TDSQueryResult.self)
@@ -177,19 +189,21 @@ extension TDSTests {
         _ = try XCTUnwrap(channel.readOutbound(as: ByteBuffer.self))
         try channel.writeOutbound(TDSTask.sqlBatch("SELECT 2", secondPromise))
 
-        try channel.writeInbound(Self.packet(
-            type: .preloginLoginOrTablularResponse,
-            payload: Self.selectOneTokenStreamPayload()
-        ))
+        try channel.writeInbound(
+            Self.packet(
+                type: .preloginLoginOrTablularResponse,
+                payload: Self.selectOneTokenStreamPayload()
+            ))
 
         _ = try firstPromise.futureResult.wait()
         _ = try XCTUnwrap(channel.readOutbound(as: ByteBuffer.self))
         XCTAssertEqual(Self.readyForQueryEventCount(in: recorder.events), 0)
 
-        try channel.writeInbound(Self.packet(
-            type: .preloginLoginOrTablularResponse,
-            payload: Self.selectOneTokenStreamPayload()
-        ))
+        try channel.writeInbound(
+            Self.packet(
+                type: .preloginLoginOrTablularResponse,
+                payload: Self.selectOneTokenStreamPayload()
+            ))
 
         _ = try secondPromise.futureResult.wait()
         XCTAssertEqual(Self.readyForQueryEventCount(in: recorder.events), 1)
@@ -211,10 +225,11 @@ extension TDSTests {
         var payload = Self.infoPayload(message: "hello from server", number: 0, severity: 0)
         var resultPayload = Self.selectOneTokenStreamPayload()
         payload.writeBuffer(&resultPayload)
-        try channel.writeInbound(Self.packet(
-            type: .preloginLoginOrTablularResponse,
-            payload: payload
-        ))
+        try channel.writeInbound(
+            Self.packet(
+                type: .preloginLoginOrTablularResponse,
+                payload: payload
+            ))
 
         let result = try queryPromise.futureResult.wait()
         XCTAssertEqual(result.rows.map(\.values), [[.int32(1), .string("one")]])
@@ -240,10 +255,11 @@ extension TDSTests {
         var payload = Self.stringEnvChangePayload(type: 1, new: "tempdb", old: "master")
         var resultPayload = Self.selectOneTokenStreamPayload()
         payload.writeBuffer(&resultPayload)
-        try channel.writeInbound(Self.packet(
-            type: .preloginLoginOrTablularResponse,
-            payload: payload
-        ))
+        try channel.writeInbound(
+            Self.packet(
+                type: .preloginLoginOrTablularResponse,
+                payload: payload
+            ))
 
         let result = try queryPromise.futureResult.wait()
         XCTAssertEqual(result.rows.map(\.values), [[.int32(1), .string("one")]])
@@ -274,10 +290,11 @@ extension TDSTests {
         )
         var resultPayload = Self.selectOneTokenStreamPayload()
         payload.writeBuffer(&resultPayload)
-        try channel.writeInbound(Self.packet(
-            type: .preloginLoginOrTablularResponse,
-            payload: payload
-        ))
+        try channel.writeInbound(
+            Self.packet(
+                type: .preloginLoginOrTablularResponse,
+                payload: payload
+            ))
 
         let result = try queryPromise.futureResult.wait()
         XCTAssertEqual(result.rows.map(\.values), [[.int32(1), .string("one")]])
@@ -286,10 +303,12 @@ extension TDSTests {
         XCTAssertEqual(messages[0].sequenceNumber, 7)
         XCTAssertEqual(messages[0].status, 0x01)
         XCTAssertTrue(messages[0].isRecoverable)
-        XCTAssertEqual(messages[0].entries, [
-            .init(stateID: 9, value: [0xAA, 0xBB]),
-            .init(stateID: 3, value: [0xCC]),
-        ])
+        XCTAssertEqual(
+            messages[0].entries,
+            [
+                .init(stateID: 9, value: [0xAA, 0xBB]),
+                .init(stateID: 3, value: [0xCC]),
+            ])
         XCTAssertTrue(recorder.events.contains { $0 is TDSSessionStateMessage })
     }
 
@@ -319,18 +338,20 @@ extension TDSTests {
 
         channel.pipeline.fireChannelActive()
         _ = try channel.readOutbound(as: ByteBuffer.self)
-        try channel.writeInbound(Self.packet(
-            type: .preloginLoginOrTablularResponse,
-            payload: Self.preloginResponsePayload(encryption: .encryptOff)
-        ))
+        try channel.writeInbound(
+            Self.packet(
+                type: .preloginLoginOrTablularResponse,
+                payload: Self.preloginResponsePayload(encryption: .encryptOff)
+            ))
         _ = try channel.readOutbound(as: ByteBuffer.self)
 
         var sspiPayload = ByteBufferAllocator().buffer(capacity: 8)
         sspiPayload.writeLengthPrefixedToken(0xED, bytes: [0xAA, 0xBB])
-        try channel.writeInbound(Self.packet(
-            type: .preloginLoginOrTablularResponse,
-            payload: sspiPayload
-        ))
+        try channel.writeInbound(
+            Self.packet(
+                type: .preloginLoginOrTablularResponse,
+                payload: sspiPayload
+            ))
 
         var fedAuthInfo = ByteBufferAllocator().buffer(capacity: 128)
         fedAuthInfo.writeFedAuthInfo(
@@ -339,10 +360,11 @@ extension TDSTests {
         )
         var fedAuthPayload = ByteBufferAllocator().buffer(capacity: 128)
         fedAuthPayload.writeLongLengthPrefixedToken(0xEE, bytes: Array(fedAuthInfo.readableBytesView))
-        try channel.writeInbound(Self.packet(
-            type: .preloginLoginOrTablularResponse,
-            payload: fedAuthPayload
-        ))
+        try channel.writeInbound(
+            Self.packet(
+                type: .preloginLoginOrTablularResponse,
+                payload: fedAuthPayload
+            ))
 
         let challenges = recorder.events.compactMap { $0 as? TDSAuthenticationChallenge }
         XCTAssertEqual(challenges.count, 2)
@@ -363,10 +385,11 @@ extension TDSTests {
         let sqlBatch: ByteBuffer = try XCTUnwrap(channel.readOutbound())
         XCTAssertEqual(sqlBatch.getInteger(at: 0, as: UInt8.self), TDSPacket.MessageType.sqlBatch.rawValue)
 
-        try channel.writeInbound(Self.packet(
-            type: .preloginLoginOrTablularResponse,
-            payload: Self.optionalMetadataTokenStreamPayload()
-        ))
+        try channel.writeInbound(
+            Self.packet(
+                type: .preloginLoginOrTablularResponse,
+                payload: Self.optionalMetadataTokenStreamPayload()
+            ))
 
         let result = try queryPromise.futureResult.wait()
         XCTAssertEqual(result.columns.map(\.name), ["id"])
@@ -392,22 +415,25 @@ extension TDSTests {
         let sqlBatch: ByteBuffer = try XCTUnwrap(channel.readOutbound())
         XCTAssertEqual(sqlBatch.getInteger(at: 0, as: UInt8.self), TDSPacket.MessageType.sqlBatch.rawValue)
 
-        try channel.writeInbound(Self.packet(
-            type: .preloginLoginOrTablularResponse,
-            payload: Self.dataClassificationTokenStreamPayload()
-        ))
+        try channel.writeInbound(
+            Self.packet(
+                type: .preloginLoginOrTablularResponse,
+                payload: Self.dataClassificationTokenStreamPayload()
+            ))
 
         let result = try queryPromise.futureResult.wait()
         XCTAssertEqual(result.columns.map(\.name), ["amount"])
-        XCTAssertEqual(result.columns[0].metadata.sensitivityClassifications, [
-            .init(
-                labelName: "Confidential",
-                labelID: "label-id",
-                informationTypeName: "Financial",
-                informationTypeID: "info-id",
-                rank: 10
-            )
-        ])
+        XCTAssertEqual(
+            result.columns[0].metadata.sensitivityClassifications,
+            [
+                .init(
+                    labelName: "Confidential",
+                    labelID: "label-id",
+                    informationTypeName: "Financial",
+                    informationTypeID: "info-id",
+                    rank: 10
+                )
+            ])
         XCTAssertEqual(result.rows[0].cell(named: "amount")?.columnMetadata.sensitivityClassifications.first?.rank, 10)
         XCTAssertEqual(result.rows.map(\.values), [[.int32(42)]])
     }
@@ -420,10 +446,11 @@ extension TDSTests {
         let sqlBatch: ByteBuffer = try XCTUnwrap(channel.readOutbound())
         XCTAssertEqual(sqlBatch.getInteger(at: 0, as: UInt8.self), TDSPacket.MessageType.sqlBatch.rawValue)
 
-        try channel.writeInbound(Self.packet(
-            type: .preloginLoginOrTablularResponse,
-            payload: Self.plpMaxTokenStreamPayload()
-        ))
+        try channel.writeInbound(
+            Self.packet(
+                type: .preloginLoginOrTablularResponse,
+                payload: Self.plpMaxTokenStreamPayload()
+            ))
 
         let result = try queryPromise.futureResult.wait()
         XCTAssertEqual(result.columns.map(\.name), ["text", "blob"])
@@ -441,24 +468,29 @@ extension TDSTests {
         let sqlBatch: ByteBuffer = try XCTUnwrap(channel.readOutbound())
         XCTAssertEqual(sqlBatch.getInteger(at: 0, as: UInt8.self), TDSPacket.MessageType.sqlBatch.rawValue)
 
-        try channel.writeInbound(Self.packet(
-            type: .preloginLoginOrTablularResponse,
-            payload: Self.xmlTokenStreamPayload()
-        ))
+        try channel.writeInbound(
+            Self.packet(
+                type: .preloginLoginOrTablularResponse,
+                payload: Self.xmlTokenStreamPayload()
+            ))
 
         let result = try queryPromise.futureResult.wait()
         XCTAssertEqual(result.columns.map(\.name), ["doc", "typedDoc"])
         XCTAssertNil(result.columns[0].metadata.xmlInfo)
-        XCTAssertEqual(result.columns[1].metadata.xmlInfo, .init(
-            databaseName: "master",
-            owningSchema: "dbo",
-            schemaCollection: "docSchema"
-        ))
-        XCTAssertEqual(result.rows[0].cell(named: "typedDoc")?.columnMetadata.xmlInfo, .init(
-            databaseName: "master",
-            owningSchema: "dbo",
-            schemaCollection: "docSchema"
-        ))
+        XCTAssertEqual(
+            result.columns[1].metadata.xmlInfo,
+            .init(
+                databaseName: "master",
+                owningSchema: "dbo",
+                schemaCollection: "docSchema"
+            ))
+        XCTAssertEqual(
+            result.rows[0].cell(named: "typedDoc")?.columnMetadata.xmlInfo,
+            .init(
+                databaseName: "master",
+                owningSchema: "dbo",
+                schemaCollection: "docSchema"
+            ))
         XCTAssertEqual(result.rows.count, 2)
         XCTAssertEqual(result.rows[0]["doc"], .xml([0x3C, 0x72, 0x2F, 0x3E]))
         XCTAssertEqual(result.rows[0]["typedDoc"], .xml([0x01, 0x02, 0x03]))
@@ -473,10 +505,11 @@ extension TDSTests {
         let sqlBatch: ByteBuffer = try XCTUnwrap(channel.readOutbound())
         XCTAssertEqual(sqlBatch.getInteger(at: 0, as: UInt8.self), TDSPacket.MessageType.sqlBatch.rawValue)
 
-        try channel.writeInbound(Self.packet(
-            type: .preloginLoginOrTablularResponse,
-            payload: Self.jsonTokenStreamPayload()
-        ))
+        try channel.writeInbound(
+            Self.packet(
+                type: .preloginLoginOrTablularResponse,
+                payload: Self.jsonTokenStreamPayload()
+            ))
 
         let result = try queryPromise.futureResult.wait()
         XCTAssertEqual(result.columns.map(\.dataType), [.json])
@@ -491,10 +524,11 @@ extension TDSTests {
         let sqlBatch: ByteBuffer = try XCTUnwrap(channel.readOutbound())
         XCTAssertEqual(sqlBatch.getInteger(at: 0, as: UInt8.self), TDSPacket.MessageType.sqlBatch.rawValue)
 
-        try channel.writeInbound(Self.packet(
-            type: .preloginLoginOrTablularResponse,
-            payload: Self.nullTypeTokenStreamPayload()
-        ))
+        try channel.writeInbound(
+            Self.packet(
+                type: .preloginLoginOrTablularResponse,
+                payload: Self.nullTypeTokenStreamPayload()
+            ))
 
         let result = try queryPromise.futureResult.wait()
         XCTAssertEqual(result.columns.map(\.dataType), [.null])
@@ -509,10 +543,11 @@ extension TDSTests {
         let sqlBatch: ByteBuffer = try XCTUnwrap(channel.readOutbound())
         XCTAssertEqual(sqlBatch.getInteger(at: 0, as: UInt8.self), TDSPacket.MessageType.sqlBatch.rawValue)
 
-        try channel.writeInbound(Self.packet(
-            type: .preloginLoginOrTablularResponse,
-            payload: Self.sqlVariantTokenStreamPayload()
-        ))
+        try channel.writeInbound(
+            Self.packet(
+                type: .preloginLoginOrTablularResponse,
+                payload: Self.sqlVariantTokenStreamPayload()
+            ))
 
         let result = try queryPromise.futureResult.wait()
         XCTAssertEqual(result.columns.map(\.dataType), [.sqlVariant])
@@ -527,10 +562,11 @@ extension TDSTests {
         let sqlBatch: ByteBuffer = try XCTUnwrap(channel.readOutbound())
         XCTAssertEqual(sqlBatch.getInteger(at: 0, as: UInt8.self), TDSPacket.MessageType.sqlBatch.rawValue)
 
-        try channel.writeInbound(Self.packet(
-            type: .preloginLoginOrTablularResponse,
-            payload: Self.udtTokenStreamPayload()
-        ))
+        try channel.writeInbound(
+            Self.packet(
+                type: .preloginLoginOrTablularResponse,
+                payload: Self.udtTokenStreamPayload()
+            ))
 
         let result = try queryPromise.futureResult.wait()
         XCTAssertEqual(result.columns.map(\.dataType), [.udt])
@@ -553,15 +589,17 @@ extension TDSTests {
         let sqlBatch: ByteBuffer = try XCTUnwrap(channel.readOutbound())
         XCTAssertEqual(sqlBatch.getInteger(at: 0, as: UInt8.self), TDSPacket.MessageType.sqlBatch.rawValue)
 
-        try channel.writeInbound(Self.packet(
-            type: .preloginLoginOrTablularResponse,
-            payload: Self.legacyCharBinaryTokenStreamPayload()
-        ))
+        try channel.writeInbound(
+            Self.packet(
+                type: .preloginLoginOrTablularResponse,
+                payload: Self.legacyCharBinaryTokenStreamPayload()
+            ))
 
         let result = try queryPromise.futureResult.wait()
         XCTAssertEqual(result.columns.map(\.name), ["varchar", "char", "varbinary", "binary"])
         XCTAssertEqual(result.rows.count, 2)
-        XCTAssertEqual(result.rows[0].values, [.string("hello"), .string("abc"), .bytes([0xDE, 0xAD]), .bytes([0xBE, 0xEF])])
+        XCTAssertEqual(
+            result.rows[0].values, [.string("hello"), .string("abc"), .bytes([0xDE, 0xAD]), .bytes([0xBE, 0xEF])])
         XCTAssertEqual(result.rows[1].values, [.null, .string("xyz"), .null, .bytes([0x12, 0x34])])
         XCTAssertEqual(result.rows[0]["varbinary"], .bytes([0xDE, 0xAD]))
     }
@@ -574,10 +612,11 @@ extension TDSTests {
         let sqlBatch: ByteBuffer = try XCTUnwrap(channel.readOutbound())
         XCTAssertEqual(sqlBatch.getInteger(at: 0, as: UInt8.self), TDSPacket.MessageType.sqlBatch.rawValue)
 
-        try channel.writeInbound(Self.packet(
-            type: .preloginLoginOrTablularResponse,
-            payload: Self.legacyLOBTokenStreamPayload()
-        ))
+        try channel.writeInbound(
+            Self.packet(
+                type: .preloginLoginOrTablularResponse,
+                payload: Self.legacyLOBTokenStreamPayload()
+            ))
 
         let result = try queryPromise.futureResult.wait()
         XCTAssertEqual(result.columns.map(\.name), ["body", "unicodeBody", "picture"])
@@ -595,10 +634,11 @@ extension TDSTests {
         let sqlBatch: ByteBuffer = try XCTUnwrap(channel.readOutbound())
         XCTAssertEqual(sqlBatch.getInteger(at: 0, as: UInt8.self), TDSPacket.MessageType.sqlBatch.rawValue)
 
-        try channel.writeInbound(Self.packet(
-            type: .preloginLoginOrTablularResponse,
-            payload: Self.decimalTokenStreamPayload()
-        ))
+        try channel.writeInbound(
+            Self.packet(
+                type: .preloginLoginOrTablularResponse,
+                payload: Self.decimalTokenStreamPayload()
+            ))
 
         let result = try queryPromise.futureResult.wait()
         XCTAssertEqual(result.columns.map(\.name), ["amount"])
@@ -613,14 +653,16 @@ extension TDSTests {
         let channel = try Self.loggedInChannel()
 
         let queryPromise = channel.eventLoop.makePromise(of: TDSQueryResult.self)
-        try channel.writeOutbound(TDSTask.sqlBatch("SELECT CAST('00112233-4455-6677-8899-aabbccddeeff' AS uniqueidentifier)", queryPromise))
+        try channel.writeOutbound(
+            TDSTask.sqlBatch("SELECT CAST('00112233-4455-6677-8899-aabbccddeeff' AS uniqueidentifier)", queryPromise))
         let sqlBatch: ByteBuffer = try XCTUnwrap(channel.readOutbound())
         XCTAssertEqual(sqlBatch.getInteger(at: 0, as: UInt8.self), TDSPacket.MessageType.sqlBatch.rawValue)
 
-        try channel.writeInbound(Self.packet(
-            type: .preloginLoginOrTablularResponse,
-            payload: Self.guidTokenStreamPayload()
-        ))
+        try channel.writeInbound(
+            Self.packet(
+                type: .preloginLoginOrTablularResponse,
+                payload: Self.guidTokenStreamPayload()
+            ))
 
         let result = try queryPromise.futureResult.wait()
         XCTAssertEqual(result.columns.map(\.name), ["id"])
@@ -636,10 +678,11 @@ extension TDSTests {
         let sqlBatch: ByteBuffer = try XCTUnwrap(channel.readOutbound())
         XCTAssertEqual(sqlBatch.getInteger(at: 0, as: UInt8.self), TDSPacket.MessageType.sqlBatch.rawValue)
 
-        try channel.writeInbound(Self.packet(
-            type: .preloginLoginOrTablularResponse,
-            payload: Self.multiResultSetTokenStreamPayload()
-        ))
+        try channel.writeInbound(
+            Self.packet(
+                type: .preloginLoginOrTablularResponse,
+                payload: Self.multiResultSetTokenStreamPayload()
+            ))
 
         let result = try queryPromise.futureResult.wait()
         XCTAssertEqual(result.columns.map(\.name), ["id"])
@@ -666,17 +709,19 @@ extension TDSTests {
         let rpc: ByteBuffer = try XCTUnwrap(channel.readOutbound())
         XCTAssertEqual(rpc.getInteger(at: 0, as: UInt8.self), TDSPacket.MessageType.rpc.rawValue)
 
-        try channel.writeInbound(Self.packet(
-            type: .preloginLoginOrTablularResponse,
-            payload: Self.doneInProcFirstResultSetPayload()
-        ))
+        try channel.writeInbound(
+            Self.packet(
+                type: .preloginLoginOrTablularResponse,
+                payload: Self.doneInProcFirstResultSetPayload()
+            ))
 
         XCTAssertFalse(completed.withLockedValue { $0 })
 
-        try channel.writeInbound(Self.packet(
-            type: .preloginLoginOrTablularResponse,
-            payload: Self.selectOneTokenStreamPayload()
-        ))
+        try channel.writeInbound(
+            Self.packet(
+                type: .preloginLoginOrTablularResponse,
+                payload: Self.selectOneTokenStreamPayload()
+            ))
 
         let result = try queryPromise.futureResult.wait()
         XCTAssertTrue(completed.withLockedValue { $0 })
@@ -712,19 +757,21 @@ extension TDSTests {
         channel.pipeline.fireChannelActive()
         _ = try channel.readOutbound(as: ByteBuffer.self)
 
-        try channel.writeInbound(Self.packet(
-            type: .preloginLoginOrTablularResponse,
-            payload: Self.preloginResponsePayload(encryption: .encryptOff)
-        ))
+        try channel.writeInbound(
+            Self.packet(
+                type: .preloginLoginOrTablularResponse,
+                payload: Self.preloginResponsePayload(encryption: .encryptOff)
+            ))
         _ = try channel.readOutbound(as: ByteBuffer.self)
 
         var payload = Self.routingEnvChangePayload()
         var loginAckAndDone = Self.loginAckAndDonePayload()
         payload.writeBuffer(&loginAckAndDone)
-        try channel.writeInbound(Self.packet(
-            type: .preloginLoginOrTablularResponse,
-            payload: payload
-        ))
+        try channel.writeInbound(
+            Self.packet(
+                type: .preloginLoginOrTablularResponse,
+                payload: payload
+            ))
 
         let context = try eventHandler.startupDoneFuture.wait()
         XCTAssertEqual(context.routing?.protocolByte, 0)

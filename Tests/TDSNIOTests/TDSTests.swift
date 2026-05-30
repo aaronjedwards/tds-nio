@@ -26,10 +26,11 @@ extension TDSTests {
         var encoder = TDSFrontendMessageEncoder(
             buffer: ByteBufferAllocator().buffer(capacity: 256)
         )
-        encoder.rpc(.init(
-            procedure: "dbo.nulls",
-            parameters: bindings.parameters
-        ))
+        encoder.rpc(
+            .init(
+                procedure: "dbo.nulls",
+                parameters: bindings.parameters
+            ))
 
         var packet = encoder.flush()
         packet.moveReaderIndex(forwardBy: TDSPacket.headerLength + 22 + 2 + "dbo.nulls".utf16.count * 2 + 2)
@@ -96,10 +97,11 @@ extension TDSTests {
         var encoder = TDSFrontendMessageEncoder(
             buffer: ByteBufferAllocator().buffer(capacity: 256)
         )
-        encoder.rpc(.init(
-            procedure: "dbo.nulls",
-            parameters: bindings.parameters
-        ))
+        encoder.rpc(
+            .init(
+                procedure: "dbo.nulls",
+                parameters: bindings.parameters
+            ))
 
         var packet = encoder.flush()
         packet.moveReaderIndex(forwardBy: TDSPacket.headerLength + 22 + 2 + "dbo.nulls".utf16.count * 2 + 2)
@@ -149,20 +151,22 @@ extension TDSTests {
         let channel = try Self.loggedInChannel()
 
         let rpcPromise = channel.eventLoop.makePromise(of: TDSQueryResult.self)
-        try channel.writeOutbound(TDSTask.rpc(
-            .init(
-                procedure: "dbo.answer",
-                parameters: [.init(name: "@answer", value: .int(0))]
-            ),
-            rpcPromise
-        ))
+        try channel.writeOutbound(
+            TDSTask.rpc(
+                .init(
+                    procedure: "dbo.answer",
+                    parameters: [.init(name: "@answer", value: .int(0))]
+                ),
+                rpcPromise
+            ))
         let rpc: ByteBuffer = try XCTUnwrap(channel.readOutbound())
         XCTAssertEqual(rpc.getInteger(at: 0, as: UInt8.self), TDSPacket.MessageType.rpc.rawValue)
 
-        try channel.writeInbound(Self.packet(
-            type: .preloginLoginOrTablularResponse,
-            payload: Self.returnStatusReturnValueAndDonePayload()
-        ))
+        try channel.writeInbound(
+            Self.packet(
+                type: .preloginLoginOrTablularResponse,
+                payload: Self.returnStatusReturnValueAndDonePayload()
+            ))
 
         let result = try rpcPromise.futureResult.wait()
         XCTAssertEqual(result.returnStatus, 7)

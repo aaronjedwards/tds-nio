@@ -54,7 +54,8 @@ final class TDSFrontendMessagePostProcessor: ChannelOutboundHandler {
             let originalStatusByte =
                 buffer
                 .getInteger(at: MemoryLayout<UInt8>.size, as: UInt8.self)!
-            let resetStatusMask = TDSPacket.StatusFlag.resetConnection.rawValue
+            let resetStatusMask =
+                TDSPacket.StatusFlag.resetConnection.rawValue
                 | TDSPacket.StatusFlag.resetConnectionSkipTran.rawValue
 
             // Any value originally entered for the packet id is ignored and reset to 0

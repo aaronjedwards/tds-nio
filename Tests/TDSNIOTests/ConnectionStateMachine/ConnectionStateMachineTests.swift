@@ -20,10 +20,12 @@ extension TDSTests {
             nonce: nil
         )
 
-        guard case .startTLS(let removeAfterLogin) = state.preloginReceived(
-            response,
-            clientEncryption: .encryptOn
-        ) else {
+        guard
+            case .startTLS(let removeAfterLogin) = state.preloginReceived(
+                response,
+                clientEncryption: .encryptOn
+            )
+        else {
             return XCTFail("Expected TLS negotiation to start")
         }
         XCTAssertFalse(removeAfterLogin)
@@ -43,10 +45,12 @@ extension TDSTests {
             nonce: nil
         )
 
-        guard case .startTLS(let removeAfterLogin) = state.preloginReceived(
-            response,
-            clientEncryption: .encryptOn
-        ) else {
+        guard
+            case .startTLS(let removeAfterLogin) = state.preloginReceived(
+                response,
+                clientEncryption: .encryptOn
+            )
+        else {
             return XCTFail("Expected login-only TLS negotiation to start")
         }
         XCTAssertTrue(removeAfterLogin)
@@ -96,10 +100,12 @@ extension TDSTests {
         var state = ConnectionStateMachine(.sentPrelogin)
         let promise = channel.eventLoop.makePromise(of: TDSQueryResult.self)
 
-        guard case .wait = state.enqueue(
-            task: .sqlBatch("SELECT 1", promise),
-            promise: nil
-        ) else {
+        guard
+            case .wait = state.enqueue(
+                task: .sqlBatch("SELECT 1", promise),
+                promise: nil
+            )
+        else {
             return XCTFail("Expected startup task to be queued")
         }
 

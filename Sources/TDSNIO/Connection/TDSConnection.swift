@@ -19,11 +19,12 @@ public import NIOCore
 import NIOPosix
 import NIOSSL
 
+import class Foundation.ProcessInfo
+
 #if DistributedTracingSupport
     import Tracing
 #endif
 
-import class Foundation.ProcessInfo
 
 #if canImport(Network)
     import NIOTransportServices

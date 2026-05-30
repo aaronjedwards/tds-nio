@@ -668,12 +668,13 @@ public struct TDSDate: Sendable, Hashable {
     }
 
     public func dateValue(timeZone: TimeZone = TimeZone(secondsFromGMT: 0)!) -> Date? {
-        Calendar.tdsGregorian(timeZone: timeZone).date(from: DateComponents(
-            timeZone: timeZone,
-            year: self.year,
-            month: self.month,
-            day: self.day
-        ))
+        Calendar.tdsGregorian(timeZone: timeZone).date(
+            from: DateComponents(
+                timeZone: timeZone,
+                year: self.year,
+                month: self.month,
+                day: self.day
+            ))
     }
 }
 
@@ -730,16 +731,17 @@ public struct TDSDateTime: Sendable, Hashable {
     }
 
     public func dateValue(timeZone: TimeZone = TimeZone(secondsFromGMT: 0)!) -> Date? {
-        Calendar.tdsGregorian(timeZone: timeZone).date(from: DateComponents(
-            timeZone: timeZone,
-            year: self.date.year,
-            month: self.date.month,
-            day: self.date.day,
-            hour: self.time.hour,
-            minute: self.time.minute,
-            second: self.time.second,
-            nanosecond: self.time.nanosecond
-        ))
+        Calendar.tdsGregorian(timeZone: timeZone).date(
+            from: DateComponents(
+                timeZone: timeZone,
+                year: self.date.year,
+                month: self.date.month,
+                day: self.date.day,
+                hour: self.time.hour,
+                minute: self.time.minute,
+                second: self.time.second,
+                nanosecond: self.time.nanosecond
+            ))
     }
 }
 

@@ -69,7 +69,8 @@ struct StatementStateMachine {
             let action = self.recordFailure(
                 .server("Server completed the request with a DONE error status.")
             )
-            if case .wait = action {} else {
+            if case .wait = action {
+            } else {
                 return action
             }
         }
@@ -223,8 +224,7 @@ struct StatementStateMachine {
             columns: altMetadata.columns.map(TDSColumn.init)
         )
 
-        if let index = self.activeAlternateResultSets.firstIndex(where: { $0.id == altMetadata.id })
-        {
+        if let index = self.activeAlternateResultSets.firstIndex(where: { $0.id == altMetadata.id }) {
             self.activeAlternateResultSets[index] = alternateResultSet
         } else {
             self.activeAlternateResultSets.append(alternateResultSet)
