@@ -9,8 +9,7 @@ connect to SQL Server, authenticate with username and password credentials, run
 SQL batches, bind common Swift and Foundation values as query parameters, decode
 rows, and pool connections for server applications.
 
-TDSNIO is currently pre-release software. The first planned tag is
-`0.1.0-alpha.1`, and public APIs may change before a stable release.
+TDSNIO is currently pre-release software and public APIs may change substantially before a stable release.
 
 ### Features
 
