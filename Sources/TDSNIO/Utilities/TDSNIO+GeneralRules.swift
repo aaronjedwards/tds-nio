@@ -1,59 +1,73 @@
+//===----------------------------------------------------------------------===//
+//
+// This source file is part of the TDSNIO open source project
+//
+// Copyright (c) 2026 TDSNIO project authors
+// Licensed under Apache License v2.0
+//
+// See LICENSE for license information
+// See CONTRIBUTORS.md for the list of TDSNIO project authors
+//
+// SPDX-License-Identifier: Apache-2.0
+//
+//===----------------------------------------------------------------------===//
+
 /// Typealiases for making the translation of the TDS protocol more clear
 /// https://docs.microsoft.com/en-us/openspecs/windows_protocols/ms-tds/d2ed21d6-527b-46ac-8035-94f6f68eb9a8
 
-/// BYTE
-public typealias Byte = UInt8
+// BYTE
+typealias Byte = UInt8
 
-/// BYTELEN
-public typealias ByteLen = Byte
+// BYTELEN
+typealias ByteLen = Byte
 
-/// USHORT
-public typealias UShort = UInt16
+// USHORT
+typealias UShort = UInt16
 
-/// LONG
-public typealias Long = Int32
+// LONG
+typealias Long = Int32
 
-/// ULONG
-public typealias ULong = UInt32
+// ULONG
+typealias ULong = UInt32
 
-/// DWORD
-public typealias DWord = UInt32
+// DWORD
+typealias DWord = UInt32
 
-/// LONGLONG
-public typealias LongLong = Int64
+// LONGLONG
+typealias LongLong = Int64
 
-/// ULONGLONG
-public typealias ULongLong = UInt64
+// ULONGLONG
+typealias ULongLong = UInt64
 
-/// UCHAR
-public typealias UChar = Byte
+// UCHAR
+typealias UChar = Byte
 
-/// USHORTLEN
-public typealias UShortLen = UInt16
+// USHORTLEN
+typealias UShortLen = UInt16
 
-/// USHORTCHARBINLEN
-public typealias UShortCharBinLen = UInt16
+// USHORTCHARBINLEN
+typealias UShortCharBinLen = UInt16
 
-/// LONGLEN
-public typealias LongLen = Int32
+// LONGLEN
+typealias LongLen = Int32
 
-/// ULONGLONGLEN
-public typealias ULongLongLen = UInt64
+// ULONGLONGLEN
+typealias ULongLongLen = UInt64
 
-/// PRECISION
-public typealias Precision = UInt8
+// PRECISION
+typealias Precision = UInt8
 
-/// SCALE
-public typealias Scale = UInt8
+// SCALE
+typealias Scale = UInt8
 
-/// GEN_NULL
-public typealias GenNull = UInt8
+// GEN_NULL
+typealias GenNull = UInt8
 
-/// CHARBIN_NULL
-public typealias CharBinNull = UInt16
+// CHARBIN_NULL
+typealias CharBinNull = UInt16
 
-/// FRESERVEDBYTE
-public typealias FReservedByte = Byte
+// FRESERVEDBYTE
+typealias FReservedByte = Byte
 
-/// UNICODECHAR
-public typealias UnicodeChar = UInt16
+// UNICODECHAR
+typealias UnicodeChar = UInt16

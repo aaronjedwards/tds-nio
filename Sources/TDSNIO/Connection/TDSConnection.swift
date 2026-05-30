@@ -1,9 +1,27 @@
+//===----------------------------------------------------------------------===//
+//
+// This source file is part of the TDSNIO open source project
+//
+// Copyright (c) 2026 TDSNIO project authors
+// Licensed under Apache License v2.0
+//
+// See LICENSE for license information
+// See CONTRIBUTORS.md for the list of TDSNIO project authors
+//
+// SPDX-License-Identifier: Apache-2.0
+//
+//===----------------------------------------------------------------------===//
+
 @preconcurrency import Dispatch
-import Logging
+public import Logging
 import NIOConcurrencyHelpers
-import NIOCore
+public import NIOCore
 import NIOPosix
 import NIOSSL
+
+#if DistributedTracingSupport
+    import Tracing
+#endif
 
 import class Foundation.ProcessInfo
 
@@ -21,6 +39,14 @@ public final class TDSConnection: Sendable {
     let channel: Channel
     let logger: Logger
     private let resetConnectionOnNextRequestBox: NIOLockedValueBox<Bool>
+
+    #if DistributedTracingSupport
+        let tracer: (any Tracer)?
+
+        var databaseNamespace: String {
+            self.configuration.database ?? ""
+        }
+    #endif
 
     public var closeFuture: EventLoopFuture<Void> {
         channel.closeFuture
@@ -40,7 +66,7 @@ public final class TDSConnection: Sendable {
         SwiftLogNoOpLogHandler()
     }
 
-    private init(
+    init(
         configuration: TDSConnection.Configuration,
         channel: Channel,
         connectionID: ID,
@@ -53,6 +79,9 @@ public final class TDSConnection: Sendable {
         self.channel = channel
         self.protocolVersion = protocolVersion
         self.resetConnectionOnNextRequestBox = NIOLockedValueBox(false)
+        #if DistributedTracingSupport
+            self.tracer = configuration.tracing.tracer
+        #endif
     }
 
     deinit {
@@ -137,13 +166,14 @@ public final class TDSConnection: Sendable {
                     }
                 }
 
-                return channel.eventLoop.makeSucceededFuture(TDSConnection(
-                    configuration: configuration,
-                    channel: channel,
-                    connectionID: connectionID,
-                    logger: logger,
-                    protocolVersion: context.version
-                ))
+                return channel.eventLoop.makeSucceededFuture(
+                    TDSConnection(
+                        configuration: configuration,
+                        channel: channel,
+                        connectionID: connectionID,
+                        logger: logger,
+                        protocolVersion: context.version
+                    ))
             }
     }
 
@@ -212,7 +242,7 @@ public final class TDSConnection: Sendable {
 
     /// Closes the connection to the database server synchronously.
     ///
-    /// - Note: This method blocks the thread indefinitely, prefer using ``close()-4ny0f``.
+    /// - Note: This method blocks the thread indefinitely, prefer using ``close()``.
     @available(
         *, noasync, message: "syncClose() can block indefinitely, prefer close()",
         renamed: "close()"

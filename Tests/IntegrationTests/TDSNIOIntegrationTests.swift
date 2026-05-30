@@ -1,4 +1,5 @@
 import Foundation
+import Logging
 import NIOCore
 import NIOPosix
 import TDSNIO
@@ -81,12 +82,14 @@ final class TDSNIOIntegrationTests: XCTestCase {
         configuration.retryCount = 20
         configuration.retryDelay = 10
 
+        let eventLoop = self.eventLoop
+        let logger = Logger.tdsTest
         let connectTask = Task {
             try await TDSConnection.connect(
-                on: self.eventLoop,
+                on: eventLoop,
                 configuration: configuration,
                 id: 1,
-                logger: .tdsTest
+                logger: logger
             )
         }
 
@@ -237,10 +240,12 @@ final class TDSNIOIntegrationTests: XCTestCase {
             var binds = TDSBindings()
             binds.append(.int32(42), name: "@unused")
 
-            let rows = try await connection.execute(TDSQuery(
-                unsafeSQL: "SELECT CAST(1 AS int) AS value",
-                binds: binds
-            )).rows
+            let rows = try await connection.execute(
+                TDSQuery(
+                    unsafeSQL: "SELECT CAST(1 AS int) AS value",
+                    binds: binds
+                )
+            ).rows
 
             XCTAssertEqual(rows.count, 1)
             XCTAssertEqual(try rows.first?.decode(Int.self), 1)
@@ -1068,13 +1073,14 @@ final class TDSNIOIntegrationTests: XCTestCase {
                     """
                 )
 
-                let result = try await connection.executeRPC(.init(
-                    procedure: "dbo.\(procedure)",
-                    parameters: [
-                        .init(name: "@value", value: .string("Hello, there!")),
-                        .init(name: "@value_length", value: .typedNull(.int), isOutput: true),
-                    ]
-                ))
+                let result = try await connection.executeRPC(
+                    .init(
+                        procedure: "dbo.\(procedure)",
+                        parameters: [
+                            .init(name: "@value", value: .string("Hello, there!")),
+                            .init(name: "@value_length", value: .typedNull(.int), isOutput: true),
+                        ]
+                    ))
                 let value: Int = try result.decodeOutputParameter(named: "@value_length")
                 XCTAssertEqual(value, 13)
             } catch {
@@ -1104,12 +1110,13 @@ final class TDSNIOIntegrationTests: XCTestCase {
                     """
                 )
 
-                let result = try await connection.executeRPC(.init(
-                    procedure: "dbo.\(procedure)",
-                    parameters: [
-                        .init(name: "@name", value: .typedNull(.nvarchar(maxBytes: 100)), isOutput: true),
-                    ]
-                ))
+                let result = try await connection.executeRPC(
+                    .init(
+                        procedure: "dbo.\(procedure)",
+                        parameters: [
+                            .init(name: "@name", value: .typedNull(.nvarchar(maxBytes: 100)), isOutput: true)
+                        ]
+                    ))
                 let value: String = try result.decodeOutputParameter(named: "@name")
                 XCTAssertEqual(value, "DummyName")
             } catch {

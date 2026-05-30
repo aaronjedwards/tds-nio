@@ -1,3 +1,17 @@
+//===----------------------------------------------------------------------===//
+//
+// This source file is part of the TDSNIO open source project
+//
+// Copyright (c) 2026 TDSNIO project authors
+// Licensed under Apache License v2.0
+//
+// See LICENSE for license information
+// See CONTRIBUTORS.md for the list of TDSNIO project authors
+//
+// SPDX-License-Identifier: Apache-2.0
+//
+//===----------------------------------------------------------------------===//
+
 import NIOCore
 
 import struct Foundation.TimeZone
@@ -14,6 +28,7 @@ struct ConnectionStateMachine {
         case sentClientRequest
         case sentAttention
         case routingComplete
+        case closing
         case closed
         case modifying
     }
@@ -62,6 +77,7 @@ struct ConnectionStateMachine {
         case wait
         case read
         case closeConnection(EventLoopPromise<Void>?)
+        case fireChannelInactive
         /// Close connection because of an error state. Fail all tasks with the provided error.
         case closeConnectionAndCleanup(CleanUpContext)
         case sendPreloginRequest
@@ -98,7 +114,7 @@ struct ConnectionStateMachine {
     private var loginAck: TDSBackendMessage.LoginAck?
     private var authenticationStateMachine: AuthenticationStateMachine?
     private var activeTask: TDSTask?
-    private var activeRequest: TDSRequestStateMachine?
+    private var activeRequest: StatementStateMachine?
     private var activeColumns: [TDSColumn] = []
     private var activeRows: [TDSRow] = []
     private var activeRowStreamStarted = false
@@ -150,15 +166,50 @@ struct ConnectionStateMachine {
     }
 
     mutating func closed() -> ConnectionAction {
-        self.state = .closed
-        return self.closeConnectionAndCleanup(
-            .connectionError(underlying: ChannelError.ioOnClosedChannel),
-            closePromise: nil
-        )
+        switch self.state {
+        case .initialized:
+            preconditionFailure(
+                "How can a connection be closed, if it was never connected."
+            )
+        case .sentPrelogin,
+            .sentTLSNegotiation,
+            .sentLoginWithCompleteAuth,
+            .sentLoginWithSpengo,
+            .sentLoginWithFedAuth,
+            .loggedIn,
+            .sentClientRequest,
+            .sentAttention,
+            .routingComplete:
+            return self.closeConnectionAndCleanup(
+                .connectionError(underlying: ChannelError.ioOnClosedChannel),
+                closePromise: nil,
+                action: .fireChannelInactive
+            )
+        case .closing:
+            self.state = .closed
+            self.quiescingState = .notQuiescing
+            return .fireChannelInactive
+        case .closed:
+            preconditionFailure(
+                "How can a connection be closed, if it is already closed."
+            )
+        case .modifying:
+            preconditionFailure("Invalid state: \(self.state)")
+        }
     }
 
     mutating func errorHappened(_ error: TDSSQLError) -> ConnectionAction {
-        self.closeConnectionAndCleanup(error)
+        switch self.state {
+        case .closing:
+            return .wait
+        case .closed:
+            return self.closeConnectionAndCleanup(
+                error,
+                action: .fireChannelInactive
+            )
+        default:
+            return self.closeConnectionAndCleanup(error)
+        }
     }
 
     mutating func preloginReceived(
@@ -321,8 +372,7 @@ struct ConnectionStateMachine {
         return self.closeConnectionAndCleanup(sqlError)
     }
 
-    mutating func colMetadataReceived(_ metadata: TDSBackendMessage.ColMetadata) -> ConnectionAction
-    {
+    mutating func colMetadataReceived(_ metadata: TDSBackendMessage.ColMetadata) -> ConnectionAction {
         if var activeRequest = self.activeRequest {
             let action = activeRequest.colMetadataReceived(metadata)
             self.activeRequest = activeRequest
@@ -463,8 +513,7 @@ struct ConnectionStateMachine {
             columns: altMetadata.columns.map(TDSColumn.init)
         )
 
-        if let index = self.activeAlternateResultSets.firstIndex(where: { $0.id == altMetadata.id })
-        {
+        if let index = self.activeAlternateResultSets.firstIndex(where: { $0.id == altMetadata.id }) {
             self.activeAlternateResultSets[index] = alternateResultSet
         } else {
             self.activeAlternateResultSets.append(alternateResultSet)
@@ -616,10 +665,13 @@ struct ConnectionStateMachine {
                 promise?.fail(error)
                 return .wait
             }
-        default:
+        case .closing, .closed:
             let error = TDSSQLError.connectionError(underlying: ChannelError.ioOnClosedChannel)
             task.fail(error)
             promise?.fail(error)
+            return .wait
+        default:
+            self.taskQueue.append(task)
             return .wait
         }
     }
@@ -633,7 +685,8 @@ struct ConnectionStateMachine {
 
     private mutating func closeConnectionAndCleanup(
         _ error: TDSSQLError,
-        closePromise: EventLoopPromise<Void>? = nil
+        closePromise: EventLoopPromise<Void>? = nil,
+        action requestedAction: ConnectionAction.CleanUpContext.Action? = nil
     ) -> ConnectionAction {
         let tasks = Array(self.taskQueue) + [self.activeTask].compactMap { $0 }
         self.taskQueue.removeAll()
@@ -645,8 +698,8 @@ struct ConnectionStateMachine {
         self.activeRowStreamStarted = false
         self.clearActiveResult()
         let action: ConnectionAction.CleanUpContext.Action =
-            self.state == .closed ? .fireChannelInactive : .close
-        self.state = .closed
+            requestedAction ?? (self.state == .closed ? .fireChannelInactive : .close)
+        self.state = action == .close ? .closing : .closed
         return .closeConnectionAndCleanup(
             .init(
                 action: action,
@@ -750,7 +803,7 @@ struct ConnectionStateMachine {
             self.activeTask = task
             self.clearActiveResult()
             let requestContext = TDSRequestContext(task: task)
-            self.activeRequest = TDSRequestStateMachine(
+            self.activeRequest = StatementStateMachine(
                 context: requestContext,
                 debugLog: self.debugLog
             )
@@ -771,7 +824,7 @@ struct ConnectionStateMachine {
     }
 
     private mutating func connectionAction(
-        from requestAction: TDSRequestStateMachine.Action
+        from requestAction: StatementStateMachine.Action
     ) -> ConnectionAction {
         switch requestAction {
         case .wait:
@@ -937,7 +990,7 @@ struct ConnectionStateMachine {
     }
 }
 
-extension TDSRequestStateMachine.DoneTokenKind {
+extension StatementStateMachine.DoneTokenKind {
     init(_ kind: ConnectionStateMachine.DoneTokenKind) {
         switch kind {
         case .done:

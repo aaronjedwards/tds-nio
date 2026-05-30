@@ -1,3 +1,18 @@
+//===----------------------------------------------------------------------===//
+//
+// This source file is part of the TDSNIO open source project
+//
+// Copyright (c) 2026 TDSNIO project authors
+// Licensed under Apache License v2.0
+//
+// See LICENSE for license information
+// See CONTRIBUTORS.md for the list of TDSNIO project authors
+//
+// SPDX-License-Identifier: Apache-2.0
+//
+//===----------------------------------------------------------------------===//
+
+import Foundation
 import NIOCore
 
 extension TDSConnection {
@@ -43,7 +58,8 @@ extension TDSConnection {
         let nameSQL = Self.sqlTransactionName(name)
         var sql = "COMMIT TRANSACTION\(nameSQL)"
         if let beginAfterwards {
-            sql += "; \(Self.sqlIsolationLevel(beginAfterwards.isolationLevel))BEGIN TRANSACTION\(Self.sqlTransactionName(beginAfterwards.name))"
+            sql +=
+                "; \(Self.sqlIsolationLevel(beginAfterwards.isolationLevel))BEGIN TRANSACTION\(Self.sqlTransactionName(beginAfterwards.name))"
         }
         _ = try await self.execute("\(unescaped: sql)", file: file, line: line)
     }
@@ -58,7 +74,8 @@ extension TDSConnection {
         let nameSQL = Self.sqlTransactionName(name)
         var sql = "ROLLBACK TRANSACTION\(nameSQL)"
         if let beginAfterwards {
-            sql += "; \(Self.sqlIsolationLevel(beginAfterwards.isolationLevel))BEGIN TRANSACTION\(Self.sqlTransactionName(beginAfterwards.name))"
+            sql +=
+                "; \(Self.sqlIsolationLevel(beginAfterwards.isolationLevel))BEGIN TRANSACTION\(Self.sqlTransactionName(beginAfterwards.name))"
         }
         _ = try await self.execute("\(unescaped: sql)", file: file, line: line)
     }

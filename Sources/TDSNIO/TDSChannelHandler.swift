@@ -1,3 +1,17 @@
+//===----------------------------------------------------------------------===//
+//
+// This source file is part of the TDSNIO open source project
+//
+// Copyright (c) 2026 TDSNIO project authors
+// Licensed under Apache License v2.0
+//
+// See LICENSE for license information
+// See CONTRIBUTORS.md for the list of TDSNIO project authors
+//
+// SPDX-License-Identifier: Apache-2.0
+//
+//===----------------------------------------------------------------------===//
+
 import Logging
 import NIOCore
 import NIOSSL
@@ -333,24 +347,15 @@ final class TDSChannelHandler: ChannelDuplexHandler {
         case .authenticated(let loginAck, let removeTLS):
             if removeTLS {
                 self.removeLoginOnlyTLS(context: context)
-                context.fireUserInboundEventTriggered(
-                    TDSSQLEvent.startupDone(
-                        version: TDSProtocolVersion(loginAck: loginAck),
-                        sessionID: 0,
-                        serialNumber: 0
-                    )
-                )
-                context.fireUserInboundEventTriggered(TDSSQLEvent.readyForQuery)
-            } else {
-                context.fireUserInboundEventTriggered(
-                    TDSSQLEvent.startupDone(
-                        version: TDSProtocolVersion(loginAck: loginAck),
-                        sessionID: 0,
-                        serialNumber: 0
-                    )
-                )
-                context.fireUserInboundEventTriggered(TDSSQLEvent.readyForQuery)
             }
+            context.fireUserInboundEventTriggered(
+                TDSSQLEvent.startupDone(
+                    version: TDSProtocolVersion(loginAck: loginAck),
+                    sessionID: 0,
+                    serialNumber: 0
+                )
+            )
+            self.startNextTaskOrFireReady(context: context)
         case .sendSQLBatch(let sql):
             self.encoder.sqlBatch(sql)
             context.writeAndFlush(self.wrapOutboundOut(self.encoder.flush()), promise: nil)
@@ -433,6 +438,8 @@ final class TDSChannelHandler: ChannelDuplexHandler {
             promise.fail(error)
         case .closeConnection(let promise):
             context.close(mode: .all, promise: promise)
+        case .fireChannelInactive:
+            context.fireChannelInactive()
         case .closeConnectionAndCleanup(let cleanup):
             for task in cleanup.tasks {
                 task.fail(cleanup.error)

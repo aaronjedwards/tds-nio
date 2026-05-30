@@ -1,0 +1,88 @@
+name: CI
+
+on:
+  push:
+    branches: [ "main" ]
+  pull_request:
+    branches: [ "main" ]
+  schedule:
+    - cron: "0 15 * * 1"
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  linux-all:
+    strategy:
+      fail-fast: false
+      matrix:
+        swift-image:
+          - swift:6.1-noble
+          - swift:6.2-noble
+          - swift:6.3-noble
+          - swiftlang/swift:nightly-main-noble
+        sqlserver-image:
+          - mcr.microsoft.com/mssql/server:2022-latest
+        include:
+          - swift-image: swiftlang/swift:nightly-main-noble
+            experimental: true
+    continue-on-error: ${{ matrix.experimental == true }}
+    container: ${{ matrix.swift-image }}
+    runs-on: ubuntu-latest
+    services:
+      sqlserver:
+        image: ${{ matrix.sqlserver-image }}
+        env:
+          ACCEPT_EULA: "Y"
+          MSSQL_PID: Developer
+          MSSQL_SA_PASSWORD: TDSNio_Strong_Password_123
+        ports:
+          - 1433:1433
+        options: >-
+          --health-cmd "/opt/mssql-tools18/bin/sqlcmd -C -S localhost -U sa -P TDSNio_Strong_Password_123 -Q 'SELECT 1' || /opt/mssql-tools/bin/sqlcmd -S localhost -U sa -P TDSNio_Strong_Password_123 -Q 'SELECT 1'"
+          --health-interval 10s
+          --health-timeout 5s
+          --health-retries 30
+          --health-start-period 20s
+
+    steps:
+      - name: Display OS and Swift versions
+        shell: bash
+        run: |
+          [[ -z "${SWIFT_PLATFORM}" ]] && SWIFT_PLATFORM="$(. /etc/os-release && echo "${ID}${VERSION_ID}")"
+          [[ -z "${SWIFT_VERSION}" ]] && SWIFT_VERSION="$(cat /.swift_tag 2>/dev/null || true)"
+          printf 'OS:  %s\nTag: %s\nVersion:\n' "${SWIFT_PLATFORM}-${RUNNER_ARCH}" "${SWIFT_VERSION}"
+          swift --version
+      - uses: actions/checkout@v5
+      - name: Set DEBUG specific environment variables
+        if: runner.debug == '1'
+        run: |
+          echo "LOG_LEVEL=trace" >> "$GITHUB_ENV"
+      - name: Install zstd
+        run: |
+          apt-get update -y
+          apt-get install -y zstd
+      - name: Restore .build
+        id: "restore-build"
+        uses: actions/cache/restore@v4
+        with:
+          path: .build
+          key: "${{ matrix.swift-image }}-swiftpm-tests-build-${{ runner.os }}-${{ github.event.pull_request.base.sha || github.event.after }}"
+          restore-keys: "${{ matrix.swift-image }}-swiftpm-tests-build-${{ runner.os }}-"
+      - name: Build
+        run: swift build --build-tests --traits _IOTracing,DistributedTracingSupport
+      - name: Cache .build
+        uses: actions/cache/save@v4
+        with:
+          path: .build
+          key: "${{ matrix.swift-image }}-swiftpm-tests-build-${{ runner.os }}-${{ github.event.pull_request.base.sha || github.event.after }}"
+      - name: Run tests
+        run: swift test --skip-build --traits _IOTracing,DistributedTracingSupport
+        env:
+          TDS_INTEGRATION_TESTS: "1"
+          TDS_HOSTNAME: sqlserver
+          TDS_PORT: 1433
+          TDS_USERNAME: sa
+          TDS_PASSWORD: TDSNio_Strong_Password_123
+          TDS_TLS: disable
