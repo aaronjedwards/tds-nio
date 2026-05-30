@@ -476,6 +476,28 @@ final class TDSTests: XCTestCase {
         XCTAssertEqual(rpc.parameters[1].value, .string("@p0 bigint, @p1 nvarchar(max)"))
     }
 
+    func testSQLBatchPacketEncodesAllHeadersAndUnicodeText() throws {
+        var encoder = TDSFrontendMessageEncoder(
+            buffer: ByteBufferAllocator().buffer(capacity: 128)
+        )
+
+        encoder.sqlBatch("SELECT 1")
+
+        var packet = encoder.flush()
+        XCTAssertEqual(packet.readInteger(as: UInt8.self), TDSPacket.MessageType.sqlBatch.rawValue)
+        XCTAssertEqual(packet.readInteger(as: UInt8.self), TDSPacket.StatusFlag.eom.rawValue)
+        XCTAssertEqual(packet.readInteger(endianness: .big, as: UInt16.self), UInt16(packet.writerIndex))
+        packet.moveReaderIndex(forwardBy: 4)
+
+        XCTAssertEqual(packet.readInteger(endianness: .little, as: UInt32.self), 22)
+        XCTAssertEqual(packet.readInteger(endianness: .little, as: UInt32.self), 18)
+        XCTAssertEqual(packet.readInteger(endianness: .little, as: UInt16.self), 0x02)
+        XCTAssertEqual(packet.readInteger(endianness: .little, as: UInt64.self), 0)
+        XCTAssertEqual(packet.readInteger(endianness: .little, as: UInt32.self), 1)
+        XCTAssertEqual(packet.readUTF16(characterCount: 8), "SELECT 1")
+        XCTAssertEqual(packet.readableBytes, 0)
+    }
+
     func testQueryDescriptionMatchesOracleStyleAPI() throws {
         let query: TDSQuery = "SELECT * FROM dbo.items WHERE id = \(42)"
 
@@ -2427,7 +2449,7 @@ final class TDSTests: XCTestCase {
 
         var second = try XCTUnwrap(channel.readOutbound(as: ByteBuffer.self))
         XCTAssertEqual(second.readInteger(as: UInt8.self), TDSPacket.MessageType.sqlBatch.rawValue)
-        XCTAssertEqual(second.readInteger(as: UInt8.self), TDSPacket.StatusFlag.resetConnection.rawValue)
+        XCTAssertEqual(second.readInteger(as: UInt8.self), 0)
         XCTAssertEqual(second.readInteger(endianness: .big, as: UInt16.self), UInt16(TDSPacket.maximumPacketLength))
         second.moveReaderIndex(forwardBy: 2)
         XCTAssertEqual(second.readInteger(as: UInt8.self), 1)
@@ -2436,10 +2458,7 @@ final class TDSTests: XCTestCase {
 
         var third = try XCTUnwrap(channel.readOutbound(as: ByteBuffer.self))
         XCTAssertEqual(third.readInteger(as: UInt8.self), TDSPacket.MessageType.sqlBatch.rawValue)
-        XCTAssertEqual(
-            third.readInteger(as: UInt8.self),
-            TDSPacket.StatusFlag.eom.rawValue | TDSPacket.StatusFlag.resetConnection.rawValue
-        )
+        XCTAssertEqual(third.readInteger(as: UInt8.self), TDSPacket.StatusFlag.eom.rawValue)
         XCTAssertEqual(
             third.readInteger(endianness: .big, as: UInt16.self),
             UInt16(TDSPacket.headerLength + 17)

@@ -40,9 +40,12 @@ final class TDSFrontendMessagePostProcessor: ChannelOutboundHandler {
             let originalStatusByte =
                 buffer
                 .getInteger(at: MemoryLayout<UInt8>.size, as: UInt8.self)!
+            let resetStatusMask = TDSPacket.StatusFlag.resetConnection.rawValue
+                | TDSPacket.StatusFlag.resetConnectionSkipTran.rawValue
 
             // Any value originally entered for the packet id is ignored and reset to 0
             var packetId = 0
+            var first = true
 
             // ignore the header, because we need to create a new one for each
             // slice with the size of the slice.
@@ -53,6 +56,9 @@ final class TDSFrontendMessagePostProcessor: ChannelOutboundHandler {
                 var slice: ByteBuffer
                 let final: Bool
                 var statusByte = originalStatusByte & ~TDSPacket.StatusFlag.eom.rawValue
+                if !first {
+                    statusByte &= ~resetStatusMask
+                }
                 if buffer.readableBytes > maxContentSize {
                     slice = buffer.readSlice(length: maxContentSize)!
                     final = false
@@ -60,7 +66,11 @@ final class TDSFrontendMessagePostProcessor: ChannelOutboundHandler {
                     slice = buffer.readSlice(length: buffer.readableBytes)!
                     final = true
                     statusByte = originalStatusByte | TDSPacket.StatusFlag.eom.rawValue
+                    if !first {
+                        statusByte &= ~resetStatusMask
+                    }
                 }
+                first = false
                 temporaryBuffer.writeBuffer(&slice)
                 temporaryBuffer.prepareSend(
                     packetTypeByte: packetTypeByte,

@@ -1,4 +1,4 @@
-/// A transaction manager request packet as defined by MS-TDS section 2.2.6.9.
+/// A transaction manager request packet as defined by MS-TDS section 2.2.6.8.
 public struct TDSTransactionManagerRequest: Sendable, Hashable {
     public enum IsolationLevel: UInt8, Sendable, Hashable {
         case current = 0x00
