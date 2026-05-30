@@ -1,0 +1,47 @@
+name: SQL Server 2022 Database
+
+on:
+  push:
+    branches: ["main"]
+  pull_request:
+    branches: ["main"]
+
+jobs:
+  test:
+    container:
+      image: swift:5.9-jammy
+    services:
+      sqlserver:
+        image: mcr.microsoft.com/mssql/server:2022-latest
+        env:
+          ACCEPT_EULA: "Y"
+          MSSQL_PID: Developer
+          MSSQL_SA_PASSWORD: TDSNio_Strong_Password_123
+        ports:
+          - 1433:1433
+        options: >-
+          --health-cmd "/opt/mssql-tools18/bin/sqlcmd -C -S localhost -U sa -P TDSNio_Strong_Password_123 -Q 'SELECT 1' || /opt/mssql-tools/bin/sqlcmd -S localhost -U sa -P TDSNio_Strong_Password_123 -Q 'SELECT 1'"
+          --health-interval 10s
+          --health-timeout 5s
+          --health-retries 30
+          --health-start-period 20s
+
+    runs-on: ubuntu-latest
+
+    steps:
+    - uses: actions/checkout@v4
+    - name: Set DEBUG specific environment variables
+      if: runner.debug == '1'
+      run: |
+        echo "LOG_LEVEL=trace" >> "$GITHUB_ENV"
+    - name: Build
+      run: swift build
+    - name: Run tests
+      run: swift test
+      env:
+        TDS_INTEGRATION_TESTS: "1"
+        TDS_HOSTNAME: sqlserver
+        TDS_PORT: 1433
+        TDS_USERNAME: sa
+        TDS_PASSWORD: TDSNio_Strong_Password_123
+        TDS_TLS: disable

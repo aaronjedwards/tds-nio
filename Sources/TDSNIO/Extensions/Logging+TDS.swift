@@ -1,0 +1,195 @@
+import Logging
+
+@usableFromInline
+enum TDSSQLConnection {}
+
+extension TDSSQLConnection {
+    @usableFromInline
+    enum LoggerMetadataKey: String {
+        case connectionID = "tdssql_connection_id"
+        case sessionID = "tdssql_session_id"
+        case connectionAction = "tdssql_connection_action"
+        case error = "tdssql_error"
+        case warning = "tdssql_warning"
+        case message = "tdssql_message"
+        case userEvent = "tdssql_user_event"
+    }
+}
+
+@usableFromInline
+struct TDSSQLLoggingMetadata: ExpressibleByDictionaryLiteral {
+    @usableFromInline
+    typealias Key = TDSSQLConnection.LoggerMetadataKey
+    @usableFromInline
+    typealias Value = Logger.MetadataValue
+
+    @usableFromInline
+    var _baseRepresentation: Logger.Metadata
+
+    @usableFromInline
+    init(
+        dictionaryLiteral elements:
+            (TDSSQLConnection.LoggerMetadataKey, Logger.MetadataValue)...
+    ) {
+        let values = elements.lazy.map { (key, value) -> (String, Self.Value) in
+            (key.rawValue, value)
+        }
+
+        self._baseRepresentation = Logger.Metadata(uniqueKeysWithValues: values)
+    }
+
+    @usableFromInline
+    subscript(
+        tdsLoggingKey loggingKey: TDSSQLConnection.LoggerMetadataKey
+    ) -> Logger.Metadata.Value? {
+        get {
+            return self._baseRepresentation[loggingKey.rawValue]
+        }
+        set {
+            self._baseRepresentation[loggingKey.rawValue] = newValue
+        }
+    }
+
+    @inlinable
+    var representation: Logger.Metadata {
+        self._baseRepresentation
+    }
+}
+
+extension Logger {
+
+    @usableFromInline
+    subscript(
+        tdsMetadataKey metadataKey: TDSSQLConnection.LoggerMetadataKey
+    ) -> Logger.Metadata.Value? {
+        get {
+            return self[metadataKey: metadataKey.rawValue]
+        }
+        set {
+            self[metadataKey: metadataKey.rawValue] = newValue
+        }
+    }
+
+}
+
+extension Logger {
+
+    /// See `Logger.trace(_:metadata:source:file:function:line:)`
+    @usableFromInline
+    func trace(
+        _ message: @autoclosure () -> Logger.Message,
+        metadata: @autoclosure () -> TDSSQLLoggingMetadata,
+        source: @autoclosure () -> String? = nil,
+        file: String = #fileID,
+        function: String = #function,
+        line: UInt = #line
+    ) {
+        self.log(
+            level: .trace,
+            message(), metadata: metadata().representation,
+            source: source(), file: file, function: function, line: line
+        )
+    }
+
+    /// See `Logger.debug(_:metadata:source:file:function:line:)`
+    @usableFromInline
+    func debug(
+        _ message: @autoclosure () -> Logger.Message,
+        metadata: @autoclosure () -> TDSSQLLoggingMetadata,
+        source: @autoclosure () -> String? = nil,
+        file: String = #fileID,
+        function: String = #function,
+        line: UInt = #line
+    ) {
+        self.log(
+            level: .debug,
+            message(), metadata: metadata().representation,
+            source: source(), file: file, function: function, line: line
+        )
+    }
+
+    /// See `Logger.info(_:metadata:source:file:function:line:)`
+    @usableFromInline
+    func info(
+        _ message: @autoclosure () -> Logger.Message,
+        metadata: @autoclosure () -> TDSSQLLoggingMetadata,
+        source: @autoclosure () -> String? = nil,
+        file: String = #fileID,
+        function: String = #function,
+        line: UInt = #line
+    ) {
+        self.log(
+            level: .info,
+            message(), metadata: metadata().representation,
+            source: source(), file: file, function: function, line: line
+        )
+    }
+
+    /// See `Logger.notice(_:metadata:source:file:function:line:)`
+    @usableFromInline
+    func notice(
+        _ message: @autoclosure () -> Logger.Message,
+        metadata: @autoclosure () -> TDSSQLLoggingMetadata,
+        source: @autoclosure () -> String? = nil,
+        file: String = #fileID,
+        function: String = #function,
+        line: UInt = #line
+    ) {
+        self.log(
+            level: .notice,
+            message(), metadata: metadata().representation,
+            source: source(), file: file, function: function, line: line
+        )
+    }
+
+    /// See `Logger.warning(_:metadata:source:file:function:line:)`
+    @usableFromInline
+    func warning(
+        _ message: @autoclosure () -> Logger.Message,
+        metadata: @autoclosure () -> TDSSQLLoggingMetadata,
+        source: @autoclosure () -> String? = nil,
+        file: String = #fileID,
+        function: String = #function,
+        line: UInt = #line
+    ) {
+        self.log(
+            level: .warning,
+            message(), metadata: metadata().representation,
+            source: source(), file: file, function: function, line: line
+        )
+    }
+
+    /// See `Logger.error(_:metadata:source:file:function:line:)`
+    @usableFromInline
+    func error(
+        _ message: @autoclosure () -> Logger.Message,
+        metadata: @autoclosure () -> TDSSQLLoggingMetadata,
+        source: @autoclosure () -> String? = nil,
+        file: String = #fileID,
+        function: String = #function,
+        line: UInt = #line
+    ) {
+        self.log(
+            level: .error,
+            message(), metadata: metadata().representation,
+            source: source(), file: file, function: function, line: line
+        )
+    }
+
+    /// See `Logger.critical(_:metadata:source:file:function:line:)`
+    @usableFromInline
+    func critical(
+        _ message: @autoclosure () -> Logger.Message,
+        metadata: @autoclosure () -> TDSSQLLoggingMetadata,
+        source: @autoclosure () -> String? = nil,
+        file: String = #fileID,
+        function: String = #function,
+        line: UInt = #line
+    ) {
+        self.log(
+            level: .critical,
+            message(), metadata: metadata().representation,
+            source: source(), file: file, function: function, line: line
+        )
+    }
+}

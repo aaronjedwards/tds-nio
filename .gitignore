@@ -2,8 +2,9 @@
 /.build
 /Packages
 /*.xcodeproj
-DerivedData
 xcuserdata/
-/.swiftpm
-Package.Resolved
-Tests/LinuxMain.swift
+DerivedData/
+.swiftpm/config/registries.json
+.swiftpm/xcode/
+.netrc
+.vscode/

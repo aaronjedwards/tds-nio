@@ -1,0 +1,22 @@
+# SQL Server fixture for TDSNIO integration tests.
+
+services:
+  sqlserver:
+    image: mcr.microsoft.com/mssql/server:2022-latest
+    platform: linux/amd64
+    environment:
+      ACCEPT_EULA: "Y"
+      MSSQL_PID: Developer
+      MSSQL_SA_PASSWORD: TDSNio_Strong_Password_123
+    ports:
+      - "${TDS_DOCKER_PORT:-11433}:1433"
+    healthcheck:
+      test:
+        [
+          "CMD-SHELL",
+          "/opt/mssql-tools18/bin/sqlcmd -C -S localhost -U sa -P \"$${MSSQL_SA_PASSWORD}\" -Q \"SELECT 1\" || /opt/mssql-tools/bin/sqlcmd -S localhost -U sa -P \"$${MSSQL_SA_PASSWORD}\" -Q \"SELECT 1\""
+        ]
+      interval: 10s
+      timeout: 5s
+      retries: 30
+      start_period: 20s
