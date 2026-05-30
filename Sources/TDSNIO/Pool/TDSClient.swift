@@ -112,7 +112,7 @@ public final class TDSClient: Sendable, Service {
         }
         precondition(!alreadyRunning, "TDSClient.run() should only be called once.")
 
-        await cancelWhenGracefulShutdown {
+        await cancelOnGracefulShutdown {
             await self.pool.run()
         }
     }
