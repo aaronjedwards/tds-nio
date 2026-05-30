@@ -1,5 +1,21 @@
+//===----------------------------------------------------------------------===//
+//
+// This source file is part of the TDSNIO open source project
+//
+// Copyright (c) 2026 TDSNIO project authors
+// Licensed under Apache License v2.0
+//
+// See LICENSE for license information
+// See CONTRIBUTORS.md for the list of TDSNIO project authors
+//
+// SPDX-License-Identifier: Apache-2.0
+//
+//===----------------------------------------------------------------------===//
+
 public enum TDSProtocolVersion: CustomStringConvertible, Sendable {
+    // swift-format-ignore: AlwaysUseLowerCamelCase
     case v7_4
+    // swift-format-ignore: AlwaysUseLowerCamelCase
     case v8_0
 
     public var description: String {

@@ -1,12 +1,25 @@
-import NIOCore
-import NIOPosix
-import NIOSSL
+//===----------------------------------------------------------------------===//
+//
+// This source file is part of the TDSNIO open source project
+//
+// Copyright (c) 2026 TDSNIO project authors
+// Licensed under Apache License v2.0
+//
+// See LICENSE for license information
+// See CONTRIBUTORS.md for the list of TDSNIO project authors
+//
+// SPDX-License-Identifier: Apache-2.0
+//
+//===----------------------------------------------------------------------===//
 
-import struct Foundation.CharacterSet
-import struct Foundation.Data
-import class Foundation.ProcessInfo
-import struct Foundation.TimeZone
-import struct Foundation.URL
+public import Foundation
+public import NIOCore
+import NIOPosix
+public import NIOSSL
+
+#if DistributedTracingSupport
+    public import Tracing
+#endif
 
 public enum TDSConnectionStringError: Error, Sendable, Equatable {
     case missingServer
@@ -42,19 +55,17 @@ extension TDSConnection {
             }
 
             // MARK: Accessors
-            
+
             /// Whether TLS will be attempted on the connection (`false` only when mode is ``disable``).
             public var isSupported: Bool {
-                if case .disable = self.base { return false }
-                else { return true }
+                if case .disable = self.base { return false } else { return true }
             }
-            
+
             /// Whether TLS will be required on the connection (`true` only when mode is ``require(_:)``).
             public var isRequired: Bool {
-                if case .require(_) = self.base { return true }
-                else { return false }
+                if case .require(_) = self.base { return true } else { return false }
             }
-            
+
             /// The `NIOSSLContext` that will be used. `nil` when TLS is disabled.
             public var sslContext: NIOSSLContext? {
                 switch self.base {
@@ -108,7 +119,7 @@ extension TDSConnection {
             ///
             /// > When set to `nil`:
             /// If the connection is made to a server over TCP using
-            /// ``TDSConnection/Configuration/init(host:port:service:username:password:tls:)``,
+            /// ``TDSConnection/Configuration/init(host:port:username:password:database:language:tls:packetSize:applicationName:clientHostName:clientID:protocolVersion:applicationIntent:authentication:)``,
             /// the given `host` is used, unless it was an IP address string. If it _was_ an IP, or the
             /// connection is made by any other method, SNI is disabled.
             public var tlsServerName: String?
@@ -201,6 +212,13 @@ extension TDSConnection {
         /// Authentication mode requested during LOGIN7 negotiation.
         public var authentication: Authentication
 
+        #if DistributedTracingSupport
+            /// The distributed tracing configuration to use for this connection.
+            ///
+            /// Defaults to using the globally bootstrapped tracer with OpenTelemetry semantic conventions.
+            public var tracing: TDSTracingConfiguration = .init()
+        #endif
+
         public var tls: TLS
         public var serverNameForTLS: String? {
             // If a name was explicitly configured always use it.
@@ -261,16 +279,19 @@ extension TDSConnection {
         public init(connectionString: String) throws {
             let values = Self.parseConnectionString(connectionString)
 
-            guard let server = values.firstValue(for: [
-                "server", "data source", "addr", "address", "network address",
-            ]), !server.isEmpty else {
+            guard
+                let server = values.firstValue(for: [
+                    "server", "data source", "addr", "address", "network address",
+                ]), !server.isEmpty
+            else {
                 throw TDSConnectionStringError.missingServer
             }
             let endpoint = try Self.parseServerEndpoint(server)
 
-            let integratedSecurity = values.firstValue(for: [
-                "integrated security", "trusted_connection", "trusted connection",
-            ]).map(Self.isTruthy) ?? false
+            let integratedSecurity =
+                values.firstValue(for: [
+                    "integrated security", "trusted_connection", "trusted connection",
+                ]).map(Self.isTruthy) ?? false
 
             let username = values.firstValue(for: ["user id", "uid", "user", "username"]) ?? ""
             let password = values.firstValue(for: ["password", "pwd"]) ?? ""
@@ -432,12 +453,47 @@ extension TDSConnection {
                 return false
             }
         }
-        
+
     }
 }
 
-private extension Dictionary where Key == String, Value == String {
-    func firstValue(for keys: [String]) -> String? {
+#if DistributedTracingSupport
+    /// A configuration object that defines distributed tracing behavior of a TDS connection.
+    public struct TDSTracingConfiguration: Sendable {
+        /// The tracer to use, or `nil` to disable tracing.
+        ///
+        /// Defaults to the globally bootstrapped tracer.
+        public var tracer: (any Tracer)? = InstrumentationSystem.tracer
+
+        /// The attribute names used in spans created by TDSNIO.
+        public var attributeNames: AttributeNames = .init()
+
+        /// The static attribute values used in spans created by TDSNIO.
+        public var attributeValues: AttributeValues = .init()
+
+        /// Attribute names used in spans created by TDSNIO.
+        public struct AttributeNames: Sendable {
+            public var databaseNamespace: String = "db.namespace"
+            public var databaseResponseStatusCode: String = "db.response.status_code"
+            public var errorType: String = "error.type"
+            public var serverPort: String = "server.port"
+            public var databaseOperationName: String = "db.operation.name"
+            public var databaseQuerySummary: String = "db.query.summary"
+            public var databaseQueryText: String = "db.query.text"
+            public var databaseSystem: String = "db.system"
+            public var serverAddress: String = "server.address"
+            public var databaseResponseReturnedRows: String = "db.response.returned_rows"
+        }
+
+        /// Static attribute values used in spans created by TDSNIO.
+        public struct AttributeValues: Sendable {
+            public var databaseSystem: String = "mssql"
+        }
+    }
+#endif
+
+extension Dictionary where Key == String, Value == String {
+    fileprivate func firstValue(for keys: [String]) -> String? {
         for key in keys {
             if let value = self[key] {
                 return value

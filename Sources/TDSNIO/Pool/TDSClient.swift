@@ -1,8 +1,22 @@
-import Logging
+//===----------------------------------------------------------------------===//
+//
+// This source file is part of the TDSNIO open source project
+//
+// Copyright (c) 2026 TDSNIO project authors
+// Licensed under Apache License v2.0
+//
+// See LICENSE for license information
+// See CONTRIBUTORS.md for the list of TDSNIO project authors
+//
+// SPDX-License-Identifier: Apache-2.0
+//
+//===----------------------------------------------------------------------===//
+
+public import Logging
 import NIOConcurrencyHelpers
-import NIOCore
-import ServiceLifecycle
-import _ConnectionPoolModule
+public import NIOCore
+public import ServiceLifecycle
+public import _ConnectionPoolModule
 
 /// A TDS client backed by an underlying connection pool.
 ///
@@ -112,7 +126,7 @@ public final class TDSClient: Sendable, Service {
         }
         precondition(!alreadyRunning, "TDSClient.run() should only be called once.")
 
-        await cancelOnGracefulShutdown {
+        await cancelWhenGracefulShutdown {
             await self.pool.run()
         }
     }
@@ -159,6 +173,8 @@ extension ConnectionPoolConfiguration {
 }
 
 extension TDSConnection: PooledConnection {
+    @_documentation(visibility: internal)
+    @_disfavoredOverload
     public func onClose(_ closure: @escaping @Sendable ((Error)?) -> Void) {
         self.closeFuture.whenComplete { result in
             switch result {
@@ -170,6 +186,8 @@ extension TDSConnection: PooledConnection {
         }
     }
 
+    @_documentation(visibility: internal)
+    @_disfavoredOverload
     public func close() {
         self.channel.close(mode: .all, promise: nil)
     }
