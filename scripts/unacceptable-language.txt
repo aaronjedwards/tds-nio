@@ -1,7 +1,6 @@
 blacklist
 whitelist
 slave
-master
 sane
 sanity
 insane
