@@ -13,9 +13,8 @@ TDSNIO is a client implementation of the Tabular Data Stream (TDS) protocol,
 with APIs for connecting to, authenticating with, querying, and pooling
 connections to SQL Server.
 
-> TDSNIO is currently pre-release software. The first planned tag is
-> `0.1.0-alpha.1`; until a stable release exists, public APIs may change between
-> minor or pre-release versions.
+> TDSNIO is currently pre-release software and public APIs may change substantially
+> before a stable release.
 
 ## Features
 
@@ -43,19 +42,7 @@ The current CI suite runs integration tests against
 
 ## Language and Platform Support
 
-TDSNIO currently requires Swift 6.1 or newer. CI tests Swift 6.1, Swift 6.2,
-Swift 6.3, and a nightly toolchain, with nightly allowed to fail.
-
-The package declares support for macOS 13, iOS 16, tvOS 16, watchOS 9, and
-visionOS 1 or newer. The primary tested platforms today are Linux and macOS.
-
-The repository includes `.swift-version` set to Swift 6.2.0 so tooling and
-Swift Package Index documentation builds use the same baseline as CI.
-
-## API Docs
-
-Once Swift Package Index has indexed a tagged release, generated DocC
-documentation will be available at [TDSNIO API docs][Documentation].
+TDSNIO currently requires Swift 6.1 or newer.
 
 ## Getting Started
 
@@ -66,14 +53,6 @@ Before the first tag, depend on `main`:
 ```swift
 dependencies: [
     .package(url: "https://github.com/aaronjedwards/tds-nio.git", branch: "main"),
-]
-```
-
-After `0.1.0-alpha.1` is tagged, prefer an exact pre-release dependency:
-
-```swift
-dependencies: [
-    .package(url: "https://github.com/aaronjedwards/tds-nio.git", exact: "0.1.0-alpha.1"),
 ]
 ```
 
