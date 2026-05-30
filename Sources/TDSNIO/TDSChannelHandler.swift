@@ -24,7 +24,8 @@ final class TDSChannelHandler: ChannelDuplexHandler {
     private var encoder: TDSFrontendMessageEncoder!
     private var preloginTLSHandler: TDSPreloginTLSHandler?
     private var sslHandler: NIOSSLClientHandler?
-    private var capabilities: Capabilities
+    private var session: TDSSessionContext
+    private var rowStream: TDSRowStream?
 
     init(
         configuration: TDSConnection.Configuration,
@@ -35,7 +36,7 @@ final class TDSChannelHandler: ChannelDuplexHandler {
         })
         self.configuration = configuration
         self.logger = logger
-        self.capabilities = Capabilities(requestedProtocolVersion: configuration.protocolVersion)
+        self.session = TDSSessionContext(requestedProtocolVersion: configuration.protocolVersion)
         self.decoderContext = .init()
     }
 
@@ -128,7 +129,7 @@ final class TDSChannelHandler: ChannelDuplexHandler {
                 )
             }
         case .loginAck(let ack):
-            self.capabilities.adjustForLoginAck(ack)
+            self.session.receiveLoginAck(ack)
             action = self.state.loginAckReceived(ack)
         case .done(let done):
             self.logger.debug(
@@ -167,29 +168,28 @@ final class TDSChannelHandler: ChannelDuplexHandler {
         case .envChange(let envChange):
             if case .routing(let routing) = envChange.value {
                 context.fireUserInboundEventTriggered(TDSSQLEvent.routing(routing))
-            } else if case .bytes(let new, let old) = envChange.value,
-                Self.isTransactionDescriptorEnvChange(envChange.type)
-            {
+            }
+            switch self.session.receiveEnvChange(envChange) {
+            case .transactionDescriptorChanged(let new):
                 self.logger.debug(
                     "Transaction descriptor ENVCHANGE received",
                     metadata: [
                         "tds.envchange.type": "\(envChange.type)",
                         "tds.envchange.new_length": "\(new.count)",
-                        "tds.envchange.old_length": "\(old.count)",
                     ])
                 self.encoder.setTransactionDescriptor(new)
-            } else if envChange.type == 4,
-                case .string(let new, _) = envChange.value,
-                let packetSize = Int(new)
-            {
-                context.triggerUserOutboundEvent(TDSSQLEvent.packetSizeChanged(packetSize), promise: nil)
+            case .packetSizeChanged(let packetSize):
+                context.triggerUserOutboundEvent(
+                    TDSSQLEvent.packetSizeChanged(packetSize), promise: nil)
+            case .none:
+                break
             }
             let message = TDSEnvChangeMessage(envChange)
             self.configuration.options.envChangeHandler?(message)
             context.fireUserInboundEventTriggered(message)
             action = .wait
         case .featureExtAck(let featureExtAck):
-            self.capabilities.adjustForFeatureExtAck(featureExtAck)
+            self.session.receiveFeatureExtAck(featureExtAck)
             action = .wait
         case .colMetadata(let metadata):
             self.logger.debug(
@@ -219,13 +219,9 @@ final class TDSChannelHandler: ChannelDuplexHandler {
             context.fireUserInboundEventTriggered(message)
             action = .wait
         case .sspi(let bytes):
-            context.fireUserInboundEventTriggered(TDSAuthenticationChallenge.sspi(bytes))
-            action = .wait
+            action = self.state.sspiReceived(bytes)
         case .fedAuthInfo(let fedAuthInfo):
-            context.fireUserInboundEventTriggered(
-                TDSAuthenticationChallenge.federatedInfo(.init(fedAuthInfo))
-            )
-            action = .wait
+            action = self.state.fedAuthInfoReceived(fedAuthInfo)
         case .row(let row):
             self.logger.trace(
                 "ROW token received",
@@ -239,15 +235,6 @@ final class TDSChannelHandler: ChannelDuplexHandler {
             action = .wait
         }
         self.run(action, with: context)
-    }
-
-    private static func isTransactionDescriptorEnvChange(_ type: UInt8) -> Bool {
-        switch type {
-        case 8, 9, 10, 11, 12, 17:
-            return true
-        default:
-            return false
-        }
     }
 
     func channelReadComplete(context: ChannelHandlerContext) {
@@ -302,9 +289,10 @@ final class TDSChannelHandler: ChannelDuplexHandler {
             context.writeAndFlush(self.wrapOutboundOut(self.encoder.flush()), promise: promise)
         case TDSAuthenticationToken.federated(let token, let nonce):
             guard nonce == nil || nonce?.count == 32 else {
-                promise?.fail(TDSSQLError.connectionError(
-                    underlying: InvalidFederatedAuthenticationNonceLength()
-                ))
+                promise?.fail(
+                    TDSSQLError.connectionError(
+                        underlying: InvalidFederatedAuthenticationNonceLength()
+                    ))
                 return
             }
             self.encoder.federatedAuthenticationToken(token: token, nonce: nonce)
@@ -340,6 +328,8 @@ final class TDSChannelHandler: ChannelDuplexHandler {
             self.startTLS(context: context)
         case .sendLoginRequest:
             self.sendLoginRequest(context: context)
+        case .fireAuthenticationChallenge(let challenge):
+            context.fireUserInboundEventTriggered(challenge)
         case .authenticated(let loginAck, let removeTLS):
             if removeTLS {
                 self.removeLoginOnlyTLS(context: context)
@@ -387,7 +377,54 @@ final class TDSChannelHandler: ChannelDuplexHandler {
             promise.fail(error)
         case .completeFailedQuery:
             self.startNextTaskOrFireReady(context: context)
-        case .completeRowStreamQuery:
+        case .succeedRowStream(let promise, let columns):
+            let stream = TDSRowStream(
+                columns: columns,
+                eventLoop: promise.futureResult.eventLoop,
+                dataSource: self,
+                debugLog: { [logger] message in
+                    logger.debug("TDS row stream", metadata: ["tds.debug": "\(message)"])
+                }
+            )
+            self.rowStream = stream
+            promise.succeed(stream)
+        case .forwardRows(let rows):
+            self.rowStream?.receive(rows)
+        case .forwardRowsAndComplete(let rows):
+            self.rowStream?.receive(rows)
+            self.rowStream?.receive(completion: .success(()))
+            self.rowStream = nil
+        case .forwardRowsAndCompleteQuery(let rows, let emptyStreamPromise):
+            if let emptyStreamPromise {
+                emptyStreamPromise.succeed(
+                    TDSRowStream(rows: rows, eventLoop: emptyStreamPromise.futureResult.eventLoop))
+            } else {
+                self.rowStream?.receive(rows)
+                self.rowStream?.receive(completion: .success(()))
+                self.rowStream = nil
+            }
+            self.startNextTaskOrFireReady(context: context)
+        case .forwardRow(let row):
+            self.rowStream?.receive(row)
+        case .finishActiveRowStream:
+            self.rowStream?.receive(completion: .success(()))
+            self.rowStream = nil
+        case .failActiveRowStream(let error):
+            self.rowStream?.receive(completion: .failure(error))
+            self.rowStream = nil
+        case .cancelActiveRowStream(let promise):
+            self.rowStream?.receive(completion: .failure(TDSSQLError.requestCancelled()))
+            self.rowStream = nil
+            promise?.succeed(())
+            self.startNextTaskOrFireReady(context: context)
+        case .completeRowStreamQuery(let emptyStreamPromise):
+            if let emptyStreamPromise {
+                emptyStreamPromise.succeed(
+                    TDSRowStream(rows: [], eventLoop: emptyStreamPromise.futureResult.eventLoop))
+            } else {
+                self.rowStream?.receive(completion: .success(()))
+                self.rowStream = nil
+            }
             self.startNextTaskOrFireReady(context: context)
         case .succeedCancel(let promise):
             promise.succeed(())
@@ -399,6 +436,10 @@ final class TDSChannelHandler: ChannelDuplexHandler {
         case .closeConnectionAndCleanup(let cleanup):
             for task in cleanup.tasks {
                 task.fail(cleanup.error)
+            }
+            if let rowStreamError = cleanup.rowStreamError {
+                self.rowStream?.receive(completion: .failure(rowStreamError))
+                self.rowStream = nil
             }
             context.fireErrorCaught(cleanup.error)
             if cleanup.read {
@@ -491,6 +532,23 @@ final class TDSChannelHandler: ChannelDuplexHandler {
 private struct MissingTLSContextError: Error {}
 
 private struct InvalidFederatedAuthenticationNonceLength: Error {}
+
+extension TDSChannelHandler: TDSRowsDataSource {
+    func request(for stream: TDSRowStream) {
+        guard self.rowStream === stream, let handlerContext else {
+            return
+        }
+        self.run(self.state.requestQueryRows(), with: handlerContext)
+    }
+
+    func cancel(for stream: TDSRowStream) {
+        guard self.rowStream === stream, let handlerContext else {
+            return
+        }
+        self.rowStream = nil
+        self.run(self.state.cancelQueryStream(), with: handlerContext)
+    }
+}
 
 private struct PreloginEncryptionNegotiationError: Error, CustomStringConvertible {
     var client: TDSFrontendMessageEncoder.PreloginEncryption

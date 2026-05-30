@@ -65,21 +65,10 @@ extension TDSConnection {
     ) -> EventLoopFuture<TDSRowStream> {
         let promise = self.eventLoop.makePromise(of: TDSRowStream.self)
         self.prepareForNextRequestIfNeeded()
-        let onCancel: @Sendable () -> Void = { [weak self] in
-            guard let self else { return }
-            self.eventLoop.execute {
-                guard !self.isClosed else { return }
-                self.logger.debug(
-                    "Row stream consumer requested cancellation; enqueueing TDS attention packet.",
-                    metadata: ["tds.query": "\(query.sql)"])
-                let promise = self.eventLoop.makePromise(of: Void.self)
-                self.channel.writeAndFlush(TDSTask.attention(promise), promise: nil)
-            }
-        }
         if query.binds.isEmpty {
-            self.channel.writeAndFlush(TDSTask.sqlBatchRows(query.sql, promise, query, onCancel: onCancel), promise: nil)
+            self.channel.writeAndFlush(TDSTask.sqlBatchRows(query.sql, promise, query), promise: nil)
         } else {
-            self.channel.writeAndFlush(TDSTask.rpcRows(query.rpcForExecution(), promise, query, onCancel: onCancel), promise: nil)
+            self.channel.writeAndFlush(TDSTask.rpcRows(query.rpcForExecution(), promise, query), promise: nil)
         }
         return promise.futureResult
     }

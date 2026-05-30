@@ -1,10 +1,15 @@
+import NIOCore
+
 /// An async sequence of ``TDSRow`` values.
 public struct TDSRowSequence: AsyncSequence, Sendable {
     public typealias Element = TDSRow
+    typealias BackingSequence = NIOThrowingAsyncSequenceProducer<
+        TDSRow, Error, TDSAdaptiveRowBuffer, TDSRowStream
+    >
 
     private enum Storage {
         case rows([TDSRow])
-        case stream(AsyncThrowingStream<TDSRow, Error>)
+        case stream(BackingSequence)
     }
 
     private let storage: Storage
@@ -13,7 +18,7 @@ public struct TDSRowSequence: AsyncSequence, Sendable {
         self.storage = .rows(rows)
     }
 
-    init(_ stream: AsyncThrowingStream<TDSRow, Error>) {
+    init(_ stream: BackingSequence) {
         self.storage = .stream(stream)
     }
 
@@ -33,7 +38,7 @@ extension TDSRowSequence {
 
         fileprivate enum Storage {
             case rows([TDSRow], Array<TDSRow>.Index)
-            case stream(AsyncThrowingStream<TDSRow, Error>.Iterator)
+            case stream(BackingSequence.AsyncIterator)
         }
 
         private var storage: Storage
@@ -51,12 +56,51 @@ extension TDSRowSequence {
 
                 self.storage = .rows(rows, rows.index(after: index))
                 return rows[index]
-            case .stream(var iterator):
+            case .stream(let iterator):
                 let row = try await iterator.next()
                 self.storage = .stream(iterator)
                 return row
             }
         }
+    }
+}
+
+struct TDSAdaptiveRowBuffer: NIOAsyncSequenceProducerBackPressureStrategy {
+    static let defaultMinimum = 1
+    static let defaultTarget = 256
+    static let defaultMaximum = 16_384
+
+    let minimum: Int
+    let maximum: Int
+
+    private var target: Int
+    private var mayShrink = false
+
+    init(
+        minimum: Int = Self.defaultMinimum,
+        maximum: Int = Self.defaultMaximum,
+        target: Int = Self.defaultTarget
+    ) {
+        precondition(minimum <= target && target <= maximum)
+        self.minimum = minimum
+        self.maximum = maximum
+        self.target = target
+    }
+
+    mutating func didYield(bufferDepth: Int) -> Bool {
+        if bufferDepth > self.target, self.mayShrink, self.target > self.minimum {
+            self.target &>>= 1
+        }
+        self.mayShrink = true
+        return false
+    }
+
+    mutating func didConsume(bufferDepth: Int) -> Bool {
+        if bufferDepth == 0, self.target < self.maximum {
+            self.target *= 2
+            self.mayShrink = false
+        }
+        return bufferDepth < self.target
     }
 }
 

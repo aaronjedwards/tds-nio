@@ -10,14 +10,12 @@ enum TDSTask {
     case sqlBatchRows(
         String,
         EventLoopPromise<TDSRowStream>,
-        TDSQuery? = nil,
-        onCancel: (@Sendable () -> Void)? = nil
+        TDSQuery? = nil
     )
     case rpcRows(
         TDSRPC,
         EventLoopPromise<TDSRowStream>,
-        TDSQuery? = nil,
-        onCancel: (@Sendable () -> Void)? = nil
+        TDSQuery? = nil
     )
     case ping(EventLoopPromise<Void>)
     case attention(EventLoopPromise<Void>)
@@ -29,7 +27,7 @@ enum TDSTask {
         case .sqlBatch(_, let promise, _), .rpc(_, let promise, _),
             .transactionManager(_, let promise), .bulkLoad(_, let promise):
             promise.fail(error)
-        case .sqlBatchRows(_, let promise, _, _), .rpcRows(_, let promise, _, _):
+        case .sqlBatchRows(_, let promise, _), .rpcRows(_, let promise, _):
             promise.fail(error)
         case .ping(let promise), .attention(let promise):
             promise.fail(error)
@@ -38,9 +36,9 @@ enum TDSTask {
 
     var query: TDSQuery? {
         switch self {
-        case .sqlBatch(let sql, _, let query), .sqlBatchRows(let sql, _, let query, _):
+        case .sqlBatch(let sql, _, let query), .sqlBatchRows(let sql, _, let query):
             return query ?? TDSQuery(unsafeSQL: sql)
-        case .rpc(_, _, let query), .rpcRows(_, _, let query, _):
+        case .rpc(_, _, let query), .rpcRows(_, _, let query):
             return query
         case .transactionManager, .bulkLoad, .ping:
             return nil
