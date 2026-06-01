@@ -5,12 +5,12 @@ import NIOCore
 import NIOEmbedded
 import NIOSSL
 import NIOTestUtils
-import XCTest
+import Testing
 
 @testable import TDSNIO
 
 extension TDSTests {
-    func testRowStreamConsumptionModes() throws {
+    @Test func rowStreamConsumptionModes() throws {
         let channel = EmbeddedChannel()
         let columns = [
             TDSColumn(name: "id", dataType: .intN),
@@ -22,7 +22,7 @@ extension TDSTests {
         ]
 
         let allRows = try TDSRowStream(rows: rows, eventLoop: channel.eventLoop).all().wait()
-        XCTAssertEqual(allRows, rows)
+        expectEqual(allRows, rows)
 
         let seen = NIOLockedValueBox<[TDSData]>([])
         try TDSRowStream(rows: rows, eventLoop: channel.eventLoop).onRow { row in
@@ -32,10 +32,10 @@ extension TDSTests {
                 }
             }
         }.wait()
-        XCTAssertEqual(seen.withLockedValue { $0 }, [.string("one"), .string("two")])
+        expectEqual(seen.withLockedValue { $0 }, [.string("one"), .string("two")])
     }
 
-    func testRowStreamAsyncSequenceCollectsRows() async throws {
+    @Test func rowStreamAsyncSequenceCollectsRows() async throws {
         let channel = EmbeddedChannel()
         let columns = [
             TDSColumn(name: "id", dataType: .intN),
@@ -49,16 +49,16 @@ extension TDSTests {
         let collected = try await TDSRowStream(rows: rows, eventLoop: channel.eventLoop)
             .asyncSequence()
             .collect()
-        XCTAssertEqual(collected, rows)
+        expectEqual(collected, rows)
     }
 
-    func testChannelRowStreamPromiseFailsWhenErrorArrivesBeforeMetadata() throws {
+    @Test func channelRowStreamPromiseFailsWhenErrorArrivesBeforeMetadata() throws {
         let channel = try Self.loggedInChannel()
 
         let streamPromise = channel.eventLoop.makePromise(of: TDSRowStream.self)
         try channel.writeOutbound(TDSTask.sqlBatchRows("SELECT broken", streamPromise))
-        let sqlBatch: ByteBuffer = try XCTUnwrap(channel.readOutbound())
-        XCTAssertEqual(sqlBatch.getInteger(at: 0, as: UInt8.self), TDSPacket.MessageType.sqlBatch.rawValue)
+        let sqlBatch: ByteBuffer = try requireUnwrap(channel.readOutbound())
+        expectEqual(sqlBatch.getInteger(at: 0, as: UInt8.self), TDSPacket.MessageType.sqlBatch.rawValue)
 
         try channel.writeInbound(
             Self.packet(
@@ -66,25 +66,25 @@ extension TDSTests {
                 payload: Self.errorPayload(message: "Invalid object name")
             ))
 
-        XCTAssertThrowsError(try streamPromise.futureResult.wait()) { error in
+        expectThrowsError(try streamPromise.futureResult.wait()) { error in
             let sqlError = error as? TDSSQLError
-            XCTAssertEqual(sqlError?.code, .server)
-            XCTAssertEqual(sqlError?.serverInfo?.number, 208)
-            XCTAssertEqual(sqlError?.serverInfo?.state, 1)
-            XCTAssertEqual(sqlError?.serverInfo?.severity, 16)
-            XCTAssertEqual(sqlError?.serverInfo?.message, "Invalid object name")
-            XCTAssertEqual(sqlError?.serverInfo?.lineNumber, 1)
-            XCTAssertEqual(sqlError?.query?.sql, "SELECT broken")
+            expectEqual(sqlError?.code, .server)
+            expectEqual(sqlError?.serverInfo?.number, 208)
+            expectEqual(sqlError?.serverInfo?.state, 1)
+            expectEqual(sqlError?.serverInfo?.severity, 16)
+            expectEqual(sqlError?.serverInfo?.message, "Invalid object name")
+            expectEqual(sqlError?.serverInfo?.lineNumber, 1)
+            expectEqual(sqlError?.query?.sql, "SELECT broken")
         }
     }
 
-    func testChannelRowStreamFailsConsumerWhenErrorArrivesAfterMetadata() throws {
+    @Test func channelRowStreamFailsConsumerWhenErrorArrivesAfterMetadata() throws {
         let channel = try Self.loggedInChannel()
 
         let streamPromise = channel.eventLoop.makePromise(of: TDSRowStream.self)
         try channel.writeOutbound(TDSTask.sqlBatchRows("SELECT partially_broken", streamPromise))
-        let sqlBatch: ByteBuffer = try XCTUnwrap(channel.readOutbound())
-        XCTAssertEqual(sqlBatch.getInteger(at: 0, as: UInt8.self), TDSPacket.MessageType.sqlBatch.rawValue)
+        let sqlBatch: ByteBuffer = try requireUnwrap(channel.readOutbound())
+        expectEqual(sqlBatch.getInteger(at: 0, as: UInt8.self), TDSPacket.MessageType.sqlBatch.rawValue)
 
         try channel.writeInbound(
             Self.packet(
@@ -106,12 +106,12 @@ extension TDSTests {
                 payload: Self.errorPayload(message: "Arithmetic overflow")
             ))
 
-        XCTAssertThrowsError(try rowsFuture.wait()) { error in
+        expectThrowsError(try rowsFuture.wait()) { error in
             let sqlError = error as? TDSSQLError
-            XCTAssertEqual(sqlError?.code, .server)
-            XCTAssertEqual(sqlError?.serverInfo?.number, 208)
-            XCTAssertEqual(sqlError?.serverInfo?.message, "Arithmetic overflow")
-            XCTAssertEqual(sqlError?.query?.sql, "SELECT partially_broken")
+            expectEqual(sqlError?.code, .server)
+            expectEqual(sqlError?.serverInfo?.number, 208)
+            expectEqual(sqlError?.serverInfo?.message, "Arithmetic overflow")
+            expectEqual(sqlError?.query?.sql, "SELECT partially_broken")
         }
     }
 }

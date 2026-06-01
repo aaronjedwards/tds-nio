@@ -5,12 +5,12 @@ import NIOCore
 import NIOEmbedded
 import NIOSSL
 import NIOTestUtils
-import XCTest
+import Testing
 
 @testable import TDSNIO
 
 extension TDSTests {
-    func testLoginPacketNormalizesClientIDToSixBytes() throws {
+    @Test func loginPacketNormalizesClientIDToSixBytes() throws {
         var shortConfiguration = TDSConnection.Configuration(
             host: "sql.example.test",
             username: "sa",
@@ -18,10 +18,10 @@ extension TDSTests {
             tls: .disable,
             clientID: [0xAA, 0xBB]
         )
-        XCTAssertEqual(shortConfiguration.clientID, [0xAA, 0xBB, 0, 0, 0, 0])
+        expectEqual(shortConfiguration.clientID, [0xAA, 0xBB, 0, 0, 0, 0])
 
         shortConfiguration.clientID = [1, 2, 3, 4, 5, 6, 7, 8]
-        XCTAssertEqual(shortConfiguration.clientID, [1, 2, 3, 4, 5, 6])
+        expectEqual(shortConfiguration.clientID, [1, 2, 3, 4, 5, 6])
 
         var encoder = TDSFrontendMessageEncoder(
             buffer: ByteBufferAllocator().buffer(capacity: 512)
@@ -29,13 +29,13 @@ extension TDSTests {
         encoder.login(configuration: shortConfiguration)
         let packet = encoder.flush()
 
-        XCTAssertEqual(
+        expectEqual(
             packet.getBytes(at: TDSPacket.headerLength + 36 + 9 * 4, length: 6),
             [1, 2, 3, 4, 5, 6]
         )
     }
 
-    func testClientInitializesConnectionFactoryAndKeepAliveBehavior() throws {
+    @Test func clientInitializesConnectionFactoryAndKeepAliveBehavior() throws {
         let configuration = TDSConnection.Configuration(
             host: "pooled.sql.example.test",
             username: "sa",
@@ -51,10 +51,10 @@ extension TDSTests {
 
         let client = TDSClient(configuration: configuration, options: options)
 
-        XCTAssertEqual(client.factory.configuration.host, "pooled.sql.example.test")
-        XCTAssertEqual(client.factory.configuration.database, "master")
-        XCTAssertEqual(client.factory.configuration.packetSize, 2048)
-        XCTAssertEqual(TDSKeepAliveBehavior(options.keepAliveBehavior).keepAliveFrequency, .seconds(3))
-        XCTAssertNil(TDSKeepAliveBehavior(nil).keepAliveFrequency)
+        expectEqual(client.factory.configuration.host, "pooled.sql.example.test")
+        expectEqual(client.factory.configuration.database, "master")
+        expectEqual(client.factory.configuration.packetSize, 2048)
+        expectEqual(TDSKeepAliveBehavior(options.keepAliveBehavior).keepAliveFrequency, .seconds(3))
+        expectNil(TDSKeepAliveBehavior(nil).keepAliveFrequency)
     }
 }

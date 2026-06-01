@@ -1,29 +1,25 @@
 import NIOCore
 import NIOPosix
 import TDSNIO
-import XCTest
+import Testing
 
-final class TDSClientIntegrationTests: XCTestCase {
-    private var group: MultiThreadedEventLoopGroup!
+@Suite(
+    .disabled(if: env("TDS_INTEGRATION_TESTS") != "1", "Set TDS_INTEGRATION_TESTS=1 to run SQL Server integration tests."),
+    .disabled(if: env("SMOKE_TEST_ONLY") == "1", "Skipping integration suite while SMOKE_TEST_ONLY=1."),
+    .timeLimit(.minutes(5))
+)
+final class TDSClientIntegrationTests {
+    private let group: MultiThreadedEventLoopGroup
 
-    override func setUpWithError() throws {
-        try super.setUpWithError()
-        guard env("TDS_INTEGRATION_TESTS") == "1" else {
-            throw XCTSkip("Set TDS_INTEGRATION_TESTS=1 to run SQL Server integration tests.")
-        }
-        if env("SMOKE_TEST_ONLY") == "1" {
-            throw XCTSkip("Skipping integration suite while SMOKE_TEST_ONLY=1.")
-        }
+    init() {
         self.group = MultiThreadedEventLoopGroup(numberOfThreads: 2)
     }
 
-    override func tearDownWithError() throws {
-        try self.group?.syncShutdownGracefully()
-        self.group = nil
-        try super.tearDownWithError()
+    deinit {
+        try? self.group.syncShutdownGracefully()
     }
 
-    func testPool() async throws {
+    @Test func pool() async throws {
         var options = TDSClient.Options()
         options.maximumConnections = env("TDS_CLIENT_MAX_CONNECTIONS").flatMap(Int.init) ?? 8
         options.connectionIdleTimeout = .seconds(5)
@@ -50,10 +46,10 @@ final class TDSClientIntegrationTests: XCTestCase {
                             "SELECT CAST(1 AS int) AS user_id, CAST(N'Timo' AS nvarchar(20)) AS name, CAST(23 AS int) AS age"
                         ).rows
 
-                        XCTAssertEqual(rows.count, 1)
-                        XCTAssertEqual(try rows[0].decode(column: "user_id", as: Int.self), 1)
-                        XCTAssertEqual(try rows[0].decode(column: "name", as: String.self), "Timo")
-                        XCTAssertEqual(try rows[0].decode(column: "age", as: Int.self), 23)
+                        expectEqual(rows.count, 1)
+                        expectEqual(try rows[0].decode(column: "user_id", as: Int.self), 1)
+                        expectEqual(try rows[0].decode(column: "name", as: String.self), "Timo")
+                        expectEqual(try rows[0].decode(column: "age", as: Int.self), 23)
                     }
                 }
             }
@@ -64,7 +60,7 @@ final class TDSClientIntegrationTests: XCTestCase {
         }
     }
 
-    func testPingPong() async throws {
+    @Test func pingPong() async throws {
         var options = TDSClient.Options()
         options.maximumConnections = 2
         options.keepAliveBehavior?.frequency = .milliseconds(100)
@@ -87,7 +83,7 @@ final class TDSClientIntegrationTests: XCTestCase {
             let rows = try await connection.execute("SELECT CAST(N'hello' AS nvarchar(20)) AS value").rows
             return try rows.first?.decode(column: "value", as: String.self)
         }
-        XCTAssertEqual(value, "hello")
+        expectEqual(value, "hello")
 
         try await Task.sleep(for: .seconds(1))
 
@@ -95,6 +91,6 @@ final class TDSClientIntegrationTests: XCTestCase {
             let rows = try await connection.execute("SELECT CAST(N'next' AS nvarchar(20)) AS value").rows
             return try rows.first?.decode(column: "value", as: String.self)
         }
-        XCTAssertEqual(nextValue, "next")
+        expectEqual(nextValue, "next")
     }
 }

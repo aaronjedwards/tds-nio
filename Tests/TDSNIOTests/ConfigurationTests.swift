@@ -5,12 +5,12 @@ import NIOCore
 import NIOEmbedded
 import NIOSSL
 import NIOTestUtils
-import XCTest
+import Testing
 
 @testable import TDSNIO
 
 extension TDSTests {
-    func testConfigurationCanApplyRoutingRedirect() throws {
+    @Test func configurationCanApplyRoutingRedirect() throws {
         var configuration = TDSConnection.Configuration(
             host: "original.sql.example.test",
             port: 1433,
@@ -27,16 +27,16 @@ extension TDSTests {
                 server: "redirect.sql.example.test"
             ))
 
-        XCTAssertEqual(redirected.host, "redirect.sql.example.test")
-        XCTAssertEqual(redirected.port, 1444)
-        XCTAssertEqual(redirected.username, configuration.username)
-        XCTAssertEqual(redirected.password, configuration.password)
-        XCTAssertEqual(redirected.database, configuration.database)
-        XCTAssertEqual(redirected.options.routingRedirectLimit, 2)
-        XCTAssertEqual(redirected.serverNameForTLS, "redirect.sql.example.test")
+        expectEqual(redirected.host, "redirect.sql.example.test")
+        expectEqual(redirected.port, 1444)
+        expectEqual(redirected.username, configuration.username)
+        expectEqual(redirected.password, configuration.password)
+        expectEqual(redirected.database, configuration.database)
+        expectEqual(redirected.options.routingRedirectLimit, 2)
+        expectEqual(redirected.serverNameForTLS, "redirect.sql.example.test")
     }
 
-    func testConfigurationRoutingRedirectIgnoresInstanceName() throws {
+    @Test func configurationRoutingRedirectIgnoresInstanceName() throws {
         let configuration = TDSConnection.Configuration(
             host: "original.sql.example.test",
             port: 1433,
@@ -52,37 +52,37 @@ extension TDSTests {
                 server: #"redirect.sql.example.test\instanceNameA"#
             ))
 
-        XCTAssertEqual(redirected.host, "redirect.sql.example.test")
-        XCTAssertEqual(redirected.port, 1444)
-        XCTAssertEqual(redirected.serverNameForTLS, "redirect.sql.example.test")
+        expectEqual(redirected.host, "redirect.sql.example.test")
+        expectEqual(redirected.port, 1444)
+        expectEqual(redirected.serverNameForTLS, "redirect.sql.example.test")
     }
 
-    func testConfigurationRetriesOnlyTransientLoginErrors() throws {
+    @Test func configurationRetriesOnlyTransientLoginErrors() throws {
         let configuration = TDSConnection.Configuration(
             host: "sql.example.test",
             username: "sa",
             password: "Secret123!"
         )
 
-        XCTAssertTrue(
+        expectTrue(
             configuration.shouldRetryConnection(
                 after: TDSSQLError.server(Self.infoError(number: 40613)),
                 remainingRetries: 1
             )
         )
-        XCTAssertFalse(
+        expectFalse(
             configuration.shouldRetryConnection(
                 after: TDSSQLError.server(Self.infoError(number: 18456)),
                 remainingRetries: 1
             )
         )
-        XCTAssertFalse(
+        expectFalse(
             configuration.shouldRetryConnection(
                 after: TDSSQLError.connectionError(underlying: ChannelError.ioOnClosedChannel),
                 remainingRetries: 1
             )
         )
-        XCTAssertFalse(
+        expectFalse(
             configuration.shouldRetryConnection(
                 after: TDSSQLError.server(Self.infoError(number: 40613)),
                 remainingRetries: 0
@@ -90,10 +90,10 @@ extension TDSTests {
         )
     }
 
-    func testInitialSessionSettingsGenerateDriverDefaultSQL() throws {
+    @Test func initialSessionSettingsGenerateDriverDefaultSQL() throws {
         let sql = TDSConnection.Configuration.Options.InitialSessionSettings.driverDefaults.sqlBatch
 
-        XCTAssertEqual(
+        expectEqual(
             sql,
             """
             set ansi_nulls on
@@ -115,7 +115,7 @@ extension TDSTests {
         )
     }
 
-    func testInitialSQLOverridesInitialSessionSettings() throws {
+    @Test func initialSQLOverridesInitialSessionSettings() throws {
         var configuration = TDSConnection.Configuration(
             host: "sql.example.test",
             username: "sa",
@@ -124,10 +124,10 @@ extension TDSTests {
         configuration.options.initialSQL = "set language British"
         configuration.options.initialSessionSettings = .driverDefaults
 
-        XCTAssertEqual(configuration.options.startupInitialSQL, "set language British")
+        expectEqual(configuration.options.startupInitialSQL, "set language British")
     }
 
-    func testConfigurationParsesSQLServerConnectionString() throws {
+    @Test func configurationParsesSQLServerConnectionString() throws {
         let configuration = try TDSConnection.Configuration(
             connectionString: """
                 Server=tcp:sql.example.test,1444;\
@@ -141,20 +141,20 @@ extension TDSTests {
                 Application Intent=ReadOnly
                 """)
 
-        XCTAssertEqual(configuration.host, "sql.example.test")
-        XCTAssertEqual(configuration.port, 1444)
-        XCTAssertEqual(configuration.database, "appdb")
-        XCTAssertEqual(configuration.username, "sa")
-        XCTAssertEqual(configuration.password, "Secret;123!")
-        XCTAssertEqual(configuration.applicationName, "App")
-        XCTAssertEqual(configuration.language, "us_english")
-        XCTAssertEqual(configuration.packetSize, TDSPacket.maximumNegotiatedPacketLength)
-        XCTAssertFalse(configuration.tls.isSupported)
-        XCTAssertEqual(configuration.applicationIntent, .readOnly)
-        XCTAssertEqual(configuration.authentication, .sqlServer)
+        expectEqual(configuration.host, "sql.example.test")
+        expectEqual(configuration.port, 1444)
+        expectEqual(configuration.database, "appdb")
+        expectEqual(configuration.username, "sa")
+        expectEqual(configuration.password, "Secret;123!")
+        expectEqual(configuration.applicationName, "App")
+        expectEqual(configuration.language, "us_english")
+        expectEqual(configuration.packetSize, TDSPacket.maximumNegotiatedPacketLength)
+        expectFalse(configuration.tls.isSupported)
+        expectEqual(configuration.applicationIntent, .readOnly)
+        expectEqual(configuration.authentication, .sqlServer)
     }
 
-    func testConfigurationParsesIntegratedSecurityConnectionString() throws {
+    @Test func configurationParsesIntegratedSecurityConnectionString() throws {
         let configuration = try TDSConnection.Configuration(
             connectionString: """
                 Data Source=sql.example.test;\
@@ -162,26 +162,26 @@ extension TDSTests {
                 Integrated Security=SSPI
                 """)
 
-        XCTAssertEqual(configuration.host, "sql.example.test")
-        XCTAssertEqual(configuration.port, 1433)
-        XCTAssertEqual(configuration.database, "appdb")
-        XCTAssertEqual(configuration.username, "")
-        XCTAssertEqual(configuration.password, "")
-        XCTAssertEqual(configuration.authentication, .sspi(initialToken: []))
+        expectEqual(configuration.host, "sql.example.test")
+        expectEqual(configuration.port, 1433)
+        expectEqual(configuration.database, "appdb")
+        expectEqual(configuration.username, "")
+        expectEqual(configuration.password, "")
+        expectEqual(configuration.authentication, .sspi(initialToken: []))
     }
 
-    func testConfigurationRejectsInvalidConnectionStringValues() throws {
-        XCTAssertThrowsError(try TDSConnection.Configuration(connectionString: "Database=appdb")) { error in
-            XCTAssertEqual(error as? TDSConnectionStringError, .missingServer)
+    @Test func configurationRejectsInvalidConnectionStringValues() throws {
+        expectThrowsError(try TDSConnection.Configuration(connectionString: "Database=appdb")) { error in
+            expectEqual(error as? TDSConnectionStringError, .missingServer)
         }
-        XCTAssertThrowsError(try TDSConnection.Configuration(connectionString: "Server=sql.example.test;User ID=sa")) {
+        expectThrowsError(try TDSConnection.Configuration(connectionString: "Server=sql.example.test;User ID=sa")) {
             error in
-            XCTAssertEqual(error as? TDSConnectionStringError, .missingPassword)
+            expectEqual(error as? TDSConnectionStringError, .missingPassword)
         }
-        XCTAssertThrowsError(
+        expectThrowsError(
             try TDSConnection.Configuration(connectionString: "Server=sql.example.test,nope;Integrated Security=true")
         ) { error in
-            XCTAssertEqual(error as? TDSConnectionStringError, .invalidPort("nope"))
+            expectEqual(error as? TDSConnectionStringError, .invalidPort("nope"))
         }
     }
 

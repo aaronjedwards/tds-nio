@@ -3,44 +3,45 @@
     import Logging
     import NIOCore
     import NIOEmbedded
-    import XCTest
+    import Testing
 
     @testable import TDSNIO
 
-    final class DistributedTracingTests: XCTestCase {
-        func testQuerySpanAttributes() throws {
+    @Suite(.timeLimit(.minutes(5)))
+    final class DistributedTracingTests {
+        @Test func querySpanAttributes() throws {
             let tracer = InMemoryTracer()
             var configuration = TDSTests.configuration()
             configuration.tracing.tracer = tracer
             let (connection, channel) = try Self.connection(configuration: configuration)
 
-            let span = try XCTUnwrap(connection.startSpan(for: TDSQuery(unsafeSQL: "SELECT 1")))
+            let span = try requireUnwrap(connection.startSpan(for: TDSQuery(unsafeSQL: "SELECT 1")))
             span.attributes["db.response.returned_rows"] = Int64(1)
             span.end()
             _ = try channel.finish(acceptAlreadyClosed: true)
 
-            XCTAssertEqual(tracer.finishedSpans.count, 1)
-            let finishedSpan = try XCTUnwrap(tracer.finishedSpans.first)
-            XCTAssertEqual(finishedSpan.operationName, "SELECT")
-            XCTAssertEqual(finishedSpan.kind, .client)
-            XCTAssertEqual(finishedSpan.attributes.get("server.address"), .string(configuration.host))
-            XCTAssertEqual(finishedSpan.attributes.get("server.port"), .int64(Int64(configuration.port)))
-            XCTAssertEqual(finishedSpan.attributes.get("db.system"), .string("mssql"))
-            XCTAssertEqual(finishedSpan.attributes.get("db.namespace"), .string("master"))
-            XCTAssertEqual(finishedSpan.attributes.get("db.query.summary"), .string("SELECT"))
-            XCTAssertEqual(finishedSpan.attributes.get("db.query.text"), .string("SELECT 1"))
-            XCTAssertEqual(finishedSpan.attributes.get("db.response.returned_rows"), .int64(1))
-            XCTAssertTrue(finishedSpan.errors.isEmpty)
-            XCTAssertNil(finishedSpan.status)
+            expectEqual(tracer.finishedSpans.count, 1)
+            let finishedSpan = try requireUnwrap(tracer.finishedSpans.first)
+            expectEqual(finishedSpan.operationName, "SELECT")
+            expectEqual(finishedSpan.kind, .client)
+            expectEqual(finishedSpan.attributes.get("server.address"), .string(configuration.host))
+            expectEqual(finishedSpan.attributes.get("server.port"), .int64(Int64(configuration.port)))
+            expectEqual(finishedSpan.attributes.get("db.system"), .string("mssql"))
+            expectEqual(finishedSpan.attributes.get("db.namespace"), .string("master"))
+            expectEqual(finishedSpan.attributes.get("db.query.summary"), .string("SELECT"))
+            expectEqual(finishedSpan.attributes.get("db.query.text"), .string("SELECT 1"))
+            expectEqual(finishedSpan.attributes.get("db.response.returned_rows"), .int64(1))
+            expectTrue(finishedSpan.errors.isEmpty)
+            expectNil(finishedSpan.status)
         }
 
-        func testErrorSpanAttributes() throws {
+        @Test func errorSpanAttributes() throws {
             let tracer = InMemoryTracer()
             var configuration = TDSTests.configuration()
             configuration.tracing.tracer = tracer
             let (connection, channel) = try Self.connection(configuration: configuration)
 
-            let span = try XCTUnwrap(connection.startSpan(for: TDSQuery(unsafeSQL: "SELECT id FROM dbo.missing")))
+            let span = try requireUnwrap(connection.startSpan(for: TDSQuery(unsafeSQL: "SELECT id FROM dbo.missing")))
             let serverError = TDSBackendMessage.InfoError(
                 number: 208,
                 state: 1,
@@ -54,20 +55,20 @@
             span.end()
             _ = try channel.finish(acceptAlreadyClosed: true)
 
-            XCTAssertEqual(tracer.finishedSpans.count, 1)
-            let finishedSpan = try XCTUnwrap(tracer.finishedSpans.first)
-            XCTAssertEqual(finishedSpan.operationName, "SELECT")
-            XCTAssertEqual(finishedSpan.kind, .client)
-            XCTAssertEqual(finishedSpan.attributes.get("server.address"), .string(configuration.host))
-            XCTAssertEqual(finishedSpan.attributes.get("server.port"), .int64(Int64(configuration.port)))
-            XCTAssertEqual(finishedSpan.attributes.get("db.system"), .string("mssql"))
-            XCTAssertEqual(finishedSpan.attributes.get("db.namespace"), .string("master"))
-            XCTAssertEqual(finishedSpan.attributes.get("db.query.summary"), .string("SELECT dbo.missing"))
-            XCTAssertEqual(finishedSpan.attributes.get("db.query.text"), .string("SELECT id FROM dbo.missing"))
-            XCTAssertEqual(finishedSpan.attributes.get("error.type"), .string("server"))
-            XCTAssertEqual(finishedSpan.attributes.get("db.response.status_code"), .string("208"))
-            XCTAssertEqual(finishedSpan.errors.count, 1)
-            XCTAssertEqual(finishedSpan.status?.code, .error)
+            expectEqual(tracer.finishedSpans.count, 1)
+            let finishedSpan = try requireUnwrap(tracer.finishedSpans.first)
+            expectEqual(finishedSpan.operationName, "SELECT")
+            expectEqual(finishedSpan.kind, .client)
+            expectEqual(finishedSpan.attributes.get("server.address"), .string(configuration.host))
+            expectEqual(finishedSpan.attributes.get("server.port"), .int64(Int64(configuration.port)))
+            expectEqual(finishedSpan.attributes.get("db.system"), .string("mssql"))
+            expectEqual(finishedSpan.attributes.get("db.namespace"), .string("master"))
+            expectEqual(finishedSpan.attributes.get("db.query.summary"), .string("SELECT dbo.missing"))
+            expectEqual(finishedSpan.attributes.get("db.query.text"), .string("SELECT id FROM dbo.missing"))
+            expectEqual(finishedSpan.attributes.get("error.type"), .string("server"))
+            expectEqual(finishedSpan.attributes.get("db.response.status_code"), .string("208"))
+            expectEqual(finishedSpan.errors.count, 1)
+            expectEqual(finishedSpan.status?.code, .error)
         }
 
         private static func connection(

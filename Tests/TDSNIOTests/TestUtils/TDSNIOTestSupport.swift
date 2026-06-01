@@ -5,7 +5,7 @@ import NIOCore
 import NIOEmbedded
 import NIOSSL
 import NIOTestUtils
-import XCTest
+import Testing
 
 @testable import TDSNIO
 
@@ -55,7 +55,8 @@ struct ItemRow: TDSRowDecodable, Equatable {
     }
 }
 
-final class TDSTests: XCTestCase {
+@Suite(.timeLimit(.minutes(5)))
+final class TDSTests {
     static let temporalValues: [TDSData] = [
         .date(.init(year: 2024, month: 2, day: 29)),
         .time(.init(hour: 12, minute: 34, second: 56, nanosecond: 123_456_700, scale: 7)),
@@ -1031,24 +1032,24 @@ final class TDSTests: XCTestCase {
     static func loginStringField(index: Int, in packet: inout ByteBuffer) throws -> String {
         let loginStart = TDSPacket.headerLength
         let entry = loginStart + 36 + index * 4
-        let offset = try XCTUnwrap(
+        let offset = try requireUnwrap(
             packet.getInteger(
                 at: entry,
                 endianness: .little,
                 as: UInt16.self
             ))
-        let length = try XCTUnwrap(
+        let length = try requireUnwrap(
             packet.getInteger(
                 at: entry + 2,
                 endianness: .little,
                 as: UInt16.self
             ))
-        var field = try XCTUnwrap(
+        var field = try requireUnwrap(
             packet.getSlice(
                 at: loginStart + Int(offset),
                 length: Int(length) * 2
             ))
-        return try XCTUnwrap(field.readUTF16(characterCount: Int(length)))
+        return try requireUnwrap(field.readUTF16(characterCount: Int(length)))
     }
 
     static func loginPasswordBytes(_ password: String) -> [UInt8] {

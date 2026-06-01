@@ -5,109 +5,109 @@ import NIOCore
 import NIOEmbedded
 import NIOSSL
 import NIOTestUtils
-import XCTest
+import Testing
 
 @testable import TDSNIO
 
 extension TDSTests {
-    func testQueryInterpolationBuildsSpExecuteSQLRPC() throws {
+    @Test func queryInterpolationBuildsSpExecuteSQLRPC() throws {
         let id = 42
         let label = "forty-two"
         let query: TDSQuery = "SELECT * FROM dbo.items WHERE id = \(id) AND label = \(label)"
 
-        XCTAssertEqual(query.sql, "SELECT * FROM dbo.items WHERE id = @p0 AND label = @p1")
-        XCTAssertEqual(query.binds.count, 2)
-        XCTAssertEqual(query.binds.parameters.map(\.name), ["@p0", "@p1"])
-        XCTAssertEqual(query.binds.parameters.map(\.value), [.int(42), .string("forty-two")])
+        expectEqual(query.sql, "SELECT * FROM dbo.items WHERE id = @p0 AND label = @p1")
+        expectEqual(query.binds.count, 2)
+        expectEqual(query.binds.parameters.map(\.name), ["@p0", "@p1"])
+        expectEqual(query.binds.parameters.map(\.value), [.int(42), .string("forty-two")])
 
         let rpc = query.rpcForExecution()
-        XCTAssertEqual(rpc.procedure, "sp_executesql")
-        XCTAssertEqual(rpc.parameters.map(\.name), ["@stmt", "@params", "@p0", "@p1"])
-        XCTAssertEqual(rpc.parameters[0].value, .string(query.sql))
-        XCTAssertEqual(rpc.parameters[1].value, .string("@p0 bigint, @p1 nvarchar(max)"))
+        expectEqual(rpc.procedure, "sp_executesql")
+        expectEqual(rpc.parameters.map(\.name), ["@stmt", "@params", "@p0", "@p1"])
+        expectEqual(rpc.parameters[0].value, .string(query.sql))
+        expectEqual(rpc.parameters[1].value, .string("@p0 bigint, @p1 nvarchar(max)"))
     }
 
-    func testQueryInterpolationBindsOptionalNilsAsTypedNulls() throws {
+    @Test func queryInterpolationBindsOptionalNilsAsTypedNulls() throws {
         let id: Int? = nil
         let label: String? = nil
         let flag: Bool? = nil
         let query: TDSQuery = "SELECT * FROM dbo.items WHERE id = \(id) AND label = \(label) AND flag = \(flag)"
 
-        XCTAssertEqual(query.sql, "SELECT * FROM dbo.items WHERE id = @p0 AND label = @p1 AND flag = @p2")
-        XCTAssertEqual(
+        expectEqual(query.sql, "SELECT * FROM dbo.items WHERE id = @p0 AND label = @p1 AND flag = @p2")
+        expectEqual(
             query.binds.parameters.map(\.value),
             [
                 .typedNull(.bigInt),
                 .typedNull(.nvarchar()),
                 .typedNull(.bit),
             ])
-        XCTAssertEqual(query.binds.declarationList, "@p0 bigint, @p1 nvarchar(max), @p2 bit")
+        expectEqual(query.binds.declarationList, "@p0 bigint, @p1 nvarchar(max), @p2 bit")
     }
 
-    func testQueryInterpolationBindsIntegerWidths() throws {
+    @Test func queryInterpolationBindsIntegerWidths() throws {
         let tiny: UInt8 = 7
         let small: Int16 = -12
         let integer: Int32 = 123_456
         let query: TDSQuery = "SELECT \(tiny), \(small), \(integer)"
 
-        XCTAssertEqual(query.sql, "SELECT @p0, @p1, @p2")
-        XCTAssertEqual(
+        expectEqual(query.sql, "SELECT @p0, @p1, @p2")
+        expectEqual(
             query.binds.parameters.map(\.value),
             [
                 .tinyInt(7),
                 .smallInt(-12),
                 .int32(123_456),
             ])
-        XCTAssertEqual(query.binds.declarationList, "@p0 tinyint, @p1 smallint, @p2 int")
+        expectEqual(query.binds.declarationList, "@p0 tinyint, @p1 smallint, @p2 int")
     }
 
-    func testQueryInterpolationBindsUUIDAsUniqueIdentifier() throws {
-        let uuid = try XCTUnwrap(UUID(uuidString: "00112233-4455-6677-8899-aabbccddeeff"))
+    @Test func queryInterpolationBindsUUIDAsUniqueIdentifier() throws {
+        let uuid = try requireUnwrap(UUID(uuidString: "00112233-4455-6677-8899-aabbccddeeff"))
         let nilUUID: UUID? = nil
         let query: TDSQuery = "SELECT * FROM dbo.items WHERE id = \(uuid) OR parent_id = \(nilUUID)"
 
-        XCTAssertEqual(query.sql, "SELECT * FROM dbo.items WHERE id = @p0 OR parent_id = @p1")
-        XCTAssertEqual(
+        expectEqual(query.sql, "SELECT * FROM dbo.items WHERE id = @p0 OR parent_id = @p1")
+        expectEqual(
             query.binds.parameters.map(\.value),
             [
                 .guid(TDSGUID(uuid)),
                 .typedNull(.uniqueIdentifier),
             ])
-        XCTAssertEqual(query.binds.declarationList, "@p0 uniqueidentifier, @p1 uniqueidentifier")
+        expectEqual(query.binds.declarationList, "@p0 uniqueidentifier, @p1 uniqueidentifier")
     }
 
-    func testQueryInterpolationBindsDecimalValues() throws {
-        let amount = try XCTUnwrap(Decimal(string: "123.45", locale: Locale(identifier: "en_US_POSIX")))
+    @Test func queryInterpolationBindsDecimalValues() throws {
+        let amount = try requireUnwrap(Decimal(string: "123.45", locale: Locale(identifier: "en_US_POSIX")))
         let nilAmount: Decimal? = nil
         let query: TDSQuery = "SELECT * FROM dbo.items WHERE amount = \(amount) OR discount = \(nilAmount)"
 
-        XCTAssertEqual(query.sql, "SELECT * FROM dbo.items WHERE amount = @p0 OR discount = @p1")
-        XCTAssertEqual(
+        expectEqual(query.sql, "SELECT * FROM dbo.items WHERE amount = @p0 OR discount = @p1")
+        expectEqual(
             query.binds.parameters.map(\.value),
             [
                 .decimal("123.45"),
                 .typedNull(.decimal()),
             ])
-        XCTAssertEqual(query.binds.declarationList, "@p0 decimal(5, 2), @p1 decimal(38, 0)")
+        expectEqual(query.binds.declarationList, "@p0 decimal(5, 2), @p1 decimal(38, 0)")
     }
 
-    func testQueryInterpolationBindsFoundationDataValues() throws {
+    @Test func queryInterpolationBindsFoundationDataValues() throws {
         let payload = Data([0x01, 0x02, 0x03])
         let archivedPayload: Data? = nil
         let query: TDSQuery =
             "SELECT * FROM dbo.items WHERE payload = \(payload) OR archived_payload = \(archivedPayload)"
 
-        XCTAssertEqual(query.sql, "SELECT * FROM dbo.items WHERE payload = @p0 OR archived_payload = @p1")
-        XCTAssertEqual(
+        expectEqual(query.sql, "SELECT * FROM dbo.items WHERE payload = @p0 OR archived_payload = @p1")
+        expectEqual(
             query.binds.parameters.map(\.value),
             [
                 .bytes([0x01, 0x02, 0x03]),
                 .typedNull(.varbinary()),
             ])
-        XCTAssertEqual(query.binds.declarationList, "@p0 varbinary(max), @p1 varbinary(max)")
+        expectEqual(query.binds.declarationList, "@p0 varbinary(max), @p1 varbinary(max)")
     }
 
-    func testQueryInterpolationBindsStructuredJSONValues() throws {
+    @Test func queryInterpolationBindsStructuredJSONValues() throws {
         let encoder = JSONEncoder()
         encoder.outputFormatting = [.sortedKeys]
         let payload = try TDSJSON(JSONPayload(ok: true, count: 2), encoder: encoder)
@@ -115,47 +115,47 @@ extension TDSTests {
         let query: TDSQuery =
             "SELECT * FROM dbo.items WHERE payload = \(payload) OR missing_payload = \(missingPayload)"
 
-        XCTAssertEqual(query.sql, "SELECT * FROM dbo.items WHERE payload = @p0 OR missing_payload = @p1")
-        XCTAssertEqual(
+        expectEqual(query.sql, "SELECT * FROM dbo.items WHERE payload = @p0 OR missing_payload = @p1")
+        expectEqual(
             query.binds.parameters.map(\.value),
             [
                 .json(Array(#"{"count":2,"ok":true}"#.utf8)),
                 .typedNull(.json),
             ])
-        XCTAssertEqual(query.binds.declarationList, "@p0 nvarchar(max), @p1 nvarchar(max)")
+        expectEqual(query.binds.declarationList, "@p0 nvarchar(max), @p1 nvarchar(max)")
     }
 
-    func testQueryInterpolationBindsCustomTDSBindableValues() throws {
+    @Test func queryInterpolationBindsCustomTDSBindableValues() throws {
         let accountID = AccountID(rawValue: 42)
         let parentID: AccountID? = nil
         let query: TDSQuery = "SELECT * FROM dbo.accounts WHERE id = \(accountID) OR parent_id = \(parentID)"
 
-        XCTAssertEqual(query.sql, "SELECT * FROM dbo.accounts WHERE id = @p0 OR parent_id = @p1")
-        XCTAssertEqual(
+        expectEqual(query.sql, "SELECT * FROM dbo.accounts WHERE id = @p0 OR parent_id = @p1")
+        expectEqual(
             query.binds.parameters.map(\.value),
             [
                 .int32(42),
                 .typedNull(.int),
             ])
-        XCTAssertEqual(query.binds.declarationList, "@p0 int, @p1 int")
+        expectEqual(query.binds.declarationList, "@p0 int, @p1 int")
     }
 
-    func testQueryInterpolationBindsFoundationDateValues() throws {
+    @Test func queryInterpolationBindsFoundationDateValues() throws {
         let createdAt = Self.utcDate(year: 2024, month: 2, day: 29, hour: 12, minute: 34, second: 56)
         let deletedAt: Date? = nil
         let query: TDSQuery = "SELECT * FROM dbo.items WHERE created_at = \(createdAt) OR deleted_at = \(deletedAt)"
 
-        XCTAssertEqual(query.sql, "SELECT * FROM dbo.items WHERE created_at = @p0 OR deleted_at = @p1")
-        XCTAssertEqual(
+        expectEqual(query.sql, "SELECT * FROM dbo.items WHERE created_at = @p0 OR deleted_at = @p1")
+        expectEqual(
             query.binds.parameters.map(\.value),
             [
                 .datetime2(TDSDateTime(createdAt)),
                 .typedNull(.datetime2()),
             ])
-        XCTAssertEqual(query.binds.declarationList, "@p0 datetime2(7), @p1 datetime2(7)")
+        expectEqual(query.binds.declarationList, "@p0 datetime2(7), @p1 datetime2(7)")
     }
 
-    func testTemporalValuesBridgeToFoundationDate() throws {
+    @Test func temporalValuesBridgeToFoundationDate() throws {
         let instant = Self.utcDate(
             year: 2024,
             month: 2,
@@ -168,23 +168,23 @@ extension TDSTests {
         let dateTime = TDSDateTime(instant, scale: 6)
         let offsetDateTime = TDSDateTimeOffset(instant, offsetMinutes: -420, scale: 6)
 
-        XCTAssertEqual(dateTime.date, TDSDate(year: 2024, month: 2, day: 29))
-        XCTAssertEqual(dateTime.time, TDSTime(hour: 12, minute: 34, second: 56, nanosecond: 123_456_000, scale: 6))
-        XCTAssertEqual(offsetDateTime.dateTime.date, TDSDate(year: 2024, month: 2, day: 29))
-        XCTAssertEqual(offsetDateTime.dateTime.time.hour, 5)
-        XCTAssertEqual(offsetDateTime.offsetMinutes, -420)
-        XCTAssertEqual(
-            try XCTUnwrap(dateTime.dateValue()).timeIntervalSince1970, instant.timeIntervalSince1970,
+        expectEqual(dateTime.date, TDSDate(year: 2024, month: 2, day: 29))
+        expectEqual(dateTime.time, TDSTime(hour: 12, minute: 34, second: 56, nanosecond: 123_456_000, scale: 6))
+        expectEqual(offsetDateTime.dateTime.date, TDSDate(year: 2024, month: 2, day: 29))
+        expectEqual(offsetDateTime.dateTime.time.hour, 5)
+        expectEqual(offsetDateTime.offsetMinutes, -420)
+        expectEqual(
+            try requireUnwrap(dateTime.dateValue()).timeIntervalSince1970, instant.timeIntervalSince1970,
             accuracy: 0.000_001)
-        XCTAssertEqual(
-            try XCTUnwrap(offsetDateTime.dateValue()).timeIntervalSince1970, instant.timeIntervalSince1970,
+        expectEqual(
+            try requireUnwrap(offsetDateTime.dateValue()).timeIntervalSince1970, instant.timeIntervalSince1970,
             accuracy: 0.000_001)
 
         let decoded: Date = try Date.decode(from: .datetimeOffset(offsetDateTime))
-        XCTAssertEqual(decoded.timeIntervalSince1970, instant.timeIntervalSince1970, accuracy: 0.000_001)
+        expectEqual(decoded.timeIntervalSince1970, instant.timeIntervalSince1970, accuracy: 0.000_001)
     }
 
-    func testQueryInterpolationDeclaresTVPAsReadonly() throws {
+    @Test func queryInterpolationDeclaresTVPAsReadonly() throws {
         let tvp = TDSTableValuedParameter(
             schemaName: "dbo",
             typeName: "IntList",
@@ -194,12 +194,12 @@ extension TDSTests {
         var query = TDSQuery(unsafeSQL: "SELECT * FROM @ids")
         _ = query.binds.append(.table(tvp), name: "@ids")
 
-        XCTAssertEqual(query.binds.declarationList, "@ids dbo.IntList READONLY")
+        expectEqual(query.binds.declarationList, "@ids dbo.IntList READONLY")
         let rpc = query.rpcForExecution()
-        XCTAssertEqual(rpc.parameters[1].value, .string("@ids dbo.IntList READONLY"))
+        expectEqual(rpc.parameters[1].value, .string("@ids dbo.IntList READONLY"))
     }
 
-    func testQueryInterpolationDeclaresTVPWithoutDefaultSchema() throws {
+    @Test func queryInterpolationDeclaresTVPWithoutDefaultSchema() throws {
         let tvp = TDSTableValuedParameter(
             typeName: "IntList",
             columns: [.init(dataType: .int(maxBytes: 4))],
@@ -208,12 +208,12 @@ extension TDSTests {
         var query = TDSQuery(unsafeSQL: "SELECT * FROM @ids")
         _ = query.binds.append(.table(tvp), name: "@ids")
 
-        XCTAssertEqual(query.binds.declarationList, "@ids IntList READONLY")
+        expectEqual(query.binds.declarationList, "@ids IntList READONLY")
         let rpc = query.rpcForExecution()
-        XCTAssertEqual(rpc.parameters[1].value, .string("@ids IntList READONLY"))
+        expectEqual(rpc.parameters[1].value, .string("@ids IntList READONLY"))
     }
 
-    func testRowSequenceCollectsRowsFromResultSet() async throws {
+    @Test func rowSequenceCollectsRowsFromResultSet() async throws {
         let columns = [
             TDSColumn(name: "id", dataType: .intN),
             TDSColumn(name: "label", dataType: .nVarChar),
@@ -228,12 +228,12 @@ extension TDSTests {
         let first = try await iterator.next()
         let collected = try await resultSet.rowSequence.collect()
 
-        XCTAssertEqual(first?["label"], .string("one"))
-        XCTAssertEqual(Array(first ?? TDSRow(columns: [], values: [])), [.int(1), .string("one")])
-        XCTAssertEqual(collected, rows)
+        expectEqual(first?["label"], .string("one"))
+        expectEqual(Array(first ?? TDSRow(columns: [], values: [])), [.int(1), .string("one")])
+        expectEqual(collected, rows)
     }
 
-    func testRowsDecodeIntoModelTypes() async throws {
+    @Test func rowsDecodeIntoModelTypes() async throws {
         let columns = [
             TDSColumn(name: "id", dataType: .intN),
             TDSColumn(name: "label", dataType: .nVarChar),
@@ -264,20 +264,20 @@ extension TDSTests {
             resultSets: [.init(columns: columns, rows: rows, rowsAffected: nil)]
         )
 
-        XCTAssertEqual(
+        expectEqual(
             try result.decodeRows(as: ItemRow.self),
             [
                 ItemRow(id: 1, label: "one", payload: .init(ok: true, count: nil)),
                 ItemRow(id: 2, label: "two", payload: .init(ok: false, count: 3)),
             ])
-        XCTAssertEqual(
+        expectEqual(
             try result.resultSets[0].decodeRows(as: ItemRow.self),
             [
                 ItemRow(id: 1, label: "one", payload: .init(ok: true, count: nil)),
                 ItemRow(id: 2, label: "two", payload: .init(ok: false, count: 3)),
             ])
         let collected = try await result.rowSequence.collect(as: ItemRow.self)
-        XCTAssertEqual(
+        expectEqual(
             collected,
             [
                 ItemRow(id: 1, label: "one", payload: .init(ok: true, count: nil)),
@@ -285,7 +285,7 @@ extension TDSTests {
             ])
     }
 
-    func testRowModelDecodingPreservesColumnContext() throws {
+    @Test func rowModelDecodingPreservesColumnContext() throws {
         let row = TDSRow(
             columns: [
                 .init(name: "id", dataType: .nVarChar),
@@ -299,18 +299,18 @@ extension TDSTests {
             ]
         )
 
-        XCTAssertThrowsError(try row.decode(as: ItemRow.self)) { error in
+        expectThrowsError(try row.decode(as: ItemRow.self)) { error in
             guard let decodingError = error as? TDSDecodingError else {
-                return XCTFail("Expected TDSDecodingError, got \(error)")
+                Issue.record("Expected TDSDecodingError, got \(error)"); return
             }
-            XCTAssertEqual(decodingError.code, .typeMismatch(expected: "Int", actual: .string("not an integer")))
-            XCTAssertEqual(decodingError.columnName, "id")
-            XCTAssertEqual(decodingError.columnIndex, 0)
-            XCTAssertEqual(decodingError.dataType, .nVarChar)
+            expectEqual(decodingError.code, .typeMismatch(expected: "Int", actual: .string("not an integer")))
+            expectEqual(decodingError.columnName, "id")
+            expectEqual(decodingError.columnIndex, 0)
+            expectEqual(decodingError.dataType, .nVarChar)
         }
     }
 
-    func testRowCellsAndTypedDecoding() throws {
+    @Test func rowCellsAndTypedDecoding() throws {
         let row = TDSRow(
             columns: [
                 .init(name: "id", dataType: .intN),
@@ -330,10 +330,10 @@ extension TDSTests {
             ]
         )
 
-        XCTAssertTrue(row.contains("label"))
-        XCTAssertEqual(row.firstIndex(ofColumn: "payload"), 2)
-        XCTAssertEqual(row.cell(named: "label")?.columnIndex, 1)
-        XCTAssertEqual(row.cell(named: "label")?.dataType, .nVarChar)
+        expectTrue(row.contains("label"))
+        expectEqual(row.firstIndex(ofColumn: "payload"), 2)
+        expectEqual(row.cell(named: "label")?.columnIndex, 1)
+        expectEqual(row.cell(named: "label")?.dataType, .nVarChar)
 
         let id: Int = try row.decode(column: "id")
         let label: String = try row.decode(column: "label")
@@ -346,19 +346,19 @@ extension TDSTests {
         let typedNil = try Optional<String>.decode(from: .typedNull(.nvarchar()))
         let accountID = try AccountID.decode(from: .int32(42))
 
-        XCTAssertEqual(id, 42)
-        XCTAssertEqual(label, "forty-two")
-        XCTAssertEqual(payload, Array(#"{"ok":true}"#.utf8))
-        XCTAssertEqual(payloadData, Data(#"{"ok":true}"#.utf8))
-        XCTAssertEqual(jsonPayload.value, JSONPayload(ok: true, count: nil))
-        XCTAssertEqual(uuid.uuidString.lowercased(), Self.guid.stringValue)
-        XCTAssertEqual(amount, Decimal(string: "123.45", locale: Locale(identifier: "en_US_POSIX")))
-        XCTAssertEqual(accountID, AccountID(rawValue: 42))
-        XCTAssertNil(maybe)
-        XCTAssertNil(typedNil)
+        expectEqual(id, 42)
+        expectEqual(label, "forty-two")
+        expectEqual(payload, Array(#"{"ok":true}"#.utf8))
+        expectEqual(payloadData, Data(#"{"ok":true}"#.utf8))
+        expectEqual(jsonPayload.value, JSONPayload(ok: true, count: nil))
+        expectEqual(uuid.uuidString.lowercased(), Self.guid.stringValue)
+        expectEqual(amount, Decimal(string: "123.45", locale: Locale(identifier: "en_US_POSIX")))
+        expectEqual(accountID, AccountID(rawValue: 42))
+        expectNil(maybe)
+        expectNil(typedNil)
     }
 
-    func testRowCanCreateOracleStyleRandomAccessView() throws {
+    @Test func rowCanCreateOracleStyleRandomAccessView() throws {
         let row = TDSRow(
             columns: [
                 .init(name: "id", dataType: .intN),
@@ -374,23 +374,23 @@ extension TDSTests {
 
         let randomAccess = row.makeRandomAccess()
 
-        XCTAssertEqual(randomAccess.count, 3)
-        XCTAssertTrue(randomAccess.contains("label"))
-        XCTAssertFalse(randomAccess.contains("missing"))
-        XCTAssertEqual(randomAccess[0].columnName, "id")
-        XCTAssertEqual(randomAccess[1].value, .string("forty-two"))
-        XCTAssertEqual(randomAccess["payload"].dataType, .json)
+        expectEqual(randomAccess.count, 3)
+        expectTrue(randomAccess.contains("label"))
+        expectFalse(randomAccess.contains("missing"))
+        expectEqual(randomAccess[0].columnName, "id")
+        expectEqual(randomAccess[1].value, .string("forty-two"))
+        expectEqual(randomAccess["payload"].dataType, .json)
 
         let id: Int32 = try randomAccess.decode(column: "id")
         let label: String = try randomAccess.decode(column: 1)
         let payload: TDSJSONValue<JSONPayload> = try randomAccess.decode(column: "payload")
 
-        XCTAssertEqual(id, 42)
-        XCTAssertEqual(label, "forty-two")
-        XCTAssertEqual(payload.value, JSONPayload(ok: true, count: nil))
+        expectEqual(id, 42)
+        expectEqual(label, "forty-two")
+        expectEqual(payload.value, JSONPayload(ok: true, count: nil))
     }
 
-    func testWidthSpecificIntegerTypedDecoding() throws {
+    @Test func widthSpecificIntegerTypedDecoding() throws {
         let row = TDSRow(
             columns: [
                 .init(name: "tiny", dataType: .intN),
@@ -408,51 +408,51 @@ extension TDSTests {
         let small: Int16 = try row.decode(column: "small")
         let integer: Int32 = try row.decode(column: "integer")
 
-        XCTAssertEqual(tiny, 255)
-        XCTAssertEqual(small, -12)
-        XCTAssertEqual(integer, 123_456)
-        XCTAssertThrowsError(try UInt8.decode(from: .int(256))) { error in
-            XCTAssertEqual(
+        expectEqual(tiny, 255)
+        expectEqual(small, -12)
+        expectEqual(integer, 123_456)
+        expectThrowsError(try UInt8.decode(from: .int(256))) { error in
+            expectEqual(
                 (error as? TDSDecodingError)?.code,
                 .valueOutOfRange(expected: "UInt8", actual: .int(256))
             )
         }
-        XCTAssertThrowsError(try Int16.decode(from: .int32(Int32.max))) { error in
-            XCTAssertEqual(
+        expectThrowsError(try Int16.decode(from: .int32(Int32.max))) { error in
+            expectEqual(
                 (error as? TDSDecodingError)?.code,
                 .valueOutOfRange(expected: "Int16", actual: .int32(Int32.max))
             )
         }
     }
 
-    func testRowTypedDecodingAnnotatesErrorsWithColumnContext() throws {
+    @Test func rowTypedDecodingAnnotatesErrorsWithColumnContext() throws {
         let row = TDSRow(
             columns: [.init(name: "label", dataType: .nVarChar)],
             values: [.string("not an integer")]
         )
 
-        XCTAssertThrowsError(try row.decode(column: "label", as: Int.self)) { error in
+        expectThrowsError(try row.decode(column: "label", as: Int.self)) { error in
             guard let decodingError = error as? TDSDecodingError else {
-                return XCTFail("Expected TDSDecodingError, got \(error)")
+                Issue.record("Expected TDSDecodingError, got \(error)"); return
             }
-            XCTAssertEqual(decodingError.code, .typeMismatch(expected: "Int", actual: .string("not an integer")))
-            XCTAssertEqual(decodingError.columnName, "label")
-            XCTAssertEqual(decodingError.columnIndex, 0)
-            XCTAssertEqual(decodingError.dataType, .nVarChar)
+            expectEqual(decodingError.code, .typeMismatch(expected: "Int", actual: .string("not an integer")))
+            expectEqual(decodingError.columnName, "label")
+            expectEqual(decodingError.columnIndex, 0)
+            expectEqual(decodingError.dataType, .nVarChar)
         }
 
-        XCTAssertThrowsError(try row.decode(column: "missing", as: String.self)) { error in
-            XCTAssertEqual((error as? TDSDecodingError)?.code, .missingColumn("missing"))
+        expectThrowsError(try row.decode(column: "missing", as: String.self)) { error in
+            expectEqual((error as? TDSDecodingError)?.code, .missingColumn("missing"))
         }
     }
 
-    func testChannelQueryTaskStreamsRowsAsTokensArrive() throws {
+    @Test func channelQueryTaskStreamsRowsAsTokensArrive() throws {
         let channel = try Self.loggedInChannel()
 
         let streamPromise = channel.eventLoop.makePromise(of: TDSRowStream.self)
         try channel.writeOutbound(TDSTask.sqlBatchRows("SELECT 1", streamPromise))
-        let sqlBatch: ByteBuffer = try XCTUnwrap(channel.readOutbound())
-        XCTAssertEqual(sqlBatch.getInteger(at: 0, as: UInt8.self), TDSPacket.MessageType.sqlBatch.rawValue)
+        let sqlBatch: ByteBuffer = try requireUnwrap(channel.readOutbound())
+        expectEqual(sqlBatch.getInteger(at: 0, as: UInt8.self), TDSPacket.MessageType.sqlBatch.rawValue)
 
         try channel.writeInbound(
             Self.packet(
@@ -475,12 +475,12 @@ extension TDSTests {
             ))
 
         let rows = try rowsFuture.wait()
-        XCTAssertEqual(rows.count, 1)
-        XCTAssertEqual(rows[0]["id"], .int32(1))
-        XCTAssertEqual(rows[0]["label"], .string("one"))
+        expectEqual(rows.count, 1)
+        expectEqual(rows[0]["id"], .int32(1))
+        expectEqual(rows[0]["label"], .string("one"))
     }
 
-    func testRPCPacketEncodesTemporalParameterValueLengths() throws {
+    @Test func rpcPacketEncodesTemporalParameterValueLengths() throws {
         let date = TDSDate(year: 2024, month: 1, day: 22)
         let time = TDSTime(hour: 10, minute: 46, second: 18, nanosecond: 713_000_000, scale: 3)
         let dateTime = TDSDateTime(date: date, time: time)
@@ -502,40 +502,40 @@ extension TDSTests {
         var packet = encoder.flush()
         packet.moveReaderIndex(forwardBy: TDSPacket.headerLength + 22 + 2 + "dbo.temporal".utf16.count * 2 + 2)
 
-        XCTAssertEqual(packet.readInteger(as: UInt8.self), 5)
-        XCTAssertEqual(packet.readUTF16(characterCount: 5), "@date")
-        XCTAssertEqual(packet.readInteger(as: UInt8.self), 0)
-        XCTAssertEqual(packet.readInteger(as: UInt8.self), TDSDataType.dateN.rawValue)
-        XCTAssertEqual(packet.readInteger(as: UInt8.self), 3)
+        expectEqual(packet.readInteger(as: UInt8.self), 5)
+        expectEqual(packet.readUTF16(characterCount: 5), "@date")
+        expectEqual(packet.readInteger(as: UInt8.self), 0)
+        expectEqual(packet.readInteger(as: UInt8.self), TDSDataType.dateN.rawValue)
+        expectEqual(packet.readInteger(as: UInt8.self), 3)
         packet.moveReaderIndex(forwardBy: 3)
 
-        XCTAssertEqual(packet.readInteger(as: UInt8.self), 5)
-        XCTAssertEqual(packet.readUTF16(characterCount: 5), "@time")
-        XCTAssertEqual(packet.readInteger(as: UInt8.self), 0)
-        XCTAssertEqual(packet.readInteger(as: UInt8.self), TDSDataType.timeN.rawValue)
-        XCTAssertEqual(packet.readInteger(as: UInt8.self), 3)
-        XCTAssertEqual(packet.readInteger(as: UInt8.self), 4)
+        expectEqual(packet.readInteger(as: UInt8.self), 5)
+        expectEqual(packet.readUTF16(characterCount: 5), "@time")
+        expectEqual(packet.readInteger(as: UInt8.self), 0)
+        expectEqual(packet.readInteger(as: UInt8.self), TDSDataType.timeN.rawValue)
+        expectEqual(packet.readInteger(as: UInt8.self), 3)
+        expectEqual(packet.readInteger(as: UInt8.self), 4)
         packet.moveReaderIndex(forwardBy: 4)
 
-        XCTAssertEqual(packet.readInteger(as: UInt8.self), 4)
-        XCTAssertEqual(packet.readUTF16(characterCount: 4), "@dt2")
-        XCTAssertEqual(packet.readInteger(as: UInt8.self), 0)
-        XCTAssertEqual(packet.readInteger(as: UInt8.self), TDSDataType.datetime2N.rawValue)
-        XCTAssertEqual(packet.readInteger(as: UInt8.self), 3)
-        XCTAssertEqual(packet.readInteger(as: UInt8.self), 7)
+        expectEqual(packet.readInteger(as: UInt8.self), 4)
+        expectEqual(packet.readUTF16(characterCount: 4), "@dt2")
+        expectEqual(packet.readInteger(as: UInt8.self), 0)
+        expectEqual(packet.readInteger(as: UInt8.self), TDSDataType.datetime2N.rawValue)
+        expectEqual(packet.readInteger(as: UInt8.self), 3)
+        expectEqual(packet.readInteger(as: UInt8.self), 7)
         packet.moveReaderIndex(forwardBy: 7)
 
-        XCTAssertEqual(packet.readInteger(as: UInt8.self), 4)
-        XCTAssertEqual(packet.readUTF16(characterCount: 4), "@dto")
-        XCTAssertEqual(packet.readInteger(as: UInt8.self), 0)
-        XCTAssertEqual(packet.readInteger(as: UInt8.self), TDSDataType.datetimeOffsetN.rawValue)
-        XCTAssertEqual(packet.readInteger(as: UInt8.self), 3)
-        XCTAssertEqual(packet.readInteger(as: UInt8.self), 9)
+        expectEqual(packet.readInteger(as: UInt8.self), 4)
+        expectEqual(packet.readUTF16(characterCount: 4), "@dto")
+        expectEqual(packet.readInteger(as: UInt8.self), 0)
+        expectEqual(packet.readInteger(as: UInt8.self), TDSDataType.datetimeOffsetN.rawValue)
+        expectEqual(packet.readInteger(as: UInt8.self), 3)
+        expectEqual(packet.readInteger(as: UInt8.self), 9)
         packet.moveReaderIndex(forwardBy: 9)
-        XCTAssertEqual(packet.readableBytes, 0)
+        expectEqual(packet.readableBytes, 0)
     }
 
-    func testBulkLoadPacketEncodesColumnMetadataRowsAndDone() throws {
+    @Test func bulkLoadPacketEncodesColumnMetadataRowsAndDone() throws {
         var encoder = TDSFrontendMessageEncoder(
             buffer: ByteBufferAllocator().buffer(capacity: 256)
         )
@@ -554,68 +554,68 @@ extension TDSTests {
             ))
 
         var packet = encoder.flush()
-        XCTAssertEqual(packet.readInteger(as: UInt8.self), TDSPacket.MessageType.bulkLoadData.rawValue)
-        XCTAssertEqual(packet.readInteger(as: UInt8.self), TDSPacket.StatusFlag.eom.rawValue)
-        XCTAssertEqual(packet.readInteger(endianness: .big, as: UInt16.self), UInt16(packet.writerIndex))
+        expectEqual(packet.readInteger(as: UInt8.self), TDSPacket.MessageType.bulkLoadData.rawValue)
+        expectEqual(packet.readInteger(as: UInt8.self), TDSPacket.StatusFlag.eom.rawValue)
+        expectEqual(packet.readInteger(endianness: .big, as: UInt16.self), UInt16(packet.writerIndex))
         packet.moveReaderIndex(forwardBy: 4)
 
-        XCTAssertEqual(packet.readInteger(as: UInt8.self), 0x81)
-        XCTAssertEqual(packet.readInteger(endianness: .little, as: UInt16.self), 4)
+        expectEqual(packet.readInteger(as: UInt8.self), 0x81)
+        expectEqual(packet.readInteger(endianness: .little, as: UInt16.self), 4)
 
-        XCTAssertEqual(packet.readInteger(endianness: .little, as: UInt32.self), 0)
-        XCTAssertEqual(packet.readInteger(endianness: .little, as: UInt16.self), 0)
-        XCTAssertEqual(packet.readInteger(as: UInt8.self), TDSDataType.intN.rawValue)
-        XCTAssertEqual(packet.readInteger(as: UInt8.self), 8)
-        XCTAssertEqual(packet.readInteger(as: UInt8.self), 2)
-        XCTAssertEqual(packet.readUTF16(characterCount: 2), "id")
+        expectEqual(packet.readInteger(endianness: .little, as: UInt32.self), 0)
+        expectEqual(packet.readInteger(endianness: .little, as: UInt16.self), 0)
+        expectEqual(packet.readInteger(as: UInt8.self), TDSDataType.intN.rawValue)
+        expectEqual(packet.readInteger(as: UInt8.self), 8)
+        expectEqual(packet.readInteger(as: UInt8.self), 2)
+        expectEqual(packet.readUTF16(characterCount: 2), "id")
 
-        XCTAssertEqual(packet.readInteger(endianness: .little, as: UInt32.self), 0)
-        XCTAssertEqual(packet.readInteger(endianness: .little, as: UInt16.self), 0)
-        XCTAssertEqual(packet.readInteger(as: UInt8.self), TDSDataType.bitN.rawValue)
-        XCTAssertEqual(packet.readInteger(as: UInt8.self), 1)
-        XCTAssertEqual(packet.readInteger(as: UInt8.self), 4)
-        XCTAssertEqual(packet.readUTF16(characterCount: 4), "flag")
+        expectEqual(packet.readInteger(endianness: .little, as: UInt32.self), 0)
+        expectEqual(packet.readInteger(endianness: .little, as: UInt16.self), 0)
+        expectEqual(packet.readInteger(as: UInt8.self), TDSDataType.bitN.rawValue)
+        expectEqual(packet.readInteger(as: UInt8.self), 1)
+        expectEqual(packet.readInteger(as: UInt8.self), 4)
+        expectEqual(packet.readUTF16(characterCount: 4), "flag")
 
-        XCTAssertEqual(packet.readInteger(endianness: .little, as: UInt32.self), 0)
-        XCTAssertEqual(packet.readInteger(endianness: .little, as: UInt16.self), 0)
-        XCTAssertEqual(packet.readInteger(as: UInt8.self), TDSDataType.nVarChar.rawValue)
-        XCTAssertEqual(packet.readInteger(endianness: .little, as: UInt16.self), 40)
-        XCTAssertEqual(packet.readBytes(length: 5), [0x09, 0x04, 0xD0, 0x00, 0x34])
-        XCTAssertEqual(packet.readInteger(as: UInt8.self), 5)
-        XCTAssertEqual(packet.readUTF16(characterCount: 5), "label")
+        expectEqual(packet.readInteger(endianness: .little, as: UInt32.self), 0)
+        expectEqual(packet.readInteger(endianness: .little, as: UInt16.self), 0)
+        expectEqual(packet.readInteger(as: UInt8.self), TDSDataType.nVarChar.rawValue)
+        expectEqual(packet.readInteger(endianness: .little, as: UInt16.self), 40)
+        expectEqual(packet.readBytes(length: 5), [0x09, 0x04, 0xD0, 0x00, 0x34])
+        expectEqual(packet.readInteger(as: UInt8.self), 5)
+        expectEqual(packet.readUTF16(characterCount: 5), "label")
 
-        XCTAssertEqual(packet.readInteger(endianness: .little, as: UInt32.self), 0)
-        XCTAssertEqual(packet.readInteger(endianness: .little, as: UInt16.self), 0)
-        XCTAssertEqual(packet.readInteger(as: UInt8.self), TDSDataType.bigVarBin.rawValue)
-        XCTAssertEqual(packet.readInteger(endianness: .little, as: UInt16.self), 16)
-        XCTAssertEqual(packet.readInteger(as: UInt8.self), 7)
-        XCTAssertEqual(packet.readUTF16(characterCount: 7), "payload")
+        expectEqual(packet.readInteger(endianness: .little, as: UInt32.self), 0)
+        expectEqual(packet.readInteger(endianness: .little, as: UInt16.self), 0)
+        expectEqual(packet.readInteger(as: UInt8.self), TDSDataType.bigVarBin.rawValue)
+        expectEqual(packet.readInteger(endianness: .little, as: UInt16.self), 16)
+        expectEqual(packet.readInteger(as: UInt8.self), 7)
+        expectEqual(packet.readUTF16(characterCount: 7), "payload")
 
-        XCTAssertEqual(packet.readInteger(as: UInt8.self), 0xD1)
-        XCTAssertEqual(packet.readInteger(as: UInt8.self), 8)
-        XCTAssertEqual(packet.readInteger(endianness: .little, as: Int64.self), 1)
-        XCTAssertEqual(packet.readInteger(as: UInt8.self), 1)
-        XCTAssertEqual(packet.readInteger(as: UInt8.self), 1)
-        XCTAssertEqual(packet.readInteger(endianness: .little, as: UInt16.self), 6)
-        XCTAssertEqual(packet.readUTF16(characterCount: 3), "one")
-        XCTAssertEqual(packet.readInteger(endianness: .little, as: UInt16.self), 2)
-        XCTAssertEqual(packet.readBytes(length: 2), [0xAA, 0xBB])
+        expectEqual(packet.readInteger(as: UInt8.self), 0xD1)
+        expectEqual(packet.readInteger(as: UInt8.self), 8)
+        expectEqual(packet.readInteger(endianness: .little, as: Int64.self), 1)
+        expectEqual(packet.readInteger(as: UInt8.self), 1)
+        expectEqual(packet.readInteger(as: UInt8.self), 1)
+        expectEqual(packet.readInteger(endianness: .little, as: UInt16.self), 6)
+        expectEqual(packet.readUTF16(characterCount: 3), "one")
+        expectEqual(packet.readInteger(endianness: .little, as: UInt16.self), 2)
+        expectEqual(packet.readBytes(length: 2), [0xAA, 0xBB])
 
-        XCTAssertEqual(packet.readInteger(as: UInt8.self), 0xD1)
-        XCTAssertEqual(packet.readInteger(as: UInt8.self), 8)
-        XCTAssertEqual(packet.readInteger(endianness: .little, as: Int64.self), 2)
-        XCTAssertEqual(packet.readInteger(as: UInt8.self), 0)
-        XCTAssertEqual(packet.readInteger(endianness: .little, as: UInt16.self), UInt16.max)
-        XCTAssertEqual(packet.readInteger(endianness: .little, as: UInt16.self), UInt16.max)
+        expectEqual(packet.readInteger(as: UInt8.self), 0xD1)
+        expectEqual(packet.readInteger(as: UInt8.self), 8)
+        expectEqual(packet.readInteger(endianness: .little, as: Int64.self), 2)
+        expectEqual(packet.readInteger(as: UInt8.self), 0)
+        expectEqual(packet.readInteger(endianness: .little, as: UInt16.self), UInt16.max)
+        expectEqual(packet.readInteger(endianness: .little, as: UInt16.self), UInt16.max)
 
-        XCTAssertEqual(packet.readInteger(as: UInt8.self), 0xFD)
-        XCTAssertEqual(packet.readInteger(endianness: .little, as: UInt16.self), 0)
-        XCTAssertEqual(packet.readInteger(endianness: .little, as: UInt16.self), 0)
-        XCTAssertEqual(packet.readInteger(endianness: .little, as: UInt64.self), 2)
-        XCTAssertEqual(packet.readableBytes, 0)
+        expectEqual(packet.readInteger(as: UInt8.self), 0xFD)
+        expectEqual(packet.readInteger(endianness: .little, as: UInt16.self), 0)
+        expectEqual(packet.readInteger(endianness: .little, as: UInt16.self), 0)
+        expectEqual(packet.readInteger(endianness: .little, as: UInt64.self), 2)
+        expectEqual(packet.readableBytes, 0)
     }
 
-    func testBackendDecoderDecodesNBCRowNullBitmap() throws {
+    @Test func backendDecoderDecodesNBCRowNullBitmap() throws {
         let packet = Self.packet(
             type: .preloginLoginOrTablularResponse,
             payload: Self.nbcRowTokenStreamPayload()
@@ -632,21 +632,21 @@ extension TDSTests {
             }
         }
 
-        XCTAssertEqual(messages.count, 3)
+        expectEqual(messages.count, 3)
         guard case .colMetadata(let metadata) = messages[0] else {
-            return XCTFail("Expected COLMETADATA")
+            Issue.record("Expected COLMETADATA"); return
         }
-        XCTAssertEqual(metadata.columns.map(\.name), ["id", "label"])
+        expectEqual(metadata.columns.map(\.name), ["id", "label"])
         guard case .row(let row) = messages[1] else {
-            return XCTFail("Expected NBCROW")
+            Issue.record("Expected NBCROW"); return
         }
-        XCTAssertEqual(row.values, [.int32(1), .null])
+        expectEqual(row.values, [.int32(1), .null])
         guard case .done = messages[2] else {
-            return XCTFail("Expected DONE")
+            Issue.record("Expected DONE"); return
         }
     }
 
-    func testBackendDecoderDecodesAltMetadataAndAltRow() throws {
+    @Test func backendDecoderDecodesAltMetadataAndAltRow() throws {
         let packet = Self.packet(
             type: .preloginLoginOrTablularResponse,
             payload: Self.altMetadataTokenStreamPayload()
@@ -663,36 +663,36 @@ extension TDSTests {
             }
         }
 
-        XCTAssertEqual(messages.count, 5)
+        expectEqual(messages.count, 5)
         guard case .colMetadata(let metadata) = messages[0] else {
-            return XCTFail("Expected COLMETADATA")
+            Issue.record("Expected COLMETADATA"); return
         }
-        XCTAssertEqual(metadata.columns.map(\.name), ["amount"])
+        expectEqual(metadata.columns.map(\.name), ["amount"])
         guard case .altMetadata(let altMetadata) = messages[1] else {
-            return XCTFail("Expected ALTMETADATA")
+            Issue.record("Expected ALTMETADATA"); return
         }
-        XCTAssertEqual(altMetadata.count, 1)
-        XCTAssertEqual(altMetadata.id, 7)
-        XCTAssertEqual(altMetadata.byColumns, [1])
-        XCTAssertEqual(altMetadata.columns[0].op, 0x4D)
-        XCTAssertEqual(altMetadata.columns[0].operand, 1)
-        XCTAssertEqual(altMetadata.columns[0].typeInfo.dataType, .int4)
-        XCTAssertEqual(altMetadata.columns[0].name, "total")
+        expectEqual(altMetadata.count, 1)
+        expectEqual(altMetadata.id, 7)
+        expectEqual(altMetadata.byColumns, [1])
+        expectEqual(altMetadata.columns[0].op, 0x4D)
+        expectEqual(altMetadata.columns[0].operand, 1)
+        expectEqual(altMetadata.columns[0].typeInfo.dataType, .int4)
+        expectEqual(altMetadata.columns[0].name, "total")
         guard case .altRow(let altRow) = messages[2] else {
-            return XCTFail("Expected ALTROW")
+            Issue.record("Expected ALTROW"); return
         }
-        XCTAssertEqual(altRow.id, 7)
-        XCTAssertEqual(altRow.values, [.int32(42)])
+        expectEqual(altRow.id, 7)
+        expectEqual(altRow.values, [.int32(42)])
         guard case .row(let row) = messages[3] else {
-            return XCTFail("Expected regular ROW after ALTROW")
+            Issue.record("Expected regular ROW after ALTROW"); return
         }
-        XCTAssertEqual(row.values, [.int32(1)])
+        expectEqual(row.values, [.int32(1)])
         guard case .done = messages[4] else {
-            return XCTFail("Expected DONE")
+            Issue.record("Expected DONE"); return
         }
     }
 
-    func testBackendDecoderDecodesTemporalValues() throws {
+    @Test func backendDecoderDecodesTemporalValues() throws {
         let packet = Self.packet(
             type: .preloginLoginOrTablularResponse,
             payload: Self.temporalTokenStreamPayload()
@@ -709,21 +709,21 @@ extension TDSTests {
             }
         }
 
-        XCTAssertEqual(messages.count, 3)
+        expectEqual(messages.count, 3)
         guard case .colMetadata(let metadata) = messages[0] else {
-            return XCTFail("Expected COLMETADATA")
+            Issue.record("Expected COLMETADATA"); return
         }
-        XCTAssertEqual(metadata.columns.map(\.name), ["date", "time", "dt2", "dto"])
+        expectEqual(metadata.columns.map(\.name), ["date", "time", "dt2", "dto"])
         guard case .row(let row) = messages[1] else {
-            return XCTFail("Expected ROW")
+            Issue.record("Expected ROW"); return
         }
-        XCTAssertEqual(row.values, Self.temporalValues)
+        expectEqual(row.values, Self.temporalValues)
         guard case .done = messages[2] else {
-            return XCTFail("Expected DONE")
+            Issue.record("Expected DONE"); return
         }
     }
 
-    func testBackendDecoderDecodesLegacyTemporalAndMoneyValues() throws {
+    @Test func backendDecoderDecodesLegacyTemporalAndMoneyValues() throws {
         let packet = Self.packet(
             type: .preloginLoginOrTablularResponse,
             payload: Self.legacyTemporalMoneyTokenStreamPayload()
@@ -740,28 +740,28 @@ extension TDSTests {
             }
         }
 
-        XCTAssertEqual(messages.count, 3)
+        expectEqual(messages.count, 3)
         guard case .colMetadata(let metadata) = messages[0] else {
-            return XCTFail("Expected COLMETADATA")
+            Issue.record("Expected COLMETADATA"); return
         }
-        XCTAssertEqual(
+        expectEqual(
             metadata.columns.map(\.name), ["money", "smallmoney", "nullablemoney", "datetime", "smalldt", "nullabledt"])
         guard case .row(let row) = messages[1] else {
-            return XCTFail("Expected ROW")
+            Issue.record("Expected ROW"); return
         }
-        XCTAssertEqual(row.values, Self.legacyTemporalMoneyValues)
+        expectEqual(row.values, Self.legacyTemporalMoneyValues)
         guard case .done = messages[2] else {
-            return XCTFail("Expected DONE")
+            Issue.record("Expected DONE"); return
         }
     }
 
-    func testQueryResultIncludesAlternateRows() throws {
+    @Test func queryResultIncludesAlternateRows() throws {
         let channel = try Self.loggedInChannel()
 
         let queryPromise = channel.eventLoop.makePromise(of: TDSQueryResult.self)
         try channel.writeOutbound(TDSTask.sqlBatch("SELECT amount, SUM(amount)", queryPromise))
-        let sqlBatch: ByteBuffer = try XCTUnwrap(channel.readOutbound())
-        XCTAssertEqual(sqlBatch.getInteger(at: 0, as: UInt8.self), TDSPacket.MessageType.sqlBatch.rawValue)
+        let sqlBatch: ByteBuffer = try requireUnwrap(channel.readOutbound())
+        expectEqual(sqlBatch.getInteger(at: 0, as: UInt8.self), TDSPacket.MessageType.sqlBatch.rawValue)
 
         try channel.writeInbound(
             Self.packet(
@@ -770,25 +770,25 @@ extension TDSTests {
             ))
 
         let result = try queryPromise.futureResult.wait()
-        XCTAssertEqual(result.columns.map(\.name), ["amount"])
-        XCTAssertEqual(result.rows.map(\.values), [[.int32(1)]])
-        XCTAssertEqual(result.alternateResultSets.count, 1)
-        XCTAssertEqual(result.alternateResultSets[0].id, 7)
-        XCTAssertEqual(result.alternateResultSets[0].byColumns, [1])
-        XCTAssertEqual(result.alternateResultSets[0].columns.map(\.name), ["total"])
-        XCTAssertEqual(result.alternateResultSets[0].columns[0].metadata.alternateOperation, 0x4D)
-        XCTAssertEqual(result.alternateResultSets[0].columns[0].metadata.alternateOperand, 1)
-        XCTAssertEqual(result.alternateResultSets[0].rows.map(\.values), [[.int32(42)]])
-        XCTAssertEqual(result.resultSets[0].alternateResultSets, result.alternateResultSets)
+        expectEqual(result.columns.map(\.name), ["amount"])
+        expectEqual(result.rows.map(\.values), [[.int32(1)]])
+        expectEqual(result.alternateResultSets.count, 1)
+        expectEqual(result.alternateResultSets[0].id, 7)
+        expectEqual(result.alternateResultSets[0].byColumns, [1])
+        expectEqual(result.alternateResultSets[0].columns.map(\.name), ["total"])
+        expectEqual(result.alternateResultSets[0].columns[0].metadata.alternateOperation, 0x4D)
+        expectEqual(result.alternateResultSets[0].columns[0].metadata.alternateOperand, 1)
+        expectEqual(result.alternateResultSets[0].rows.map(\.values), [[.int32(42)]])
+        expectEqual(result.resultSets[0].alternateResultSets, result.alternateResultSets)
     }
 
-    func testQueryResultIncludesNBCRowNullValues() throws {
+    @Test func queryResultIncludesNBCRowNullValues() throws {
         let channel = try Self.loggedInChannel()
 
         let queryPromise = channel.eventLoop.makePromise(of: TDSQueryResult.self)
         try channel.writeOutbound(TDSTask.sqlBatch("SELECT 1, NULL", queryPromise))
-        let sqlBatch: ByteBuffer = try XCTUnwrap(channel.readOutbound())
-        XCTAssertEqual(sqlBatch.getInteger(at: 0, as: UInt8.self), TDSPacket.MessageType.sqlBatch.rawValue)
+        let sqlBatch: ByteBuffer = try requireUnwrap(channel.readOutbound())
+        expectEqual(sqlBatch.getInteger(at: 0, as: UInt8.self), TDSPacket.MessageType.sqlBatch.rawValue)
 
         try channel.writeInbound(
             Self.packet(
@@ -797,19 +797,19 @@ extension TDSTests {
             ))
 
         let result = try queryPromise.futureResult.wait()
-        XCTAssertEqual(result.columns.map(\.name), ["id", "label"])
-        XCTAssertEqual(result.rows.count, 1)
-        XCTAssertEqual(result.rows[0].values, [.int32(1), .null])
-        XCTAssertEqual(result.rows[0]["label"], .null)
+        expectEqual(result.columns.map(\.name), ["id", "label"])
+        expectEqual(result.rows.count, 1)
+        expectEqual(result.rows[0].values, [.int32(1), .null])
+        expectEqual(result.rows[0]["label"], .null)
     }
 
-    func testQueryResultIncludesTemporalValues() throws {
+    @Test func queryResultIncludesTemporalValues() throws {
         let channel = try Self.loggedInChannel()
 
         let queryPromise = channel.eventLoop.makePromise(of: TDSQueryResult.self)
         try channel.writeOutbound(TDSTask.sqlBatch("SELECT temporal values", queryPromise))
-        let sqlBatch: ByteBuffer = try XCTUnwrap(channel.readOutbound())
-        XCTAssertEqual(sqlBatch.getInteger(at: 0, as: UInt8.self), TDSPacket.MessageType.sqlBatch.rawValue)
+        let sqlBatch: ByteBuffer = try requireUnwrap(channel.readOutbound())
+        expectEqual(sqlBatch.getInteger(at: 0, as: UInt8.self), TDSPacket.MessageType.sqlBatch.rawValue)
 
         try channel.writeInbound(
             Self.packet(
@@ -818,19 +818,19 @@ extension TDSTests {
             ))
 
         let result = try queryPromise.futureResult.wait()
-        XCTAssertEqual(result.columns.map(\.name), ["date", "time", "dt2", "dto"])
-        XCTAssertEqual(result.rows.count, 1)
-        XCTAssertEqual(result.rows[0].values, Self.temporalValues)
-        XCTAssertEqual(result.rows[0]["dt2"], Self.temporalValues[2])
+        expectEqual(result.columns.map(\.name), ["date", "time", "dt2", "dto"])
+        expectEqual(result.rows.count, 1)
+        expectEqual(result.rows[0].values, Self.temporalValues)
+        expectEqual(result.rows[0]["dt2"], Self.temporalValues[2])
     }
 
-    func testQueryResultIncludesLegacyTemporalAndMoneyValues() throws {
+    @Test func queryResultIncludesLegacyTemporalAndMoneyValues() throws {
         let channel = try Self.loggedInChannel()
 
         let queryPromise = channel.eventLoop.makePromise(of: TDSQueryResult.self)
         try channel.writeOutbound(TDSTask.sqlBatch("SELECT legacy temporal and money values", queryPromise))
-        let sqlBatch: ByteBuffer = try XCTUnwrap(channel.readOutbound())
-        XCTAssertEqual(sqlBatch.getInteger(at: 0, as: UInt8.self), TDSPacket.MessageType.sqlBatch.rawValue)
+        let sqlBatch: ByteBuffer = try requireUnwrap(channel.readOutbound())
+        expectEqual(sqlBatch.getInteger(at: 0, as: UInt8.self), TDSPacket.MessageType.sqlBatch.rawValue)
 
         try channel.writeInbound(
             Self.packet(
@@ -839,10 +839,10 @@ extension TDSTests {
             ))
 
         let result = try queryPromise.futureResult.wait()
-        XCTAssertEqual(
+        expectEqual(
             result.columns.map(\.name), ["money", "smallmoney", "nullablemoney", "datetime", "smalldt", "nullabledt"])
-        XCTAssertEqual(result.rows.count, 1)
-        XCTAssertEqual(result.rows[0].values, Self.legacyTemporalMoneyValues)
-        XCTAssertEqual(result.rows[0]["smallmoney"], .money("-12.3400"))
+        expectEqual(result.rows.count, 1)
+        expectEqual(result.rows[0].values, Self.legacyTemporalMoneyValues)
+        expectEqual(result.rows[0]["smallmoney"], .money("-12.3400"))
     }
 }
