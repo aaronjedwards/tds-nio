@@ -39,10 +39,8 @@ extension TDSConnection {
         file: String = #fileID,
         line: Int = #line
     ) async throws -> TDSQueryResult {
-        let isolationSQL = Self.sqlIsolationLevel(isolationLevel)
-        let nameSQL = Self.sqlTransactionName(name)
-        return try await self.execute(
-            "\(unescaped: isolationSQL)BEGIN TRANSACTION\(unescaped: nameSQL)",
+        try await self.executeTransactionManagerRequest(
+            .begin(isolationLevel: isolationLevel, name: name),
             file: file,
             line: line
         )
@@ -55,13 +53,11 @@ extension TDSConnection {
         file: String = #fileID,
         line: Int = #line
     ) async throws {
-        let nameSQL = Self.sqlTransactionName(name)
-        var sql = "COMMIT TRANSACTION\(nameSQL)"
-        if let beginAfterwards {
-            sql +=
-                "; \(Self.sqlIsolationLevel(beginAfterwards.isolationLevel))BEGIN TRANSACTION\(Self.sqlTransactionName(beginAfterwards.name))"
-        }
-        _ = try await self.execute("\(unescaped: sql)", file: file, line: line)
+        _ = try await self.executeTransactionManagerRequest(
+            .commit(name: name, beginAfterwards: beginAfterwards),
+            file: file,
+            line: line
+        )
     }
 
     /// Rolls back the current local transaction or a named savepoint.
@@ -71,13 +67,11 @@ extension TDSConnection {
         file: String = #fileID,
         line: Int = #line
     ) async throws {
-        let nameSQL = Self.sqlTransactionName(name)
-        var sql = "ROLLBACK TRANSACTION\(nameSQL)"
-        if let beginAfterwards {
-            sql +=
-                "; \(Self.sqlIsolationLevel(beginAfterwards.isolationLevel))BEGIN TRANSACTION\(Self.sqlTransactionName(beginAfterwards.name))"
-        }
-        _ = try await self.execute("\(unescaped: sql)", file: file, line: line)
+        _ = try await self.executeTransactionManagerRequest(
+            .rollback(name: name, beginAfterwards: beginAfterwards),
+            file: file,
+            line: line
+        )
     }
 
     /// Creates a transaction savepoint.
@@ -86,8 +80,8 @@ extension TDSConnection {
         file: String = #fileID,
         line: Int = #line
     ) async throws {
-        _ = try await self.execute(
-            "SAVE TRANSACTION\(unescaped: Self.sqlTransactionName(name))",
+        _ = try await self.executeTransactionManagerRequest(
+            .savepoint(name: name),
             file: file,
             line: line
         )
@@ -102,27 +96,4 @@ extension TDSConnection {
         return promise.futureResult
     }
 
-    private static func sqlIsolationLevel(_ isolationLevel: TDSTransactionManagerRequest.IsolationLevel) -> String {
-        switch isolationLevel {
-        case .current:
-            return ""
-        case .readUncommitted:
-            return "SET TRANSACTION ISOLATION LEVEL READ UNCOMMITTED; "
-        case .readCommitted:
-            return "SET TRANSACTION ISOLATION LEVEL READ COMMITTED; "
-        case .repeatableRead:
-            return "SET TRANSACTION ISOLATION LEVEL REPEATABLE READ; "
-        case .serializable:
-            return "SET TRANSACTION ISOLATION LEVEL SERIALIZABLE; "
-        case .snapshot:
-            return "SET TRANSACTION ISOLATION LEVEL SNAPSHOT; "
-        }
-    }
-
-    private static func sqlTransactionName(_ name: String) -> String {
-        guard !name.isEmpty else {
-            return ""
-        }
-        return " [\(name.replacingOccurrences(of: "]", with: "]]"))]"
-    }
 }

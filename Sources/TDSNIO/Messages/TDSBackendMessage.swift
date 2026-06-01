@@ -40,7 +40,6 @@ enum TDSBackendMessage: Sendable {
     case row(Row)
     case returnStatus(Int32)
     case returnValue(ReturnValue)
-    case unknownToken(UInt8, ByteBuffer)
 
     struct PreloginResponse: Sendable, Hashable {
         var version: Version?
@@ -339,7 +338,9 @@ extension TDSBackendMessage {
             case 0xAB:
                 messages.append(.info(try Self.decodeInfoError(from: &buffer)))
             case 0xE3:
-                messages.append(.envChange(try Self.decodeEnvChange(from: &buffer)))
+                if let envChange = try Self.decodeEnvChange(from: &buffer) {
+                    messages.append(.envChange(envChange))
+                }
             case 0xAE:
                 let featureExtAck = try Self.decodeFeatureExtAck(from: &buffer)
                 if let dataClassification = featureExtAck.options.first(where: { $0.featureID == 0x09 }),
@@ -388,8 +389,7 @@ extension TDSBackendMessage {
             case 0xEE:
                 messages.append(.fedAuthInfo(try Self.decodeFedAuthInfo(from: &buffer)))
             default:
-                let data = buffer.readSlice(length: buffer.readableBytes) ?? ByteBuffer()
-                messages.append(.unknownToken(token, data))
+                throw TDSPartialDecodingError.unknownTokenReceived(token: token)
             }
         }
     }
@@ -806,7 +806,7 @@ extension TDSBackendMessage {
         return data
     }
 
-    private static func decodeEnvChange(from buffer: inout ByteBuffer) throws -> EnvChange {
+    private static func decodeEnvChange(from buffer: inout ByteBuffer) throws -> EnvChange? {
         guard
             let length = buffer.readInteger(endianness: .little, as: UInt16.self),
             var data = buffer.readSlice(length: Int(length)),
@@ -837,15 +837,17 @@ extension TDSBackendMessage {
             )
         case 20:
             guard
-                let routingDataLength = data.readInteger(endianness: .little, as: UInt16.self),
-                Int(routingDataLength) <= data.readableBytes,
-                let protocolByte = data.readInteger(as: UInt8.self),
-                let port = data.readInteger(endianness: .little, as: UInt16.self),
-                let server = data.readUSVarchar()
+                var routingData = try? data.readUSVarbyte(),
+                let protocolByte = routingData.readInteger(as: UInt8.self),
+                let port = routingData.readInteger(endianness: .little, as: UInt16.self),
+                let server = routingData.readUSVarchar()
             else {
                 throw TDSPartialDecodingError.fieldNotDecodable(type: EnvChange.self)
             }
-            _ = data.readBytes(length: data.readableBytes)
+            guard protocolByte == 0 else {
+                throw TDSPartialDecodingError.unsupportedRoutingProtocol(protocolByte)
+            }
+            _ = try data.readUSVarbyte()
             value = .routing(.init(protocolByte: protocolByte, port: port, server: server))
         default:
             value = .unknown(data)
@@ -1091,9 +1093,10 @@ extension TDSBackendMessage {
 
         let typeInfo = try Self.decodeTypeInfo(from: &buffer)
         let value = try Self.decodeValue(from: &buffer, typeInfo: typeInfo)
+        let normalizedName = name.hasPrefix("@") ? String(name.dropFirst()) : name
         return .init(
             ordinal: ordinal,
-            name: name,
+            name: normalizedName,
             status: status,
             userType: userType,
             flags: flags,
@@ -1783,7 +1786,6 @@ extension TDSBackendMessage: CustomDebugStringConvertible {
         case .row(let row): ".row(\(row))"
         case .returnStatus(let status): ".returnStatus(\(status))"
         case .returnValue(let value): ".returnValue(\(value))"
-        case .unknownToken(let token, let data): ".unknownToken(\(token), \(data))"
         }
     }
 }
@@ -1819,6 +1821,16 @@ extension ByteBuffer {
             throw TDSPartialDecodingError.fieldNotDecodable(type: [UInt8].self)
         }
         return try self.readRequiredBytes(length: Int(length))
+    }
+
+    fileprivate mutating func readUSVarbyte() throws -> ByteBuffer {
+        guard
+            let length = self.readInteger(endianness: .little, as: UInt16.self),
+            let slice = self.readSlice(length: Int(length))
+        else {
+            throw TDSPartialDecodingError.fieldNotDecodable(type: ByteBuffer.self)
+        }
+        return slice
     }
 
     fileprivate mutating func readLVarbyte() throws -> [UInt8] {

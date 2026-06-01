@@ -78,6 +78,15 @@ public struct TDSSQLError: Sendable, Error {
         }
     }
 
+    /// All server errors received while processing the request.
+    public internal(set) var serverErrors: [ServerInfo] {
+        get { self.backing.serverErrors }
+        set {
+            self.copyBackingStorageIfNecessary()
+            self.backing.serverErrors = newValue
+        }
+    }
+
     /// The underlying error.
     public internal(set) var underlying: Error? {
         get { self.backing.underlying }
@@ -141,6 +150,7 @@ public struct TDSSQLError: Sendable, Error {
     private final class Backing: @unchecked Sendable {
         fileprivate var code: Code
         fileprivate var serverInfo: ServerInfo?
+        fileprivate var serverErrors: [ServerInfo] = []
         fileprivate var underlying: Error?
         fileprivate var file: String?
         fileprivate var line: Int?
@@ -154,6 +164,7 @@ public struct TDSSQLError: Sendable, Error {
         func copy() -> Self {
             let new = Self.init(code: self.code)
             new.serverInfo = self.serverInfo
+            new.serverErrors = self.serverErrors
             new.underlying = self.underlying
             new.file = self.file
             new.line = self.line
@@ -219,7 +230,9 @@ public struct TDSSQLError: Sendable, Error {
 
     static func server(_ error: TDSBackendMessage.InfoError) -> TDSSQLError {
         var new = TDSSQLError(code: .server)
-        new.serverInfo = .init(error)
+        let serverInfo = ServerInfo(error)
+        new.serverInfo = serverInfo
+        new.serverErrors = [serverInfo]
         new.underlying = ServerError(message: error.message)
         return new
     }
@@ -227,6 +240,25 @@ public struct TDSSQLError: Sendable, Error {
     static func requestCancelled() -> TDSSQLError {
         TDSSQLError(code: .requestCancelled)
     }
+
+    mutating func appendServerError(_ error: TDSBackendMessage.InfoError) {
+        let serverInfo = ServerInfo(error)
+        if self.serverInfo == nil {
+            self.serverInfo = serverInfo
+        }
+        self.serverErrors.append(serverInfo)
+    }
+
+    var isTransientLoginError: Bool {
+        guard self.code == .server, let number = self.serverInfo?.number else {
+            return false
+        }
+        return Self.transientLoginErrorNumbers.contains(number)
+    }
+
+    private static let transientLoginErrorNumbers: Set<Int32> = [
+        4060, 10928, 10929, 40197, 40501, 40613,
+    ]
 
     private struct ServerError: Error, CustomStringConvertible {
         var message: String
@@ -249,6 +281,10 @@ extension TDSSQLError: CustomStringConvertible {
             result.append(", procedureName: \(String(reflecting: serverInfo.procedureName))")
             result.append(", lineNumber: \(String(reflecting: serverInfo.lineNumber))")
             result.append(")")
+        }
+
+        if self.serverErrors.count > 1 {
+            result.append(", serverErrors: \(self.serverErrors.count)")
         }
 
         if let underlying {

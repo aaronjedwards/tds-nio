@@ -58,8 +58,8 @@ final class TDSFrontendMessagePostProcessor: ChannelOutboundHandler {
                 TDSPacket.StatusFlag.resetConnection.rawValue
                 | TDSPacket.StatusFlag.resetConnectionSkipTran.rawValue
 
-            // Any value originally entered for the packet id is ignored and reset to 0
-            var packetId = 0
+            // Any value originally entered for the packet id is ignored and reset to 1
+            var packetId = 1
             var first = true
 
             // ignore the header, because we need to create a new one for each

@@ -17,6 +17,7 @@ struct TDSSessionContext: Sendable, Hashable {
     private(set) var loginAck: TDSBackendMessage.LoginAck?
     private(set) var packetSize: Int?
     private(set) var transactionDescriptor: [UInt8] = []
+    private(set) var databaseCollation: [UInt8]?
 
     init(requestedProtocolVersion: TDSProtocolVersion = .v7_4) {
         self.capabilities = Capabilities(requestedProtocolVersion: requestedProtocolVersion)
@@ -41,6 +42,9 @@ struct TDSSessionContext: Sendable, Hashable {
 
     mutating func receiveEnvChange(_ envChange: TDSBackendMessage.EnvChange) -> EnvChangeAction {
         switch envChange.value {
+        case .bytes(let new, _) where envChange.type == 7 && new.count == 5:
+            self.databaseCollation = new
+            return .databaseCollationChanged(new)
         case .bytes(let new, _) where Self.isTransactionDescriptorEnvChange(envChange.type):
             self.transactionDescriptor = new
             return .transactionDescriptorChanged(new)
@@ -50,6 +54,8 @@ struct TDSSessionContext: Sendable, Hashable {
             }
             self.packetSize = packetSize
             return .packetSizeChanged(packetSize)
+        case .bytes where envChange.type == 18:
+            return .resetConnection
         default:
             return .none
         }
@@ -61,7 +67,7 @@ struct TDSSessionContext: Sendable, Hashable {
 
     private static func isTransactionDescriptorEnvChange(_ type: UInt8) -> Bool {
         switch type {
-        case 8, 9, 10, 11, 12, 17:
+        case 8, 9, 10:
             return true
         default:
             return false
@@ -73,6 +79,8 @@ extension TDSSessionContext {
     enum EnvChangeAction: Equatable {
         case none
         case transactionDescriptorChanged([UInt8])
+        case databaseCollationChanged([UInt8])
         case packetSizeChanged(Int)
+        case resetConnection
     }
 }

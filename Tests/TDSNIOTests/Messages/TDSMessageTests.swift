@@ -22,7 +22,7 @@ extension TDSTests {
         XCTAssertEqual(packet.readInteger(as: UInt8.self), TDSPacket.StatusFlag.eom.rawValue)
         XCTAssertEqual(packet.readInteger(endianness: .big, as: UInt16.self), UInt16(packet.writerIndex))
         XCTAssertEqual(packet.readInteger(endianness: .big, as: UInt16.self), 0)
-        XCTAssertEqual(packet.readInteger(as: UInt8.self), 0)
+        XCTAssertEqual(packet.readInteger(as: UInt8.self), 1)
         XCTAssertEqual(packet.readInteger(as: UInt8.self), 0)
 
         var options: [(UInt8, UInt16, UInt16)] = []
@@ -32,9 +32,9 @@ extension TDSTests {
             options.append((token, offset, length))
         }
 
-        XCTAssertEqual(options.map(\.0), [0x00, 0x01, 0x02, 0x03, 0x04])
-        XCTAssertEqual(options.map(\.1), [0x001A, 0x0020, 0x0021, 0x0022, 0x0026])
-        XCTAssertEqual(options.map(\.2), [6, 1, 1, 4, 1])
+        XCTAssertEqual(options.map(\.0), [0x00, 0x01, 0x02, 0x03, 0x04, 0x05, 0x06])
+        XCTAssertEqual(options.map(\.1), [0x0024, 0x002A, 0x002B, 0x002C, 0x0030, 0x0031, 0x0055])
+        XCTAssertEqual(options.map(\.2), [6, 1, 1, 4, 1, 36, 1])
         XCTAssertEqual(
             packet.getBytes(at: TDSPacket.headerLength + Int(options[0].1), length: 6),
             [
@@ -43,6 +43,8 @@ extension TDSTests {
         XCTAssertEqual(packet.getInteger(at: TDSPacket.headerLength + Int(options[1].1), as: UInt8.self), 0x01)
         XCTAssertEqual(packet.getInteger(at: TDSPacket.headerLength + Int(options[2].1), as: UInt8.self), 0x00)
         XCTAssertEqual(packet.getInteger(at: TDSPacket.headerLength + Int(options[4].1), as: UInt8.self), 0x00)
+        XCTAssertEqual(packet.getBytes(at: TDSPacket.headerLength + Int(options[5].1), length: 36)?.count, 36)
+        XCTAssertEqual(packet.getInteger(at: TDSPacket.headerLength + Int(options[6].1), as: UInt8.self), 0x01)
     }
 
     func testPreloginPacketOffsetsAreDynamicWhenEncryptionIsOmitted() throws {
@@ -61,9 +63,9 @@ extension TDSTests {
             options.append((token, offset, length))
         }
 
-        XCTAssertEqual(options.map(\.0), [0x00, 0x02, 0x03, 0x04])
-        XCTAssertEqual(options.map(\.1), [0x0015, 0x001B, 0x001C, 0x0020])
-        XCTAssertEqual(options.map(\.2), [6, 1, 4, 1])
+        XCTAssertEqual(options.map(\.0), [0x00, 0x02, 0x03, 0x04, 0x05, 0x06])
+        XCTAssertEqual(options.map(\.1), [0x001F, 0x0025, 0x0026, 0x002A, 0x002B, 0x004F])
+        XCTAssertEqual(options.map(\.2), [6, 1, 4, 1, 36, 1])
         XCTAssertEqual(
             packet.getBytes(at: TDSPacket.headerLength + Int(options[0].1), length: 6),
             [
@@ -98,6 +100,8 @@ extension TDSTests {
         XCTAssertEqual(
             packet.getInteger(at: loginStart + 8, endianness: .little, as: UInt32.self),
             UInt32(configuration.packetSize))
+        XCTAssertEqual(packet.getInteger(at: loginStart + 24, as: UInt8.self), 0xE0)
+        XCTAssertEqual(packet.getInteger(at: loginStart + 25, as: UInt8.self), 0x00)
         XCTAssertEqual(packet.getInteger(at: loginStart + 26, as: UInt8.self), 0x00)
         XCTAssertEqual(packet.getInteger(at: loginStart + 27, as: UInt8.self), 0x10)
 
@@ -119,14 +123,104 @@ extension TDSTests {
                 length: packet.writerIndex - (loginStart + Int(featureExtOffset))
             ))
 
-        XCTAssertEqual(featureExt.readInteger(as: UInt8.self), 0x09)
-        XCTAssertEqual(featureExt.readInteger(endianness: .little, as: UInt32.self), 1)
-        XCTAssertEqual(featureExt.readInteger(as: UInt8.self), 0x02)
-        XCTAssertEqual(featureExt.readInteger(as: UInt8.self), 0x0D)
+        XCTAssertEqual(featureExt.readInteger(as: UInt8.self), 0x0A)
         XCTAssertEqual(featureExt.readInteger(endianness: .little, as: UInt32.self), 1)
         XCTAssertEqual(featureExt.readInteger(as: UInt8.self), 0x01)
         XCTAssertEqual(featureExt.readInteger(as: UInt8.self), 0xFF)
         XCTAssertEqual(featureExt.readableBytes, 0)
+    }
+
+    func testLoginPacketEncodesFederatedAuthenticationFeatureExtension() throws {
+        var encoder = TDSFrontendMessageEncoder(
+            buffer: ByteBufferAllocator().buffer(capacity: 512)
+        )
+        encoder.setFederatedAuthenticationEchoRequired(true)
+        let configuration = TDSConnection.Configuration(
+            host: "sql.example.test",
+            username: "user@example.test",
+            password: "Secret123!",
+            tls: .disable,
+            authentication: .federatedAuthentication(workflow: .integrated)
+        )
+
+        encoder.login(configuration: configuration)
+        var featureExt = try Self.loginFeatureExtSlice(from: encoder.flush())
+
+        XCTAssertEqual(featureExt.readInteger(as: UInt8.self), 0x02)
+        XCTAssertEqual(featureExt.readInteger(endianness: .little, as: UInt32.self), 2)
+        XCTAssertEqual(featureExt.readInteger(as: UInt8.self), 0x05)
+        XCTAssertEqual(featureExt.readInteger(as: UInt8.self), 0x02)
+        XCTAssertEqual(featureExt.readInteger(as: UInt8.self), 0x0A)
+        XCTAssertEqual(featureExt.readInteger(endianness: .little, as: UInt32.self), 1)
+        XCTAssertEqual(featureExt.readInteger(as: UInt8.self), 0x01)
+        XCTAssertEqual(featureExt.readInteger(as: UInt8.self), 0xFF)
+        XCTAssertEqual(featureExt.readableBytes, 0)
+    }
+
+    func testLoginPacketEncodesFederatedAuthenticationTokenFeatureExtension() throws {
+        var encoder = TDSFrontendMessageEncoder(
+            buffer: ByteBufferAllocator().buffer(capacity: 512)
+        )
+        let configuration = TDSConnection.Configuration(
+            host: "sql.example.test",
+            username: "user@example.test",
+            password: "Secret123!",
+            tls: .disable,
+            authentication: .federatedAuthenticationToken("abc")
+        )
+
+        encoder.login(configuration: configuration)
+        var featureExt = try Self.loginFeatureExtSlice(from: encoder.flush())
+
+        XCTAssertEqual(featureExt.readInteger(as: UInt8.self), 0x02)
+        XCTAssertEqual(featureExt.readInteger(endianness: .little, as: UInt32.self), 11)
+        XCTAssertEqual(featureExt.readInteger(as: UInt8.self), 0x02)
+        XCTAssertEqual(featureExt.readInteger(endianness: .little, as: UInt32.self), 6)
+        XCTAssertEqual(featureExt.readBytes(length: 6), [0x61, 0x00, 0x62, 0x00, 0x63, 0x00])
+        XCTAssertEqual(featureExt.readInteger(as: UInt8.self), 0x0A)
+        XCTAssertEqual(featureExt.readInteger(endianness: .little, as: UInt32.self), 1)
+        XCTAssertEqual(featureExt.readInteger(as: UInt8.self), 0x01)
+        XCTAssertEqual(featureExt.readInteger(as: UInt8.self), 0xFF)
+        XCTAssertEqual(featureExt.readableBytes, 0)
+    }
+
+    func testStartupPipelineEchoesPreloginFedAuthRequiredInLoginFeatureExtension() throws {
+        let channel = EmbeddedChannel()
+        let logger = Logger(label: "tds-nio-tests")
+        let configuration = TDSConnection.Configuration(
+            host: "sql.example.test",
+            username: "user@example.test",
+            password: "Secret123!",
+            tls: .disable,
+            authentication: .federatedAuthentication()
+        )
+
+        let eventHandler = TDSEventsHandler(logger: logger)
+        let channelHandler = TDSChannelHandler(
+            configuration: configuration,
+            logger: logger
+        )
+        let postprocessor = TDSFrontendMessagePostProcessor(packetLength: configuration.packetSize)
+
+        try channel.pipeline.syncOperations.addHandler(eventHandler)
+        try channel.pipeline.syncOperations.addHandler(channelHandler, position: .before(eventHandler))
+        try channel.pipeline.syncOperations.addHandler(postprocessor, position: .before(channelHandler))
+
+        channel.pipeline.fireChannelActive()
+        _ = try channel.readOutbound(as: ByteBuffer.self)
+        try channel.writeInbound(
+            Self.packet(
+                type: .preloginLoginOrTablularResponse,
+                payload: Self.preloginResponsePayload(encryption: .encryptOff, fedAuthRequired: true)
+            ))
+
+        let login = try XCTUnwrap(channel.readOutbound(as: ByteBuffer.self))
+        var featureExt = try Self.loginFeatureExtSlice(from: login)
+
+        XCTAssertEqual(featureExt.readInteger(as: UInt8.self), 0x02)
+        XCTAssertEqual(featureExt.readInteger(endianness: .little, as: UInt32.self), 2)
+        XCTAssertEqual(featureExt.readInteger(as: UInt8.self), 0x05)
+        XCTAssertEqual(featureExt.readInteger(as: UInt8.self), 0x01)
     }
 
     func testLoginPacketUsesConfiguredClampedPacketSize() throws {
@@ -210,7 +304,7 @@ extension TDSTests {
                 as: UInt32.self
             ))
 
-        XCTAssertEqual(packet.getInteger(at: loginStart + 25, as: UInt8.self), 0x83)
+        XCTAssertEqual(packet.getInteger(at: loginStart + 25, as: UInt8.self), 0x80)
         XCTAssertEqual(try Self.loginStringField(index: 1, in: &packet), "")
         XCTAssertEqual(try Self.loginStringField(index: 2, in: &packet), "")
         XCTAssertEqual(sspiLength, UInt16(initialToken.count))
@@ -436,6 +530,35 @@ extension TDSTests {
         XCTAssertEqual(packet.readableBytes, 0)
     }
 
+    func testBoundQueryRPCPacketEncodesMaxBinaryParameterAsPLP() throws {
+        let value = Array(repeating: UInt8(0xA5), count: 9_001)
+        let query: TDSQuery = "SELECT \(value)"
+        var encoder = TDSFrontendMessageEncoder(
+            buffer: ByteBufferAllocator().buffer(capacity: 10_000)
+        )
+
+        encoder.rpc(query.rpcForExecution())
+
+        var packet = encoder.flush()
+        packet.moveReaderIndex(forwardBy: TDSPacket.headerLength + 22 + 2 + "sp_executesql".utf16.count * 2 + 2)
+
+        self.skipRPCParameter(&packet, name: "@stmt")
+        self.skipRPCParameter(&packet, name: "@params")
+
+        XCTAssertEqual(packet.readInteger(as: UInt8.self), 3)
+        XCTAssertEqual(packet.readUTF16(characterCount: 3), "@p0")
+        XCTAssertEqual(packet.readInteger(as: UInt8.self), 0)
+        XCTAssertEqual(packet.readInteger(as: UInt8.self), TDSDataType.bigVarBin.rawValue)
+        XCTAssertEqual(packet.readInteger(endianness: .little, as: UInt16.self), UInt16.max)
+        XCTAssertEqual(packet.readInteger(endianness: .little, as: UInt64.self), UInt64.max - 1)
+        XCTAssertEqual(packet.readInteger(endianness: .little, as: UInt32.self), 9_001)
+        let bytes = try XCTUnwrap(packet.readBytes(length: 9_001))
+        XCTAssertEqual(bytes.count, 9_001)
+        XCTAssertEqual(bytes.first, 0xA5)
+        XCTAssertEqual(bytes.last, 0xA5)
+        XCTAssertEqual(packet.readInteger(endianness: .little, as: UInt32.self), 0)
+    }
+
     func testRPCPacketEncodesEmptyStringParameterWithValidNVarCharMetadata() throws {
         var encoder = TDSFrontendMessageEncoder(
             buffer: ByteBufferAllocator().buffer(capacity: 128)
@@ -458,6 +581,34 @@ extension TDSTests {
         XCTAssertEqual(packet.readInteger(endianness: .little, as: UInt16.self), 2)
         XCTAssertEqual(packet.readBytes(length: 5), [0x09, 0x04, 0xD0, 0x00, 0x34])
         XCTAssertEqual(packet.readInteger(endianness: .little, as: UInt16.self), 0)
+        XCTAssertEqual(packet.readableBytes, 0)
+    }
+
+    func testRPCPacketUsesDatabaseCollationForStringParameter() throws {
+        let collation: [UInt8] = [0x33, 0x08, 0xD0, 0x00, 0x34]
+        var encoder = TDSFrontendMessageEncoder(
+            buffer: ByteBufferAllocator().buffer(capacity: 128)
+        )
+        encoder.setDatabaseCollation(collation)
+        encoder.rpc(
+            .init(
+                procedure: "dbo.echo",
+                parameters: [
+                    .init(name: "@text", value: .string("abc"))
+                ]
+            ))
+
+        var packet = encoder.flush()
+        packet.moveReaderIndex(forwardBy: TDSPacket.headerLength + 22 + 2 + "dbo.echo".utf16.count * 2 + 2)
+
+        XCTAssertEqual(packet.readInteger(as: UInt8.self), 5)
+        XCTAssertEqual(packet.readUTF16(characterCount: 5), "@text")
+        XCTAssertEqual(packet.readInteger(as: UInt8.self), 0)
+        XCTAssertEqual(packet.readInteger(as: UInt8.self), TDSDataType.nVarChar.rawValue)
+        XCTAssertEqual(packet.readInteger(endianness: .little, as: UInt16.self), 6)
+        XCTAssertEqual(packet.readBytes(length: 5), collation)
+        XCTAssertEqual(packet.readInteger(endianness: .little, as: UInt16.self), 6)
+        XCTAssertEqual(packet.readUTF16(characterCount: 3), "abc")
         XCTAssertEqual(packet.readableBytes, 0)
     }
 
@@ -576,6 +727,33 @@ extension TDSTests {
         XCTAssertEqual(packet.readableBytes, 0)
     }
 
+    func testRPCPacketPrefixesBareParameterNames() throws {
+        var encoder = TDSFrontendMessageEncoder(
+            buffer: ByteBufferAllocator().buffer(capacity: 256)
+        )
+        encoder.rpc(
+            .init(
+                procedure: "dbo.echo",
+                parameters: [
+                    .init(name: "id", value: .int(42)),
+                    .init(name: "", value: .int(7)),
+                ]
+            ))
+
+        var packet = encoder.flush()
+        packet.moveReaderIndex(forwardBy: TDSPacket.headerLength + 22)
+
+        XCTAssertEqual(packet.readInteger(endianness: .little, as: UInt16.self), 8)
+        XCTAssertEqual(packet.readUTF16(characterCount: 8), "dbo.echo")
+        XCTAssertEqual(packet.readInteger(endianness: .little, as: UInt16.self), 0)
+
+        XCTAssertEqual(packet.readInteger(as: UInt8.self), 3)
+        XCTAssertEqual(packet.readUTF16(characterCount: 3), "@id")
+        packet.moveReaderIndex(forwardBy: 1 + 1 + 1 + 8)
+
+        XCTAssertEqual(packet.readInteger(as: UInt8.self), 0)
+    }
+
     func testRPCPacketEncodesDecimalParameter() throws {
         var encoder = TDSFrontendMessageEncoder(
             buffer: ByteBufferAllocator().buffer(capacity: 256)
@@ -655,7 +833,7 @@ extension TDSTests {
         XCTAssertEqual(packet.readInteger(as: UInt8.self), 0)
         XCTAssertEqual(packet.readInteger(as: UInt8.self), TDSDataType.xml.rawValue)
         XCTAssertEqual(packet.readInteger(as: UInt8.self), 0)
-        XCTAssertEqual(packet.readInteger(endianness: .little, as: UInt64.self), 4)
+        XCTAssertEqual(packet.readInteger(endianness: .little, as: UInt64.self), UInt64.max - 1)
         XCTAssertEqual(packet.readInteger(endianness: .little, as: UInt32.self), 4)
         XCTAssertEqual(packet.readBytes(length: 4), [0x3C, 0x72, 0x2F, 0x3E])
         XCTAssertEqual(packet.readInteger(endianness: .little, as: UInt32.self), 0)
@@ -680,7 +858,7 @@ extension TDSTests {
         XCTAssertEqual(packet.readUTF16(characterCount: 4), "@doc")
         XCTAssertEqual(packet.readInteger(as: UInt8.self), 0)
         XCTAssertEqual(packet.readInteger(as: UInt8.self), TDSDataType.json.rawValue)
-        XCTAssertEqual(packet.readInteger(endianness: .little, as: UInt64.self), 11)
+        XCTAssertEqual(packet.readInteger(endianness: .little, as: UInt64.self), UInt64.max - 1)
         XCTAssertEqual(packet.readInteger(endianness: .little, as: UInt32.self), 11)
         XCTAssertEqual(packet.readBytes(length: 11), Array(#"{"ok":true}"#.utf8))
         XCTAssertEqual(packet.readInteger(endianness: .little, as: UInt32.self), 0)
@@ -708,7 +886,7 @@ extension TDSTests {
         XCTAssertEqual(packet.readInteger(as: UInt8.self), TDSDataType.nVarChar.rawValue)
         XCTAssertEqual(packet.readInteger(endianness: .little, as: UInt16.self), UInt16.max)
         XCTAssertEqual(packet.readBytes(length: 5), [0x09, 0x04, 0xD0, 0x00, 0x34])
-        XCTAssertEqual(packet.readInteger(endianness: .little, as: UInt64.self), 10_000)
+        XCTAssertEqual(packet.readInteger(endianness: .little, as: UInt64.self), UInt64.max - 1)
         XCTAssertEqual(packet.readInteger(endianness: .little, as: UInt32.self), 10_000)
         let bytes = try XCTUnwrap(packet.readBytes(length: 10_000))
         XCTAssertEqual(bytes.count, 10_000)
@@ -737,7 +915,7 @@ extension TDSTests {
         XCTAssertEqual(packet.readInteger(as: UInt8.self), 0)
         XCTAssertEqual(packet.readInteger(as: UInt8.self), TDSDataType.bigVarBin.rawValue)
         XCTAssertEqual(packet.readInteger(endianness: .little, as: UInt16.self), UInt16.max)
-        XCTAssertEqual(packet.readInteger(endianness: .little, as: UInt64.self), 9_001)
+        XCTAssertEqual(packet.readInteger(endianness: .little, as: UInt64.self), UInt64.max - 1)
         XCTAssertEqual(packet.readInteger(endianness: .little, as: UInt32.self), 9_001)
         let bytes = try XCTUnwrap(packet.readBytes(length: 9_001))
         XCTAssertEqual(bytes.count, 9_001)
@@ -807,6 +985,52 @@ extension TDSTests {
         XCTAssertEqual(packet.readInteger(endianness: .little, as: Int32.self), 8)
         XCTAssertEqual(packet.readInteger(endianness: .little, as: UInt16.self), UInt16.max)
 
+        XCTAssertEqual(packet.readInteger(as: UInt8.self), 0x00)
+        XCTAssertEqual(packet.readableBytes, 0)
+    }
+
+    func testRPCPacketEncodesTableValuedParameterWithoutDefaultSchema() throws {
+        let tvp = TDSTableValuedParameter(
+            typeName: "IntList",
+            columns: [
+                .init(dataType: .int(maxBytes: 4))
+            ],
+            rows: [
+                [.int(7)]
+            ]
+        )
+        var encoder = TDSFrontendMessageEncoder(
+            buffer: ByteBufferAllocator().buffer(capacity: 256)
+        )
+        encoder.rpc(
+            .init(
+                procedure: "dbo.use_tvp",
+                parameters: [.init(name: "@items", value: .table(tvp))]
+            ))
+
+        var packet = encoder.flush()
+        packet.moveReaderIndex(forwardBy: TDSPacket.headerLength + 22 + 2 + "dbo.use_tvp".utf16.count * 2 + 2)
+
+        XCTAssertEqual(packet.readInteger(as: UInt8.self), 6)
+        XCTAssertEqual(packet.readUTF16(characterCount: 6), "@items")
+        XCTAssertEqual(packet.readInteger(as: UInt8.self), 0)
+        XCTAssertEqual(packet.readInteger(as: UInt8.self), 0xF3)
+        XCTAssertEqual(packet.readInteger(as: UInt8.self), 0)
+        XCTAssertEqual(packet.readInteger(as: UInt8.self), 0)
+        XCTAssertEqual(packet.readInteger(as: UInt8.self), 7)
+        XCTAssertEqual(packet.readUTF16(characterCount: 7), "IntList")
+
+        XCTAssertEqual(packet.readInteger(endianness: .little, as: UInt16.self), 1)
+        XCTAssertEqual(packet.readInteger(endianness: .little, as: UInt32.self), 0)
+        XCTAssertEqual(packet.readInteger(endianness: .little, as: UInt16.self), 0)
+        XCTAssertEqual(packet.readInteger(as: UInt8.self), TDSDataType.intN.rawValue)
+        XCTAssertEqual(packet.readInteger(as: UInt8.self), 4)
+        XCTAssertEqual(packet.readInteger(as: UInt8.self), 0)
+
+        XCTAssertEqual(packet.readInteger(as: UInt8.self), 0x00)
+        XCTAssertEqual(packet.readInteger(as: UInt8.self), 0x01)
+        XCTAssertEqual(packet.readInteger(as: UInt8.self), 4)
+        XCTAssertEqual(packet.readInteger(endianness: .little, as: Int32.self), 7)
         XCTAssertEqual(packet.readInteger(as: UInt8.self), 0x00)
         XCTAssertEqual(packet.readableBytes, 0)
     }
@@ -1020,7 +1244,7 @@ extension TDSTests {
         XCTAssertEqual(result.rowsAffected, 1)
     }
 
-    func testPostProcessorSplitsLargePacketsWithEOMOnlyOnFinalPacket() throws {
+    func testPostProcessorSplitsLargePacketsWithEOMOnlyOnFinalPacketAndResetOnlyOnFirstPacket() throws {
         let channel = EmbeddedChannel(handler: TDSFrontendMessagePostProcessor())
         let payloadLength = TDSPacket.maximumPacketDataLength * 2 + 17
         var packet = ByteBufferAllocator().buffer(capacity: TDSPacket.headerLength + payloadLength)
@@ -1039,7 +1263,7 @@ extension TDSTests {
         XCTAssertEqual(first.readInteger(as: UInt8.self), TDSPacket.StatusFlag.resetConnection.rawValue)
         XCTAssertEqual(first.readInteger(endianness: .big, as: UInt16.self), UInt16(TDSPacket.maximumPacketLength))
         first.moveReaderIndex(forwardBy: 2)
-        XCTAssertEqual(first.readInteger(as: UInt8.self), 0)
+        XCTAssertEqual(first.readInteger(as: UInt8.self), 1)
         first.moveReaderIndex(forwardBy: 1)
         XCTAssertEqual(first.readableBytes, TDSPacket.maximumPacketDataLength)
 
@@ -1048,7 +1272,7 @@ extension TDSTests {
         XCTAssertEqual(second.readInteger(as: UInt8.self), 0)
         XCTAssertEqual(second.readInteger(endianness: .big, as: UInt16.self), UInt16(TDSPacket.maximumPacketLength))
         second.moveReaderIndex(forwardBy: 2)
-        XCTAssertEqual(second.readInteger(as: UInt8.self), 1)
+        XCTAssertEqual(second.readInteger(as: UInt8.self), 2)
         second.moveReaderIndex(forwardBy: 1)
         XCTAssertEqual(second.readableBytes, TDSPacket.maximumPacketDataLength)
 
@@ -1060,7 +1284,7 @@ extension TDSTests {
             UInt16(TDSPacket.headerLength + 17)
         )
         third.moveReaderIndex(forwardBy: 2)
-        XCTAssertEqual(third.readInteger(as: UInt8.self), 2)
+        XCTAssertEqual(third.readInteger(as: UInt8.self), 3)
         third.moveReaderIndex(forwardBy: 1)
         XCTAssertEqual(third.readableBytes, 17)
         XCTAssertNil(try channel.readOutbound(as: ByteBuffer.self))
@@ -1127,6 +1351,37 @@ extension TDSTests {
         }
     }
 
+    func testCollationEnvChangeUpdatesLaterRPCStringMetadata() throws {
+        let channel = try Self.loggedInChannel()
+        let collation: [UInt8] = [0x33, 0x08, 0xD0, 0x00, 0x34]
+
+        try channel.writeInbound(
+            Self.packet(
+                type: .preloginLoginOrTablularResponse,
+                payload: Self.collationEnvChangePayload(new: collation)
+            ))
+
+        let promise = channel.eventLoop.makePromise(of: TDSQueryResult.self)
+        try channel.writeOutbound(
+            TDSTask.rpc(
+                .init(
+                    procedure: "dbo.echo",
+                    parameters: [.init(name: "@text", value: .string("abc"))]
+                ),
+                promise
+            ))
+
+        var packet = try XCTUnwrap(channel.readOutbound(as: ByteBuffer.self))
+        packet.moveReaderIndex(forwardBy: TDSPacket.headerLength + 22 + 2 + "dbo.echo".utf16.count * 2 + 2)
+
+        XCTAssertEqual(packet.readInteger(as: UInt8.self), 5)
+        XCTAssertEqual(packet.readUTF16(characterCount: 5), "@text")
+        XCTAssertEqual(packet.readInteger(as: UInt8.self), 0)
+        XCTAssertEqual(packet.readInteger(as: UInt8.self), TDSDataType.nVarChar.rawValue)
+        XCTAssertEqual(packet.readInteger(endianness: .little, as: UInt16.self), 6)
+        XCTAssertEqual(packet.readBytes(length: 5), collation)
+    }
+
     func testConfiguredPacketSizeControlsInitialOutboundSplitting() throws {
         var configuration = Self.configuration()
         configuration.packetSize = 512
@@ -1162,6 +1417,52 @@ extension TDSTests {
         }
         XCTAssertEqual(response.encryption, .encryptOff)
         XCTAssertEqual(response.version?.major, 15)
+    }
+
+    func testBackendDecoderFailsUnknownToken() throws {
+        var payload = ByteBufferAllocator().buffer(capacity: 1)
+        payload.writeInteger(0x01 as UInt8)
+        let packet = Self.packet(
+            type: .preloginLoginOrTablularResponse,
+            payload: payload
+        )
+
+        let decoder = ByteToMessageHandler(TDSBackendMessageDecoder())
+        let channel = EmbeddedChannel(handler: decoder)
+
+        XCTAssertThrowsError(try channel.writeInbound(packet)) { error in
+            let decodingError = error as? TDSMessageDecodingError
+            XCTAssertEqual(decodingError?.packetID, TDSPacket.MessageType.preloginLoginOrTablularResponse.rawValue)
+            XCTAssertEqual(
+                decodingError?.description,
+                """
+                Received a token with type '1'. There is no token type associated \
+                with this token identifier.
+                """
+            )
+        }
+    }
+
+    func testBackendDecoderRejectsPacketLengthSmallerThanHeader() throws {
+        var packet = ByteBufferAllocator().buffer(capacity: TDSPacket.headerLength)
+        packet.writeInteger(TDSPacket.MessageType.preloginLoginOrTablularResponse.rawValue)
+        packet.writeInteger(TDSPacket.StatusFlag.eom.rawValue)
+        packet.writeInteger(UInt16(4), endianness: .big)
+        packet.writeInteger(UInt16(0), endianness: .big)
+        packet.writeInteger(UInt8(0))
+        packet.writeInteger(UInt8(0))
+
+        let decoder = ByteToMessageHandler(TDSBackendMessageDecoder())
+        let channel = EmbeddedChannel(handler: decoder)
+
+        XCTAssertThrowsError(try channel.writeInbound(packet)) { error in
+            let decodingError = error as? TDSMessageDecodingError
+            XCTAssertEqual(decodingError?.packetID, TDSPacket.MessageType.preloginLoginOrTablularResponse.rawValue)
+            XCTAssertEqual(
+                decodingError?.description,
+                "Received a packet length of '4', expected at least '8'."
+            )
+        }
     }
 
     func testBackendDecoderReassemblesSplitPacketsBeforeDecoding() throws {
@@ -1312,6 +1613,84 @@ extension TDSTests {
         XCTAssertEqual(routing.server, "redirect.sql.example.test")
     }
 
+    func testBackendDecoderPreservesUnknownEnvChangeTypes() throws {
+        var envChange = ByteBufferAllocator().buffer(capacity: 8)
+        envChange.writeInteger(0xFE as UInt8)
+        envChange.writeInteger(0xCAFE_BABE as UInt32, endianness: .little)
+
+        var payload = ByteBufferAllocator().buffer(capacity: 32)
+        payload.writeLengthPrefixedToken(0xE3, bytes: Array(envChange.readableBytesView))
+        var done = Self.donePayload()
+        payload.writeBuffer(&done)
+
+        let packet = Self.packet(
+            type: .preloginLoginOrTablularResponse,
+            payload: payload
+        )
+
+        let decoder = ByteToMessageHandler(TDSBackendMessageDecoder())
+        let channel = EmbeddedChannel(handler: decoder)
+        try channel.writeInbound(packet)
+
+        let containers: TinySequence<TDSBackendMessageDecoder.Container> = try XCTUnwrap(
+            channel.readInbound()
+        )
+        let messages = try XCTUnwrap(containers.first?.messages)
+        XCTAssertEqual(messages.count, 2)
+        guard
+            case .envChange(let decodedEnvChange) = messages[0],
+            case .unknown(var data) = decodedEnvChange.value
+        else {
+            return XCTFail("Expected unknown ENVCHANGE before DONE, got \(messages[0])")
+        }
+        XCTAssertEqual(decodedEnvChange.type, 0xFE)
+        XCTAssertEqual(data.readInteger(endianness: .little, as: UInt32.self), 0xCAFE_BABE)
+        guard case .done = messages[1] else {
+            return XCTFail("Expected DONE after unknown ENVCHANGE, got \(messages[1])")
+        }
+    }
+
+    func testBackendDecoderRejectsUnsupportedRoutingProtocol() throws {
+        let packet = Self.packet(
+            type: .preloginLoginOrTablularResponse,
+            payload: Self.routingEnvChangePayload(protocolByte: 1)
+        )
+
+        let decoder = ByteToMessageHandler(TDSBackendMessageDecoder())
+        let channel = EmbeddedChannel(handler: decoder)
+
+        XCTAssertThrowsError(try channel.writeInbound(packet)) { error in
+            let decodingError = error as? TDSMessageDecodingError
+            XCTAssertEqual(decodingError?.description, "Unsupported routing ENVCHANGE protocol byte '1'.")
+        }
+    }
+
+    func testBackendDecoderBoundsRoutingEnvChangeToNewValueLength() throws {
+        var envChange = ByteBufferAllocator().buffer(capacity: 16)
+        envChange.writeInteger(20 as UInt8)
+        envChange.writeInteger(5 as UInt16, endianness: .little)
+        envChange.writeInteger(0 as UInt8)
+        envChange.writeInteger(1444 as UInt16, endianness: .little)
+        envChange.writeInteger(1 as UInt16, endianness: .little)
+        envChange.writeInteger(0 as UInt16, endianness: .little)
+
+        var payload = ByteBufferAllocator().buffer(capacity: 32)
+        payload.writeLengthPrefixedToken(0xE3, bytes: Array(envChange.readableBytesView))
+
+        let packet = Self.packet(
+            type: .preloginLoginOrTablularResponse,
+            payload: payload
+        )
+
+        let decoder = ByteToMessageHandler(TDSBackendMessageDecoder())
+        let channel = EmbeddedChannel(handler: decoder)
+
+        XCTAssertThrowsError(try channel.writeInbound(packet)) { error in
+            let decodingError = error as? TDSMessageDecodingError
+            XCTAssertEqual(decodingError?.description, "Could not read 'EnvChange' from ByteBuffer.")
+        }
+    }
+
     func testBackendDecoderDecodesReturnStatusAndReturnValue() throws {
         let packet = Self.packet(
             type: .preloginLoginOrTablularResponse,
@@ -1339,7 +1718,7 @@ extension TDSTests {
             return XCTFail("Expected RETURNVALUE")
         }
         XCTAssertEqual(value.ordinal, 1)
-        XCTAssertEqual(value.name, "@answer")
+        XCTAssertEqual(value.name, "answer")
         XCTAssertEqual(value.status, 1)
         XCTAssertEqual(value.typeInfo.dataType, .intN)
         XCTAssertEqual(value.typeInfo.length, 4)
@@ -1827,6 +2206,13 @@ extension TDSTests {
                 type: .preloginLoginOrTablularResponse,
                 payload: Self.loginAckAndDonePayload()
             ))
+        let initialSQL: ByteBuffer = try XCTUnwrap(channel.readOutbound())
+        XCTAssertEqual(initialSQL.getInteger(at: 0, as: UInt8.self), TDSPacket.MessageType.sqlBatch.rawValue)
+        try channel.writeInbound(
+            Self.packet(
+                type: .preloginLoginOrTablularResponse,
+                payload: Self.donePayload()
+            ))
 
         let context = try eventHandler.startupDoneFuture.wait()
         XCTAssertEqual(context.version, .v7_4)
@@ -1917,6 +2303,255 @@ extension TDSTests {
         }
     }
 
+    func testStartupPipelineAllowsLoginAckAfterLoginError() throws {
+        let channel = EmbeddedChannel()
+        let logger = Logger(label: "tds-nio-tests")
+        let configuration = TDSConnection.Configuration(
+            host: "sql.example.test",
+            username: "sa",
+            password: "Secret123!",
+            database: "master",
+            tls: .disable,
+            clientHostName: "client"
+        )
+
+        let eventHandler = TDSEventsHandler(logger: logger)
+        let channelHandler = TDSChannelHandler(
+            configuration: configuration,
+            logger: logger
+        )
+        let postprocessor = TDSFrontendMessagePostProcessor(packetLength: configuration.packetSize)
+
+        try channel.pipeline.syncOperations.addHandler(eventHandler)
+        try channel.pipeline.syncOperations.addHandler(channelHandler, position: .before(eventHandler))
+        try channel.pipeline.syncOperations.addHandler(postprocessor, position: .before(channelHandler))
+
+        channel.pipeline.fireChannelActive()
+        _ = try channel.readOutbound(as: ByteBuffer.self)
+        try channel.writeInbound(
+            Self.packet(
+                type: .preloginLoginOrTablularResponse,
+                payload: Self.preloginResponsePayload(encryption: .encryptOff)
+            ))
+        _ = try channel.readOutbound(as: ByteBuffer.self)
+
+        var loginResponse = Self.errorPayload(message: "Retrying login.", number: 18456)
+        var loginAckAndDone = Self.loginAckAndDonePayload()
+        loginResponse.writeBuffer(&loginAckAndDone)
+
+        try channel.writeInbound(
+            Self.packet(
+                type: .preloginLoginOrTablularResponse,
+                payload: loginResponse
+            ))
+        let initialSQL: ByteBuffer = try XCTUnwrap(channel.readOutbound())
+        XCTAssertEqual(initialSQL.getInteger(at: 0, as: UInt8.self), TDSPacket.MessageType.sqlBatch.rawValue)
+        try channel.writeInbound(
+            Self.packet(
+                type: .preloginLoginOrTablularResponse,
+                payload: Self.donePayload()
+            ))
+
+        let context = try eventHandler.startupDoneFuture.wait()
+        XCTAssertEqual(context.version, .v7_4)
+    }
+
+    func testStartupPipelineFailsStartupFutureOnUnsupportedLoginAck() throws {
+        let channel = EmbeddedChannel()
+        let logger = Logger(label: "tds-nio-tests")
+        let configuration = TDSConnection.Configuration(
+            host: "sql.example.test",
+            username: "sa",
+            password: "Secret123!",
+            database: "master",
+            tls: .disable,
+            clientHostName: "client"
+        )
+
+        let eventHandler = TDSEventsHandler(logger: logger)
+        let channelHandler = TDSChannelHandler(
+            configuration: configuration,
+            logger: logger
+        )
+        let postprocessor = TDSFrontendMessagePostProcessor(packetLength: configuration.packetSize)
+
+        try channel.pipeline.syncOperations.addHandler(eventHandler)
+        try channel.pipeline.syncOperations.addHandler(channelHandler, position: .before(eventHandler))
+        try channel.pipeline.syncOperations.addHandler(postprocessor, position: .before(channelHandler))
+
+        channel.pipeline.fireChannelActive()
+        _ = try channel.readOutbound(as: ByteBuffer.self)
+        try channel.writeInbound(
+            Self.packet(
+                type: .preloginLoginOrTablularResponse,
+                payload: Self.preloginResponsePayload(encryption: .encryptOff)
+            ))
+        _ = try channel.readOutbound(as: ByteBuffer.self)
+
+        XCTAssertThrowsError(
+            try channel.writeInbound(
+                Self.packet(
+                    type: .preloginLoginOrTablularResponse,
+                    payload: Self.loginAckAndDonePayload(tdsVersion: 0x7100_0001)
+                ))
+        ) { error in
+            let sqlError = error as? TDSSQLError
+            XCTAssertEqual(sqlError?.code, .connectionError)
+        }
+
+        XCTAssertThrowsError(try eventHandler.startupDoneFuture.wait()) { error in
+            let sqlError = error as? TDSSQLError
+            XCTAssertEqual(sqlError?.code, .connectionError)
+        }
+    }
+
+    func testStartupPipelineFailsStartupFutureOnLoginDoneWithoutLoginAck() throws {
+        let channel = EmbeddedChannel()
+        let logger = Logger(label: "tds-nio-tests")
+        let configuration = TDSConnection.Configuration(
+            host: "sql.example.test",
+            username: "sa",
+            password: "Secret123!",
+            database: "master",
+            tls: .disable,
+            clientHostName: "client"
+        )
+
+        let eventHandler = TDSEventsHandler(logger: logger)
+        let channelHandler = TDSChannelHandler(
+            configuration: configuration,
+            logger: logger
+        )
+        let postprocessor = TDSFrontendMessagePostProcessor(packetLength: configuration.packetSize)
+
+        try channel.pipeline.syncOperations.addHandler(eventHandler)
+        try channel.pipeline.syncOperations.addHandler(channelHandler, position: .before(eventHandler))
+        try channel.pipeline.syncOperations.addHandler(postprocessor, position: .before(channelHandler))
+
+        channel.pipeline.fireChannelActive()
+        _ = try channel.readOutbound(as: ByteBuffer.self)
+        try channel.writeInbound(
+            Self.packet(
+                type: .preloginLoginOrTablularResponse,
+                payload: Self.preloginResponsePayload(encryption: .encryptOff)
+            ))
+        _ = try channel.readOutbound(as: ByteBuffer.self)
+
+        XCTAssertThrowsError(
+            try channel.writeInbound(
+                Self.packet(
+                    type: .preloginLoginOrTablularResponse,
+                    payload: Self.donePayload()
+                ))
+        ) { error in
+            let sqlError = error as? TDSSQLError
+            XCTAssertEqual(sqlError?.code, .connectionError)
+        }
+
+        XCTAssertThrowsError(try eventHandler.startupDoneFuture.wait()) { error in
+            let sqlError = error as? TDSSQLError
+            XCTAssertEqual(sqlError?.code, .connectionError)
+        }
+    }
+
+    func testStartupPipelineFailsStartupFutureOnUnexpectedFedAuthFeatureAck() throws {
+        let channel = EmbeddedChannel()
+        let logger = Logger(label: "tds-nio-tests")
+        let configuration = TDSConnection.Configuration(
+            host: "sql.example.test",
+            username: "sa",
+            password: "Secret123!",
+            database: "master",
+            tls: .disable,
+            clientHostName: "client"
+        )
+
+        let eventHandler = TDSEventsHandler(logger: logger)
+        let channelHandler = TDSChannelHandler(
+            configuration: configuration,
+            logger: logger
+        )
+        let postprocessor = TDSFrontendMessagePostProcessor(packetLength: configuration.packetSize)
+
+        try channel.pipeline.syncOperations.addHandler(eventHandler)
+        try channel.pipeline.syncOperations.addHandler(channelHandler, position: .before(eventHandler))
+        try channel.pipeline.syncOperations.addHandler(postprocessor, position: .before(channelHandler))
+
+        channel.pipeline.fireChannelActive()
+        _ = try channel.readOutbound(as: ByteBuffer.self)
+        try channel.writeInbound(
+            Self.packet(
+                type: .preloginLoginOrTablularResponse,
+                payload: Self.preloginResponsePayload(encryption: .encryptOff)
+            ))
+        _ = try channel.readOutbound(as: ByteBuffer.self)
+
+        XCTAssertThrowsError(
+            try channel.writeInbound(
+                Self.packet(
+                    type: .preloginLoginOrTablularResponse,
+                    payload: Self.featureExtAckPayload(featureID: 0x02, data: [])
+                ))
+        ) { error in
+            let sqlError = error as? TDSSQLError
+            XCTAssertEqual(sqlError?.code, .connectionError)
+        }
+
+        XCTAssertThrowsError(try eventHandler.startupDoneFuture.wait()) { error in
+            let sqlError = error as? TDSSQLError
+            XCTAssertEqual(sqlError?.code, .connectionError)
+        }
+    }
+
+    func testStartupPipelineFailsStartupFutureOnUnexpectedFeatureAck() throws {
+        let channel = EmbeddedChannel()
+        let logger = Logger(label: "tds-nio-tests")
+        let configuration = TDSConnection.Configuration(
+            host: "sql.example.test",
+            username: "sa",
+            password: "Secret123!",
+            database: "master",
+            tls: .disable,
+            clientHostName: "client"
+        )
+
+        let eventHandler = TDSEventsHandler(logger: logger)
+        let channelHandler = TDSChannelHandler(
+            configuration: configuration,
+            logger: logger
+        )
+        let postprocessor = TDSFrontendMessagePostProcessor(packetLength: configuration.packetSize)
+
+        try channel.pipeline.syncOperations.addHandler(eventHandler)
+        try channel.pipeline.syncOperations.addHandler(channelHandler, position: .before(eventHandler))
+        try channel.pipeline.syncOperations.addHandler(postprocessor, position: .before(channelHandler))
+
+        channel.pipeline.fireChannelActive()
+        _ = try channel.readOutbound(as: ByteBuffer.self)
+        try channel.writeInbound(
+            Self.packet(
+                type: .preloginLoginOrTablularResponse,
+                payload: Self.preloginResponsePayload(encryption: .encryptOff)
+            ))
+        _ = try channel.readOutbound(as: ByteBuffer.self)
+
+        XCTAssertThrowsError(
+            try channel.writeInbound(
+                Self.packet(
+                    type: .preloginLoginOrTablularResponse,
+                    payload: Self.featureExtAckPayload(featureID: 0x55, data: [])
+                ))
+        ) { error in
+            let sqlError = error as? TDSSQLError
+            XCTAssertEqual(sqlError?.code, .connectionError)
+        }
+
+        XCTAssertThrowsError(try eventHandler.startupDoneFuture.wait()) { error in
+            let sqlError = error as? TDSSQLError
+            XCTAssertEqual(sqlError?.code, .connectionError)
+        }
+    }
+
     func testPreloginEncryptionIsDerivedFromTLSMode() throws {
         let sslContext = try NIOSSLContext(configuration: .makeClientConfiguration())
 
@@ -1949,5 +2584,41 @@ extension TDSTests {
 
         var unwrapped: ByteBuffer = try XCTUnwrap(channel.readInbound())
         XCTAssertEqual(unwrapped.readBytes(length: 5), [0x16, 0x03, 0x03, 0x00, 0x11])
+    }
+
+    private static func loginFeatureExtSlice(from packet: ByteBuffer) throws -> ByteBuffer {
+        let loginStart = TDSPacket.headerLength
+        let extensionEntry = loginStart + 36 + 5 * 4
+        let extensionOffset = try XCTUnwrap(packet.getInteger(at: extensionEntry, endianness: .little, as: UInt16.self))
+        let featureExtOffset = try XCTUnwrap(
+            packet.getInteger(
+                at: loginStart + Int(extensionOffset),
+                endianness: .little,
+                as: UInt32.self
+            ))
+        return try XCTUnwrap(
+            packet.getSlice(
+                at: loginStart + Int(featureExtOffset),
+                length: packet.writerIndex - (loginStart + Int(featureExtOffset))
+            ))
+    }
+
+    private func skipRPCParameter(_ packet: inout ByteBuffer, name: String) {
+        XCTAssertEqual(packet.readInteger(as: UInt8.self), UInt8(name.utf16.count))
+        XCTAssertEqual(packet.readUTF16(characterCount: name.utf16.count), name)
+        _ = packet.readInteger(as: UInt8.self)
+        XCTAssertEqual(packet.readInteger(as: UInt8.self), TDSDataType.nVarChar.rawValue)
+        let maxBytes = packet.readInteger(endianness: .little, as: UInt16.self)
+        _ = packet.readBytes(length: 5)
+        if maxBytes == UInt16.max {
+            let totalLength = packet.readInteger(endianness: .little, as: UInt64.self) ?? 0
+            let chunkLength = packet.readInteger(endianness: .little, as: UInt32.self) ?? 0
+            _ = packet.readBytes(length: Int(chunkLength))
+            _ = packet.readInteger(endianness: .little, as: UInt32.self)
+            XCTAssertEqual(totalLength, UInt64.max - 1)
+        } else {
+            let valueLength = packet.readInteger(endianness: .little, as: UInt16.self) ?? 0
+            _ = packet.readBytes(length: Int(valueLength))
+        }
     }
 }

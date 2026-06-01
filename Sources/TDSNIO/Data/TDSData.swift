@@ -557,9 +557,10 @@ extension TDSQueryResult {
     }
 
     public func outputParameter(named name: String) -> TDSOutputParameter? {
-        let normalizedName = name.hasPrefix("@") ? name : "@\(name)"
+        let normalizedName = name.hasPrefix("@") ? String(name.dropFirst()) : name
         return self.outputParameters.first {
-            $0.name == name || $0.name == normalizedName
+            let parameterName = $0.name.hasPrefix("@") ? String($0.name.dropFirst()) : $0.name
+            return parameterName == normalizedName
         }
     }
 

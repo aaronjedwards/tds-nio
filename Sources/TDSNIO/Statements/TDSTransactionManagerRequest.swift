@@ -54,6 +54,13 @@ public struct TDSTransactionManagerRequest: Sendable, Hashable {
         .init(requestType: 5, payload: .begin(isolationLevel: isolationLevel, name: name))
     }
 
+    public static func begin(
+        isolationLevel: IsolationLevel = .current,
+        name: String
+    ) -> Self {
+        Self.begin(isolationLevel: isolationLevel, name: Self.utf16Bytes(name))
+    }
+
     public static func promote() -> Self {
         .init(requestType: 6, payload: .none)
     }
@@ -73,6 +80,18 @@ public struct TDSTransactionManagerRequest: Sendable, Hashable {
         )
     }
 
+    public static func commit(
+        name: String,
+        beginAfterwards: (isolationLevel: IsolationLevel, name: String)? = nil
+    ) -> Self {
+        Self.commit(
+            name: Self.utf16Bytes(name),
+            beginAfterwards: beginAfterwards.map {
+                (isolationLevel: $0.isolationLevel, name: Self.utf16Bytes($0.name))
+            }
+        )
+    }
+
     public static func rollback(
         name: [UInt8] = [],
         beginAfterwards: (isolationLevel: IsolationLevel, name: [UInt8])? = nil
@@ -88,7 +107,27 @@ public struct TDSTransactionManagerRequest: Sendable, Hashable {
         )
     }
 
+    public static func rollback(
+        name: String,
+        beginAfterwards: (isolationLevel: IsolationLevel, name: String)? = nil
+    ) -> Self {
+        Self.rollback(
+            name: Self.utf16Bytes(name),
+            beginAfterwards: beginAfterwards.map {
+                (isolationLevel: $0.isolationLevel, name: Self.utf16Bytes($0.name))
+            }
+        )
+    }
+
     public static func savepoint(name: [UInt8]) -> Self {
         .init(requestType: 9, payload: .savepoint(name: name))
+    }
+
+    public static func savepoint(name: String) -> Self {
+        Self.savepoint(name: Self.utf16Bytes(name))
+    }
+
+    private static func utf16Bytes(_ name: String) -> [UInt8] {
+        name.utf16.flatMap { [UInt8($0 & 0x00FF), UInt8($0 >> 8)] }
     }
 }

@@ -199,6 +199,20 @@ extension TDSTests {
         XCTAssertEqual(rpc.parameters[1].value, .string("@ids dbo.IntList READONLY"))
     }
 
+    func testQueryInterpolationDeclaresTVPWithoutDefaultSchema() throws {
+        let tvp = TDSTableValuedParameter(
+            typeName: "IntList",
+            columns: [.init(dataType: .int(maxBytes: 4))],
+            rows: [[.int(1)], [.int(2)]]
+        )
+        var query = TDSQuery(unsafeSQL: "SELECT * FROM @ids")
+        _ = query.binds.append(.table(tvp), name: "@ids")
+
+        XCTAssertEqual(query.binds.declarationList, "@ids IntList READONLY")
+        let rpc = query.rpcForExecution()
+        XCTAssertEqual(rpc.parameters[1].value, .string("@ids IntList READONLY"))
+    }
+
     func testRowSequenceCollectsRowsFromResultSet() async throws {
         let columns = [
             TDSColumn(name: "id", dataType: .intN),

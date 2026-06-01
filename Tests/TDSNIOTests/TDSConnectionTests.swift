@@ -81,6 +81,28 @@ extension TDSTests {
         }
     }
 
+    func testDoneInProcErrorStatusWithoutErrorTokenDoesNotFailQuery() throws {
+        let channel = try Self.loggedInChannel()
+
+        let queryPromise = channel.eventLoop.makePromise(of: TDSQueryResult.self)
+        try channel.writeOutbound(TDSTask.sqlBatch("EXEC proc_with_internal_status", queryPromise))
+        _ = try XCTUnwrap(channel.readOutbound(as: ByteBuffer.self))
+
+        var payload = Self.doneInProcPayload(status: .error)
+        var done = Self.donePayload()
+        payload.writeBuffer(&done)
+
+        try channel.writeInbound(
+            Self.packet(
+                type: .preloginLoginOrTablularResponse,
+                payload: payload
+            ))
+
+        let result = try queryPromise.futureResult.wait()
+        XCTAssertEqual(result.rows, [])
+        XCTAssertNil(result.rowsAffected)
+    }
+
     func testErrorTokenKeepsQueuedRequestUntilFinalDone() throws {
         let channel = try Self.loggedInChannel()
 
@@ -94,9 +116,11 @@ extension TDSTests {
                 payload: Self.errorPayload(message: "Invalid object name")
             ))
 
-        XCTAssertThrowsError(try firstPromise.futureResult.wait()) { error in
-            XCTAssertEqual((error as? TDSSQLError)?.serverInfo?.message, "Invalid object name")
+        let firstCompleted = NIOLockedValueBox(false)
+        firstPromise.futureResult.whenComplete { _ in
+            firstCompleted.withLockedValue { $0 = true }
         }
+        XCTAssertFalse(firstCompleted.withLockedValue { $0 })
 
         let secondPromise = channel.eventLoop.makePromise(of: TDSQueryResult.self)
         try channel.writeOutbound(TDSTask.sqlBatch("SELECT 1", secondPromise))
@@ -113,6 +137,9 @@ extension TDSTests {
                 payload: Self.donePayload(status: .error)
             ))
 
+        XCTAssertThrowsError(try firstPromise.futureResult.wait()) { error in
+            XCTAssertEqual((error as? TDSSQLError)?.serverInfo?.message, "Invalid object name")
+        }
         let sqlBatch = try XCTUnwrap(channel.readOutbound(as: ByteBuffer.self))
         XCTAssertEqual(sqlBatch.getInteger(at: 0, as: UInt8.self), TDSPacket.MessageType.sqlBatch.rawValue)
     }
@@ -239,6 +266,91 @@ extension TDSTests {
         XCTAssertEqual(messages[0].severity, 0)
     }
 
+    func testErrorTokenInvokesHandlerAndFailsQuery() throws {
+        let errorMessages = NIOLockedValueBox<[TDSErrorMessage]>([])
+        var configuration = Self.configuration()
+        configuration.options.errorMessageHandler = { message in
+            errorMessages.withLockedValue { $0.append(message) }
+        }
+        let channel = try Self.loggedInChannel(configuration: configuration)
+
+        let queryPromise = channel.eventLoop.makePromise(of: TDSQueryResult.self)
+        try channel.writeOutbound(TDSTask.sqlBatch("SELECT broken", queryPromise))
+        let sqlBatch: ByteBuffer = try XCTUnwrap(channel.readOutbound())
+        XCTAssertEqual(sqlBatch.getInteger(at: 0, as: UInt8.self), TDSPacket.MessageType.sqlBatch.rawValue)
+
+        try channel.writeInbound(
+            Self.packet(
+                type: .preloginLoginOrTablularResponse,
+                payload: Self.errorPayload(message: "Invalid object name", number: 208, severity: 16)
+            ))
+
+        let queryCompleted = NIOLockedValueBox(false)
+        queryPromise.futureResult.whenComplete { _ in
+            queryCompleted.withLockedValue { $0 = true }
+        }
+        XCTAssertFalse(queryCompleted.withLockedValue { $0 })
+
+        try channel.writeInbound(
+            Self.packet(
+                type: .preloginLoginOrTablularResponse,
+                payload: Self.donePayload(status: .error)
+            ))
+
+        XCTAssertThrowsError(try queryPromise.futureResult.wait()) { error in
+            XCTAssertEqual((error as? TDSSQLError)?.serverInfo?.message, "Invalid object name")
+        }
+        let messages = errorMessages.withLockedValue { $0 }
+        XCTAssertEqual(messages.count, 1)
+        XCTAssertEqual(messages[0].message, "Invalid object name")
+        XCTAssertEqual(messages[0].number, 208)
+        XCTAssertEqual(messages[0].severity, 16)
+    }
+
+    func testMultipleErrorTokensAreAggregatedUntilDone() throws {
+        let errorMessages = NIOLockedValueBox<[TDSErrorMessage]>([])
+        var configuration = Self.configuration()
+        configuration.options.errorMessageHandler = { message in
+            errorMessages.withLockedValue { $0.append(message) }
+        }
+        let channel = try Self.loggedInChannel(configuration: configuration)
+
+        let queryPromise = channel.eventLoop.makePromise(of: TDSQueryResult.self)
+        try channel.writeOutbound(TDSTask.sqlBatch("SELECT broken", queryPromise))
+        _ = try XCTUnwrap(channel.readOutbound(as: ByteBuffer.self))
+
+        var payload = Self.errorPayload(message: "First failure", number: 50001)
+        var secondError = Self.errorPayload(message: "Second failure", number: 50002)
+        payload.writeBuffer(&secondError)
+        try channel.writeInbound(
+            Self.packet(
+                type: .preloginLoginOrTablularResponse,
+                payload: payload
+            ))
+
+        let queryCompleted = NIOLockedValueBox(false)
+        queryPromise.futureResult.whenComplete { _ in
+            queryCompleted.withLockedValue { $0 = true }
+        }
+        XCTAssertFalse(queryCompleted.withLockedValue { $0 })
+
+        try channel.writeInbound(
+            Self.packet(
+                type: .preloginLoginOrTablularResponse,
+                payload: Self.donePayload(status: .error)
+            ))
+
+        XCTAssertThrowsError(try queryPromise.futureResult.wait()) { error in
+            let sqlError = error as? TDSSQLError
+            XCTAssertEqual(sqlError?.serverInfo?.message, "First failure")
+            XCTAssertEqual(sqlError?.serverErrors.map(\.message), ["First failure", "Second failure"])
+            XCTAssertEqual(sqlError?.serverErrors.map(\.number), [50001, 50002])
+        }
+
+        let messages = errorMessages.withLockedValue { $0 }
+        XCTAssertEqual(messages.map(\.message), ["First failure", "Second failure"])
+    }
+
     func testEnvChangeTokenInvokesHandlerAndDoesNotFailQuery() throws {
         let envChanges = NIOLockedValueBox<[TDSEnvChangeMessage]>([])
         var configuration = Self.configuration()
@@ -267,6 +379,39 @@ extension TDSTests {
         XCTAssertEqual(changes.count, 1)
         XCTAssertEqual(changes[0].type, 1)
         XCTAssertEqual(changes[0].value, .string(new: "tempdb", old: "master"))
+    }
+
+    func testResetConnectionEnvChangeFiresResetEventAndDoesNotFailQuery() throws {
+        let envChanges = NIOLockedValueBox<[TDSEnvChangeMessage]>([])
+        let recorder = UserEventRecorder()
+        var configuration = Self.configuration()
+        configuration.options.envChangeHandler = { message in
+            envChanges.withLockedValue { $0.append(message) }
+        }
+        let channel = try Self.loggedInChannel(configuration: configuration, recordingEventsWith: recorder)
+        recorder.events.removeAll()
+
+        let queryPromise = channel.eventLoop.makePromise(of: TDSQueryResult.self)
+        try channel.writeOutbound(TDSTask.sqlBatch("SELECT 1", queryPromise))
+        let sqlBatch: ByteBuffer = try XCTUnwrap(channel.readOutbound())
+        XCTAssertEqual(sqlBatch.getInteger(at: 0, as: UInt8.self), TDSPacket.MessageType.sqlBatch.rawValue)
+
+        var payload = Self.resetConnectionEnvChangePayload()
+        var resultPayload = Self.selectOneTokenStreamPayload()
+        payload.writeBuffer(&resultPayload)
+        try channel.writeInbound(
+            Self.packet(
+                type: .preloginLoginOrTablularResponse,
+                payload: payload
+            ))
+
+        let result = try queryPromise.futureResult.wait()
+        XCTAssertEqual(result.rows.map(\.values), [[.int32(1), .string("one")]])
+        XCTAssertEqual(Self.resetConnectionEventCount(in: recorder.events), 1)
+        let changes = envChanges.withLockedValue { $0 }
+        XCTAssertEqual(changes.count, 1)
+        XCTAssertEqual(changes[0].type, 18)
+        XCTAssertEqual(changes[0].value, .bytes(new: [], old: []))
     }
 
     func testSessionStateTokenInvokesHandlerAndDoesNotFailQuery() throws {
@@ -777,5 +922,201 @@ extension TDSTests {
         XCTAssertEqual(context.routing?.protocolByte, 0)
         XCTAssertEqual(context.routing?.port, 1444)
         XCTAssertEqual(context.routing?.server, "redirect.sql.example.test")
+    }
+
+    func testLoginRoutingSkipsInitialSQLBeforeRedirect() throws {
+        var configuration = Self.configuration()
+        configuration.options.initialSQL = "set ansi_nulls on"
+
+        let channel = EmbeddedChannel()
+        let logger = Logger(label: "tds-nio-tests")
+        let eventHandler = TDSEventsHandler(logger: logger)
+        let channelHandler = TDSChannelHandler(configuration: configuration, logger: logger)
+        let postprocessor = TDSFrontendMessagePostProcessor(packetLength: configuration.packetSize)
+
+        try channel.pipeline.syncOperations.addHandler(eventHandler)
+        try channel.pipeline.syncOperations.addHandler(channelHandler, position: .before(eventHandler))
+        try channel.pipeline.syncOperations.addHandler(postprocessor, position: .before(channelHandler))
+
+        channel.pipeline.fireChannelActive()
+        _ = try channel.readOutbound(as: ByteBuffer.self)
+        try channel.writeInbound(
+            Self.packet(
+                type: .preloginLoginOrTablularResponse,
+                payload: Self.preloginResponsePayload(encryption: .encryptOff)
+            ))
+        _ = try channel.readOutbound(as: ByteBuffer.self)
+
+        var payload = Self.routingEnvChangePayload()
+        var loginAckAndDone = Self.loginAckAndDonePayload()
+        payload.writeBuffer(&loginAckAndDone)
+        try channel.writeInbound(
+            Self.packet(
+                type: .preloginLoginOrTablularResponse,
+                payload: payload
+            ))
+
+        let context = try eventHandler.startupDoneFuture.wait()
+        XCTAssertEqual(context.routing?.server, "redirect.sql.example.test")
+        XCTAssertNil(try channel.readOutbound(as: ByteBuffer.self))
+    }
+
+    func testLoginSendsInitialSQLBeforeStartupDone() throws {
+        var configuration = Self.configuration()
+        configuration.options.initialSQL = "set ansi_nulls on"
+
+        let channel = EmbeddedChannel()
+        let logger = Logger(label: "tds-nio-tests")
+        let eventHandler = TDSEventsHandler(logger: logger)
+        let channelHandler = TDSChannelHandler(configuration: configuration, logger: logger)
+        let postprocessor = TDSFrontendMessagePostProcessor(packetLength: configuration.packetSize)
+        let startupDone = NIOLockedValueBox(false)
+
+        try channel.pipeline.syncOperations.addHandler(eventHandler)
+        try channel.pipeline.syncOperations.addHandler(channelHandler, position: .before(eventHandler))
+        try channel.pipeline.syncOperations.addHandler(postprocessor, position: .before(channelHandler))
+        eventHandler.startupDoneFuture.whenComplete { _ in
+            startupDone.withLockedValue { $0 = true }
+        }
+
+        channel.pipeline.fireChannelActive()
+        _ = try channel.readOutbound(as: ByteBuffer.self)
+        try channel.writeInbound(
+            Self.packet(
+                type: .preloginLoginOrTablularResponse,
+                payload: Self.preloginResponsePayload(encryption: .encryptOff)
+            ))
+        _ = try channel.readOutbound(as: ByteBuffer.self)
+        try channel.writeInbound(
+            Self.packet(
+                type: .preloginLoginOrTablularResponse,
+                payload: Self.loginAckAndDonePayload()
+            ))
+
+        var initialSQL = try XCTUnwrap(channel.readOutbound(as: ByteBuffer.self))
+        XCTAssertEqual(initialSQL.readInteger(as: UInt8.self), TDSPacket.MessageType.sqlBatch.rawValue)
+        initialSQL.moveReaderIndex(forwardBy: TDSPacket.headerLength + 22 - 1)
+        XCTAssertEqual(
+            try XCTUnwrap(initialSQL.readUTF16(characterCount: initialSQL.readableBytes / 2)),
+            "set ansi_nulls on"
+        )
+        XCTAssertFalse(startupDone.withLockedValue { $0 })
+
+        try channel.writeInbound(
+            Self.packet(
+                type: .preloginLoginOrTablularResponse,
+                payload: Self.donePayload()
+            ))
+        _ = try eventHandler.startupDoneFuture.wait()
+        XCTAssertTrue(startupDone.withLockedValue { $0 })
+    }
+
+    func testLoginSendsInitialSessionSettingsBeforeStartupDone() throws {
+        var configuration = Self.configuration()
+        configuration.options.initialSessionSettings = .init(
+            ansiNulls: true,
+            textSize: 1024,
+            isolationLevel: .snapshot
+        )
+
+        let channel = EmbeddedChannel()
+        let logger = Logger(label: "tds-nio-tests")
+        let eventHandler = TDSEventsHandler(logger: logger)
+        let channelHandler = TDSChannelHandler(configuration: configuration, logger: logger)
+        let postprocessor = TDSFrontendMessagePostProcessor(packetLength: configuration.packetSize)
+        let startupDone = NIOLockedValueBox(false)
+
+        try channel.pipeline.syncOperations.addHandler(eventHandler)
+        try channel.pipeline.syncOperations.addHandler(channelHandler, position: .before(eventHandler))
+        try channel.pipeline.syncOperations.addHandler(postprocessor, position: .before(channelHandler))
+        eventHandler.startupDoneFuture.whenComplete { _ in
+            startupDone.withLockedValue { $0 = true }
+        }
+
+        channel.pipeline.fireChannelActive()
+        _ = try channel.readOutbound(as: ByteBuffer.self)
+        try channel.writeInbound(
+            Self.packet(
+                type: .preloginLoginOrTablularResponse,
+                payload: Self.preloginResponsePayload(encryption: .encryptOff)
+            ))
+        _ = try channel.readOutbound(as: ByteBuffer.self)
+        try channel.writeInbound(
+            Self.packet(
+                type: .preloginLoginOrTablularResponse,
+                payload: Self.loginAckAndDonePayload()
+            ))
+
+        var initialSQL = try XCTUnwrap(channel.readOutbound(as: ByteBuffer.self))
+        XCTAssertEqual(initialSQL.readInteger(as: UInt8.self), TDSPacket.MessageType.sqlBatch.rawValue)
+        initialSQL.moveReaderIndex(forwardBy: TDSPacket.headerLength + 22 - 1)
+        XCTAssertEqual(
+            try XCTUnwrap(initialSQL.readUTF16(characterCount: initialSQL.readableBytes / 2)),
+            """
+            set ansi_nulls on
+            set textsize 1024
+            set transaction isolation level snapshot
+            """
+        )
+        XCTAssertFalse(startupDone.withLockedValue { $0 })
+
+        try channel.writeInbound(
+            Self.packet(
+                type: .preloginLoginOrTablularResponse,
+                payload: Self.donePayload()
+            ))
+        _ = try eventHandler.startupDoneFuture.wait()
+        XCTAssertTrue(startupDone.withLockedValue { $0 })
+    }
+
+    func testInitialSQLErrorInvokesHandlerAndFailsStartupOnDone() throws {
+        let errors = NIOLockedValueBox<[TDSErrorMessage]>([])
+        var configuration = Self.configuration()
+        configuration.options.initialSQL = "set language invalid"
+        configuration.options.errorMessageHandler = { message in
+            errors.withLockedValue { $0.append(message) }
+        }
+
+        let channel = EmbeddedChannel()
+        let logger = Logger(label: "tds-nio-tests")
+        let eventHandler = TDSEventsHandler(logger: logger)
+        let channelHandler = TDSChannelHandler(configuration: configuration, logger: logger)
+        let postprocessor = TDSFrontendMessagePostProcessor(packetLength: configuration.packetSize)
+
+        try channel.pipeline.syncOperations.addHandler(eventHandler)
+        try channel.pipeline.syncOperations.addHandler(channelHandler, position: .before(eventHandler))
+        try channel.pipeline.syncOperations.addHandler(postprocessor, position: .before(channelHandler))
+
+        channel.pipeline.fireChannelActive()
+        _ = try channel.readOutbound(as: ByteBuffer.self)
+        try channel.writeInbound(
+            Self.packet(
+                type: .preloginLoginOrTablularResponse,
+                payload: Self.preloginResponsePayload(encryption: .encryptOff)
+            ))
+        _ = try channel.readOutbound(as: ByteBuffer.self)
+        try channel.writeInbound(
+            Self.packet(
+                type: .preloginLoginOrTablularResponse,
+                payload: Self.loginAckAndDonePayload()
+            ))
+        _ = try XCTUnwrap(channel.readOutbound(as: ByteBuffer.self))
+
+        var payload = Self.errorPayload(message: "Invalid language", number: 50000)
+        var done = Self.donePayload(status: .error)
+        payload.writeBuffer(&done)
+        XCTAssertThrowsError(
+            try channel.writeInbound(
+                Self.packet(
+                    type: .preloginLoginOrTablularResponse,
+                    payload: payload
+                ))
+        ) { error in
+            guard let sqlError = error as? TDSSQLError else {
+                return XCTFail("Expected TDSSQLError, got \(error)")
+            }
+            XCTAssertEqual(sqlError.serverInfo?.message, "Invalid language")
+        }
+        XCTAssertEqual(errors.withLockedValue { $0.map(\.message) }, ["Invalid language"])
     }
 }

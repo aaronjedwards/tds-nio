@@ -136,9 +136,15 @@ struct TDSBackendMessageDecoder: ByteToMessageDecoder {
             return nil
         }
 
-        packet.moveReaderIndex(forwardBy: Self.headerSize)
-
         do {
+            guard length >= Self.headerSize else {
+                throw TDSPartialDecodingError.invalidPacketLength(
+                    length,
+                    minimum: Self.headerSize
+                )
+            }
+
+            packet.moveReaderIndex(forwardBy: Self.headerSize)
             let status = TDSPacket.Status(rawValue: packetStatus)
             var payload = try self.assemblePayload(
                 packet,

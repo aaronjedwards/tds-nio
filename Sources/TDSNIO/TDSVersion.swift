@@ -29,14 +29,29 @@ public enum TDSProtocolVersion: CustomStringConvertible, Sendable {
 }
 
 extension TDSProtocolVersion {
-    init(loginAck: TDSBackendMessage.LoginAck) {
+    init?(loginAck: TDSBackendMessage.LoginAck) {
         switch loginAck.tdsVersion {
         case 0x7400_0004:
             self = .v7_4
         case 0x0800_0000:
             self = .v8_0
         default:
-            self = .v7_4
+            return nil
+        }
+    }
+}
+
+extension TDSBackendMessage.LoginAck {
+    var negotiatedProtocolVersion: TDSProtocolVersion? {
+        TDSProtocolVersion(loginAck: self)
+    }
+
+    var hasSupportedInterface: Bool {
+        switch self.interface {
+        case 0, 1:
+            return true
+        default:
+            return false
         }
     }
 }

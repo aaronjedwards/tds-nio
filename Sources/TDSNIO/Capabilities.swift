@@ -36,7 +36,7 @@ struct Capabilities: Sendable, Hashable {
     }
 
     mutating func adjustForLoginAck(_ loginAck: TDSBackendMessage.LoginAck) {
-        self.negotiatedProtocolVersion = TDSProtocolVersion(loginAck: loginAck)
+        self.negotiatedProtocolVersion = loginAck.negotiatedProtocolVersion
     }
 
     mutating func adjustForFeatureExtAck(_ featureExtAck: TDSBackendMessage.FeatureExtAck) {

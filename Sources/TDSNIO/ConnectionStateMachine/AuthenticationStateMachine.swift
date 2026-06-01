@@ -35,6 +35,7 @@ struct AuthenticationStateMachine {
     }
 
     private var state: State = .initialized
+    private var loginError: TDSSQLError?
 
     mutating func connected() -> Action {
         guard case .initialized = self.state else {
@@ -77,6 +78,15 @@ struct AuthenticationStateMachine {
     }
 
     mutating func loginAckReceived(_ loginAck: TDSBackendMessage.LoginAck) -> Action {
+        guard loginAck.negotiatedProtocolVersion != nil else {
+            self.loginError = .connectionError(underlying: UnsupportedLoginAckTDSVersion(loginAck.tdsVersion))
+            return .wait
+        }
+        guard loginAck.hasSupportedInterface else {
+            self.loginError = .connectionError(underlying: UnsupportedLoginAckInterface(loginAck.interface))
+            return .wait
+        }
+
         switch self.state {
         case .login7Sent(let removeTLSAfterLogin, _):
             self.state = .login7Sent(
@@ -130,10 +140,83 @@ struct AuthenticationStateMachine {
         }
     }
 
-    mutating func doneReceived() -> Action {
+    mutating func authenticationTokenSent() -> Action {
         switch self.state {
-        case .login7Sent(let removeTLSAfterLogin, let loginAck),
-            .sspiChallengeContinuation(let removeTLSAfterLogin, let loginAck),
+        case .sspiChallengeContinuation(let removeTLSAfterLogin, let loginAck),
+            .fedAuthTokenContinuation(let removeTLSAfterLogin, let loginAck):
+            self.state = .login7Sent(
+                removeTLSAfterLogin: removeTLSAfterLogin,
+                loginAck: loginAck
+            )
+        case .initialized, .preloginSent, .tlsNegotiationRequired, .login7Sent, .authenticated, .failed:
+            break
+        }
+        return .wait
+    }
+
+    mutating func featureExtAckReceived(
+        _ featureExtAck: TDSBackendMessage.FeatureExtAck,
+        requestedFeatureIDs: Set<UInt8> = Self.defaultFeatureExtAckFeatureIDs
+    ) -> Action {
+        guard Self.isAuthenticating(self.state) else {
+            return .wait
+        }
+        let requiresFedAuthAck = requestedFeatureIDs.contains(Self.fedAuthFeatureID)
+        var receivedFedAuthAck = false
+        var receivedRequestedFeatureAck = false
+        for option in featureExtAck.options {
+            guard requestedFeatureIDs.contains(option.featureID) else {
+                if option.featureID == Self.fedAuthFeatureID {
+                    self.loginError = .connectionError(underlying: UnexpectedFedAuthAck())
+                    return .wait
+                }
+                continue
+            }
+            receivedRequestedFeatureAck = true
+            if option.featureID == Self.fedAuthFeatureID {
+                receivedFedAuthAck = true
+                guard option.data.isEmpty else {
+                    self.loginError = .connectionError(underlying: UnexpectedFedAuthAckData())
+                    return .wait
+                }
+            }
+        }
+        if requiresFedAuthAck && !receivedFedAuthAck {
+            self.loginError = .connectionError(underlying: MissingFedAuthAck())
+            return .wait
+        }
+        if !receivedRequestedFeatureAck {
+            self.loginError = .connectionError(underlying: UnknownFeatureExtAck())
+            return .wait
+        }
+        return .wait
+    }
+
+    mutating func backendErrorReceived(_ error: TDSBackendMessage.InfoError) -> Action {
+        guard Self.isAuthenticating(self.state) else {
+            return self.failAuthentication(.server(error))
+        }
+        self.loginError = .server(error)
+        return .wait
+    }
+
+    mutating func doneReceived() -> Action {
+        self.messageComplete()
+    }
+
+    mutating func messageComplete() -> Action {
+        switch self.state {
+        case .login7Sent(_, nil):
+            if let loginError {
+                return self.failAuthentication(loginError)
+            }
+            return self.failAuthentication(
+                .connectionError(underlying: MissingLoginAck())
+            )
+        case .login7Sent(let removeTLSAfterLogin, .some(let loginAck)):
+            self.state = .authenticated
+            return .authenticated(loginAck, removeTLS: removeTLSAfterLogin)
+        case .sspiChallengeContinuation(let removeTLSAfterLogin, let loginAck),
             .fedAuthTokenContinuation(let removeTLSAfterLogin, let loginAck):
             guard let loginAck else {
                 return .wait
@@ -182,5 +265,73 @@ struct AuthenticationStateMachine {
         case .encryptOn, .encryptReq, .encryptClientCertOn, .encryptClientCertReq:
             return false
         }
+    }
+
+    private static func isAuthenticating(_ state: State) -> Bool {
+        switch state {
+        case .login7Sent, .sspiChallengeContinuation, .fedAuthTokenContinuation:
+            return true
+        case .initialized, .preloginSent, .tlsNegotiationRequired, .authenticated, .failed:
+            return false
+        }
+    }
+
+    private static let fedAuthFeatureID: UInt8 = 0x02
+    private static let defaultFeatureExtAckFeatureIDs: Set<UInt8> = [
+        Capabilities.FeatureID.utf8Support.rawValue,
+    ]
+}
+
+private struct UnsupportedLoginAckTDSVersion: Error, CustomStringConvertible {
+    var rawValue: UInt32
+
+    init(_ rawValue: UInt32) {
+        self.rawValue = rawValue
+    }
+
+    var description: String {
+        "Server responded with unknown TDS version: \(self.rawValue)."
+    }
+}
+
+private struct UnsupportedLoginAckInterface: Error, CustomStringConvertible {
+    var rawValue: UInt8
+
+    init(_ rawValue: UInt8) {
+        self.rawValue = rawValue
+    }
+
+    var description: String {
+        "Server responded with unsupported interface: \(self.rawValue)."
+    }
+}
+
+private struct MissingLoginAck: Error, CustomStringConvertible {
+    var description: String {
+        "Login completed without LOGINACK."
+    }
+}
+
+private struct UnexpectedFedAuthAck: Error, CustomStringConvertible {
+    var description: String {
+        "Server acknowledged federated authentication that was not requested."
+    }
+}
+
+private struct MissingFedAuthAck: Error, CustomStringConvertible {
+    var description: String {
+        "Server did not acknowledge requested federated authentication."
+    }
+}
+
+private struct UnexpectedFedAuthAckData: Error, CustomStringConvertible {
+    var description: String {
+        "Server included unexpected data in the federated authentication acknowledgement."
+    }
+}
+
+private struct UnknownFeatureExtAck: Error, CustomStringConvertible {
+    var description: String {
+        "Server acknowledged an unknown feature extension."
     }
 }

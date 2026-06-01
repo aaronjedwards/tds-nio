@@ -24,6 +24,7 @@ struct ConnectionStateMachine {
         case sentLoginWithCompleteAuth
         case sentLoginWithSpengo
         case sentLoginWithFedAuth
+        case sentInitialSQL(loginAck: TDSBackendMessage.LoginAck, removeTLS: Bool)
         case loggedIn
         case sentClientRequest
         case sentAttention
@@ -85,6 +86,7 @@ struct ConnectionStateMachine {
         case sendLoginRequest
         case fireAuthenticationChallenge(TDSAuthenticationChallenge)
         case authenticated(TDSBackendMessage.LoginAck, removeTLS: Bool)
+        case startupComplete(TDSBackendMessage.LoginAck, removeTLS: Bool)
         case sendSQLBatch(String)
         case sendRPC(TDSRPC)
         case sendTransactionManagerRequest(TDSTransactionManagerRequest)
@@ -129,6 +131,20 @@ struct ConnectionStateMachine {
     private var removeTLSAfterLogin = false
     private var attentionPromise: EventLoopPromise<Void>?
     private let debugLog: (@Sendable (String) -> Void)?
+
+    var isWaitingForAttentionAcknowledgement: Bool {
+        if case .sentAttention = self.state {
+            return true
+        }
+        return false
+    }
+
+    var isWaitingForLoginResponse: Bool {
+        if case .sentLoginWithCompleteAuth = self.state {
+            return true
+        }
+        return false
+    }
 
     init(debugLog: (@Sendable (String) -> Void)? = nil) {
         self.state = .initialized
@@ -176,6 +192,7 @@ struct ConnectionStateMachine {
             .sentLoginWithCompleteAuth,
             .sentLoginWithSpengo,
             .sentLoginWithFedAuth,
+            .sentInitialSQL,
             .loggedIn,
             .sentClientRequest,
             .sentAttention,
@@ -289,6 +306,35 @@ struct ConnectionStateMachine {
         return self.connectionAction(from: action)
     }
 
+    mutating func authenticationTokenSent() -> ConnectionAction {
+        guard var authenticationStateMachine = self.authenticationStateMachine else {
+            return .wait
+        }
+        let action = authenticationStateMachine.authenticationTokenSent()
+        self.authenticationStateMachine = authenticationStateMachine
+        return self.connectionAction(from: action)
+    }
+
+    mutating func featureExtAckReceived(
+        _ featureExtAck: TDSBackendMessage.FeatureExtAck,
+        requestedFeatureIDs: Set<UInt8>? = nil
+    ) -> ConnectionAction {
+        guard var authenticationStateMachine = self.authenticationStateMachine else {
+            return .wait
+        }
+        let action: AuthenticationStateMachine.Action
+        if let requestedFeatureIDs {
+            action = authenticationStateMachine.featureExtAckReceived(
+                featureExtAck,
+                requestedFeatureIDs: requestedFeatureIDs
+            )
+        } else {
+            action = authenticationStateMachine.featureExtAckReceived(featureExtAck)
+        }
+        self.authenticationStateMachine = authenticationStateMachine
+        return self.connectionAction(from: action)
+    }
+
     mutating func doneReceived(
         _ done: TDSBackendMessage.Done,
         tokenKind: DoneTokenKind = .done
@@ -316,6 +362,25 @@ struct ConnectionStateMachine {
                 return .authenticated(loginAck, removeTLS: removeTLS)
             }
             return .wait
+        case .sentInitialSQL(let loginAck, let removeTLS):
+            guard tokenKind == .done else {
+                return .wait
+            }
+            guard !done.status.contains(.more) else {
+                return .wait
+            }
+            if done.status.contains(.error) || done.status.contains(.serverError) {
+                let error =
+                    self.activeError
+                    ?? .server("Server completed the startup SQL batch with a DONE error status.")
+                return self.closeConnectionAndCleanup(error)
+            }
+            if let error = self.activeError {
+                return self.closeConnectionAndCleanup(error)
+            }
+            self.state = .loggedIn
+            self.clearActiveResult()
+            return .startupComplete(loginAck, removeTLS: removeTLS)
         case .sentClientRequest:
             guard var activeRequest = self.activeRequest else {
                 self.state = .loggedIn
@@ -332,7 +397,7 @@ struct ConnectionStateMachine {
                 "DONE token while waiting for attention ack kind=\(tokenKind) statusRaw=\(done.status.rawValue) "
                     + "rowCount=\(done.rowCount) hasAttention=\(done.status.contains(.attention))"
             )
-            guard tokenKind != .doneInProc else {
+            guard tokenKind == .done, done.status.contains(.attention) else {
                 return .wait
             }
             if self.activeRequest == nil, let activeTask = self.activeTask {
@@ -362,7 +427,53 @@ struct ConnectionStateMachine {
         }
     }
 
+    mutating func backendMessageComplete() -> ConnectionAction {
+        guard case .sentLoginWithCompleteAuth = self.state else {
+            return .wait
+        }
+        guard var authenticationStateMachine = self.authenticationStateMachine else {
+            return .wait
+        }
+        let action = authenticationStateMachine.messageComplete()
+        self.authenticationStateMachine = authenticationStateMachine
+        if case .authenticated = action {
+            self.state = .loggedIn
+            self.loginAck = nil
+            self.removeTLSAfterLogin = false
+            self.authenticationStateMachine = nil
+        }
+        return self.connectionAction(from: action)
+    }
+
+    mutating func startInitialSQL(
+        _ sql: String,
+        loginAck: TDSBackendMessage.LoginAck,
+        removeTLS: Bool
+    ) -> ConnectionAction {
+        guard case .loggedIn = self.state else {
+            return .wait
+        }
+        self.state = .sentInitialSQL(loginAck: loginAck, removeTLS: removeTLS)
+        self.clearActiveResult()
+        return .sendSQLBatch(sql)
+    }
+
     mutating func backendErrorReceived(_ error: TDSBackendMessage.InfoError) -> ConnectionAction {
+        if case .sentLoginWithCompleteAuth = self.state,
+            var authenticationStateMachine = self.authenticationStateMachine
+        {
+            let action = authenticationStateMachine.backendErrorReceived(error)
+            self.authenticationStateMachine = authenticationStateMachine
+            return self.connectionAction(from: action)
+        }
+        if case .sentInitialSQL = self.state {
+            if self.activeError != nil {
+                self.activeError?.appendServerError(error)
+            } else {
+                self.activeError = TDSSQLError.server(error)
+            }
+            return .wait
+        }
         if var activeRequest = self.activeRequest {
             let action = activeRequest.backendErrorReceived(error)
             self.activeRequest = activeRequest
@@ -378,23 +489,7 @@ struct ConnectionStateMachine {
             self.activeRequest = activeRequest
             return self.connectionAction(from: action)
         }
-        self.activeColumns = metadata.columns.map(TDSColumn.init)
-        self.debug(
-            "COLMETADATA columns=\(self.activeColumns.count) names=\(self.activeColumns.map(\.name)) "
-                + "task=\(self.activeTaskDescription) rowStreamStarted=\(self.activeRowStreamStarted)"
-        )
-        self.activeTableNames = []
-        if let activeTask, !self.activeRowStreamStarted {
-            switch activeTask {
-            case .sqlBatchRows(_, let promise, _), .rpcRows(_, let promise, _):
-                self.activeRowStreamStarted = true
-                self.debug("succeeding row stream promise")
-                return .succeedRowStream(promise, self.activeColumns)
-            case .sqlBatch, .rpc, .transactionManager, .bulkLoad, .ping, .attention:
-                break
-            }
-        }
-        return .wait
+        return self.unexpectedTokenReceived("COLMETADATA")
     }
 
     mutating func tabNameReceived(_ tabName: TDSBackendMessage.TabName) -> ConnectionAction {
@@ -403,8 +498,7 @@ struct ConnectionStateMachine {
             self.activeRequest = activeRequest
             return self.connectionAction(from: action)
         }
-        self.activeTableNames = tabName.tableNames
-        return .wait
+        return self.unexpectedTokenReceived("TABNAME")
     }
 
     mutating func colInfoReceived(_ colInfo: TDSBackendMessage.ColInfo) -> ConnectionAction {
@@ -413,27 +507,7 @@ struct ConnectionStateMachine {
             self.activeRequest = activeRequest
             return self.connectionAction(from: action)
         }
-        for columnInfo in colInfo.columns {
-            let index = Int(columnInfo.columnNumber) - 1
-            guard index >= 0, index < self.activeColumns.count else {
-                continue
-            }
-
-            self.activeColumns[index].metadata.tableNumber = columnInfo.tableNumber
-            if columnInfo.tableNumber > 0 {
-                let tableIndex = Int(columnInfo.tableNumber) - 1
-                if tableIndex >= 0, tableIndex < self.activeTableNames.count {
-                    self.activeColumns[index].metadata.baseTableName =
-                        self.activeTableNames[tableIndex]
-                }
-            }
-            self.activeColumns[index].metadata.baseColumnName = columnInfo.baseColumnName
-            self.activeColumns[index].metadata.isExpression = columnInfo.status.contains(
-                .expression)
-            self.activeColumns[index].metadata.isKey = columnInfo.status.contains(.key)
-            self.activeColumns[index].metadata.isHidden = columnInfo.status.contains(.hidden)
-        }
-        return .wait
+        return self.unexpectedTokenReceived("COLINFO")
     }
 
     mutating func orderReceived(_ order: TDSBackendMessage.Order) -> ConnectionAction {
@@ -442,14 +516,7 @@ struct ConnectionStateMachine {
             self.activeRequest = activeRequest
             return self.connectionAction(from: action)
         }
-        for columnNumber in order.columnNumbers {
-            let index = Int(columnNumber) - 1
-            guard index >= 0, index < self.activeColumns.count else {
-                continue
-            }
-            self.activeColumns[index].metadata.isOrderBy = true
-        }
-        return .wait
+        return self.unexpectedTokenReceived("ORDER")
     }
 
     mutating func offsetReceived(_ offset: TDSBackendMessage.Offset) -> ConnectionAction {
@@ -458,8 +525,7 @@ struct ConnectionStateMachine {
             self.activeRequest = activeRequest
             return self.connectionAction(from: action)
         }
-        self.activeOffsets.append(.init(identifier: offset.identifier, offset: offset.offset))
-        return .wait
+        return self.unexpectedTokenReceived("OFFSET")
     }
 
     mutating func dataClassificationReceived(
@@ -470,33 +536,7 @@ struct ConnectionStateMachine {
             self.activeRequest = activeRequest
             return self.connectionAction(from: action)
         }
-        for (index, column) in dataClassification.columns.enumerated()
-        where index < self.activeColumns.count {
-            self.activeColumns[index].metadata.sensitivityClassifications = column.properties
-                .compactMap {
-                    property in
-                    let labelIndex = Int(property.labelIndex)
-                    let informationTypeIndex = Int(property.informationTypeIndex)
-                    guard
-                        labelIndex >= 0, labelIndex < dataClassification.labels.count,
-                        informationTypeIndex >= 0,
-                        informationTypeIndex < dataClassification.informationTypes.count
-                    else {
-                        return nil
-                    }
-
-                    let label = dataClassification.labels[labelIndex]
-                    let informationType = dataClassification.informationTypes[informationTypeIndex]
-                    return .init(
-                        labelName: label.name,
-                        labelID: label.id,
-                        informationTypeName: informationType.name,
-                        informationTypeID: informationType.id,
-                        rank: property.rank
-                    )
-                }
-        }
-        return .wait
+        return self.unexpectedTokenReceived("DATACLASSIFICATION")
     }
 
     mutating func altMetadataReceived(_ altMetadata: TDSBackendMessage.AltMetadata)
@@ -507,18 +547,7 @@ struct ConnectionStateMachine {
             self.activeRequest = activeRequest
             return self.connectionAction(from: action)
         }
-        let alternateResultSet = TDSAlternateResultSet(
-            id: altMetadata.id,
-            byColumns: altMetadata.byColumns,
-            columns: altMetadata.columns.map(TDSColumn.init)
-        )
-
-        if let index = self.activeAlternateResultSets.firstIndex(where: { $0.id == altMetadata.id }) {
-            self.activeAlternateResultSets[index] = alternateResultSet
-        } else {
-            self.activeAlternateResultSets.append(alternateResultSet)
-        }
-        return .wait
+        return self.unexpectedTokenReceived("ALTMETADATA")
     }
 
     mutating func altRowReceived(_ altRow: TDSBackendMessage.AltRow) -> ConnectionAction {
@@ -527,15 +556,7 @@ struct ConnectionStateMachine {
             self.activeRequest = activeRequest
             return self.connectionAction(from: action)
         }
-        guard let index = self.activeAlternateResultSets.firstIndex(where: { $0.id == altRow.id })
-        else {
-            return .wait
-        }
-
-        let columns = self.activeAlternateResultSets[index].columns
-        self.activeAlternateResultSets[index].rows.append(
-            TDSRow(columns: columns, values: altRow.values))
-        return .wait
+        return self.unexpectedTokenReceived("ALTROW")
     }
 
     mutating func rowReceived(_ row: TDSBackendMessage.Row) -> ConnectionAction {
@@ -544,16 +565,7 @@ struct ConnectionStateMachine {
             self.activeRequest = activeRequest
             return self.connectionAction(from: action)
         }
-        let row = TDSRow(columns: self.activeColumns, values: row.values)
-        if self.activeRowStreamStarted {
-            return .forwardRow(row)
-        } else if self.isActiveRowStreamTask {
-            self.debug("dropping row for row-stream task before stream exists")
-            return .wait
-        } else {
-            self.activeRows.append(row)
-        }
-        return .wait
+        return self.unexpectedTokenReceived("ROW")
     }
 
     mutating func returnStatusReceived(_ status: Int32) -> ConnectionAction {
@@ -562,8 +574,10 @@ struct ConnectionStateMachine {
             self.activeRequest = activeRequest
             return self.connectionAction(from: action)
         }
-        self.activeReturnStatus = status
-        return .wait
+        if case .sentInitialSQL = self.state {
+            return .wait
+        }
+        return self.unexpectedTokenReceived("RETURNSTATUS")
     }
 
     mutating func returnValueReceived(_ returnValue: TDSBackendMessage.ReturnValue)
@@ -574,28 +588,10 @@ struct ConnectionStateMachine {
             self.activeRequest = activeRequest
             return self.connectionAction(from: action)
         }
-        self.activeOutputParameters.append(
-            .init(
-                ordinal: returnValue.ordinal,
-                name: returnValue.name,
-                status: returnValue.status,
-                userType: returnValue.userType,
-                flags: returnValue.flags,
-                dataType: returnValue.typeInfo.dataType,
-                metadata: TDSColumn.Metadata(
-                    userType: returnValue.userType,
-                    flags: returnValue.flags,
-                    length: returnValue.typeInfo.length,
-                    collation: returnValue.typeInfo.collation,
-                    precision: returnValue.typeInfo.precision,
-                    scale: returnValue.typeInfo.scale,
-                    tableName: returnValue.typeInfo.tableName,
-                    udtInfo: returnValue.typeInfo.udtInfo.map(TDSColumn.Metadata.UDTInfo.init),
-                    xmlInfo: returnValue.typeInfo.xmlInfo.map(TDSColumn.Metadata.XMLInfo.init)
-                ),
-                value: returnValue.value
-            ))
-        return .wait
+        if case .sentInitialSQL = self.state {
+            return .wait
+        }
+        return self.unexpectedTokenReceived("RETURNVALUE")
     }
 
     mutating func channelReadComplete() -> ConnectionAction {
@@ -651,6 +647,9 @@ struct ConnectionStateMachine {
                 self.taskQueue.append(task)
                 return .wait
             }
+        case .sentInitialSQL:
+            self.taskQueue.append(task)
+            return .wait
         case .sentAttention:
             switch task {
             case .attention(let promise):
@@ -697,8 +696,13 @@ struct ConnectionStateMachine {
         let rowStreamError = self.activeRowStreamStarted ? error : nil
         self.activeRowStreamStarted = false
         self.clearActiveResult()
-        let action: ConnectionAction.CleanUpContext.Action =
-            requestedAction ?? (self.state == .closed ? .fireChannelInactive : .close)
+        let defaultAction: ConnectionAction.CleanUpContext.Action
+        if case .closed = self.state {
+            defaultAction = .fireChannelInactive
+        } else {
+            defaultAction = .close
+        }
+        let action = requestedAction ?? defaultAction
         self.state = action == .close ? .closing : .closed
         return .closeConnectionAndCleanup(
             .init(
@@ -790,6 +794,17 @@ struct ConnectionStateMachine {
             promise.fail(error)
         }
         return .wait
+    }
+
+    private mutating func unexpectedTokenReceived(_ tokenName: String) -> ConnectionAction {
+        self.closeConnectionAndCleanup(
+            .connectionError(
+                underlying: UnexpectedTokenWithoutActiveRequest(
+                    tokenName: tokenName,
+                    state: self.state
+                )
+            )
+        )
     }
 
     private mutating func start(_ task: TDSTask) -> ConnectionAction {
@@ -948,22 +963,6 @@ struct ConnectionStateMachine {
         return nil
     }
 
-    private var isActiveRowStreamTask: Bool {
-        guard let activeTask else {
-            return false
-        }
-        switch activeTask {
-        case .sqlBatchRows, .rpcRows:
-            return true
-        case .sqlBatch, .rpc, .transactionManager, .bulkLoad, .ping, .attention:
-            return false
-        }
-    }
-
-    private var activeTaskDescription: String {
-        self.activeTask.map(self.taskDescription) ?? "nil"
-    }
-
     private func taskDescription(_ task: TDSTask) -> String {
         switch task {
         case .sqlBatch:
@@ -1000,6 +999,15 @@ extension StatementStateMachine.DoneTokenKind {
         case .doneInProc:
             self = .doneInProc
         }
+    }
+}
+
+private struct UnexpectedTokenWithoutActiveRequest: Error, CustomStringConvertible {
+    var tokenName: String
+    var state: ConnectionStateMachine.State
+
+    var description: String {
+        "Unexpected token '\(self.tokenName)' while no SQL request is active in state '\(self.state)'."
     }
 }
 

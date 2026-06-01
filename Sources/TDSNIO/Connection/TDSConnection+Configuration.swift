@@ -109,6 +109,144 @@ extension TDSConnection {
         }
 
         public struct Options: Sendable {
+            /// Session defaults that can be applied with a post-login SQL batch.
+            public struct InitialSessionSettings: Sendable, Hashable {
+                public var ansiNulls: Bool?
+                public var ansiNullDefault: Bool?
+                public var ansiPadding: Bool?
+                public var ansiWarnings: Bool?
+                public var arithAbort: Bool?
+                public var concatNullYieldsNull: Bool?
+                public var cursorCloseOnCommit: Bool?
+                public var dateFirst: Int?
+                public var dateFormat: String?
+                public var implicitTransactions: Bool?
+                public var language: String?
+                public var numericRoundAbort: Bool?
+                public var quotedIdentifier: Bool?
+                public var textSize: Int?
+                public var isolationLevel: TDSTransactionManagerRequest.IsolationLevel?
+                public var xactAbort: Bool?
+
+                public init(
+                    ansiNulls: Bool? = nil,
+                    ansiNullDefault: Bool? = nil,
+                    ansiPadding: Bool? = nil,
+                    ansiWarnings: Bool? = nil,
+                    arithAbort: Bool? = nil,
+                    concatNullYieldsNull: Bool? = nil,
+                    cursorCloseOnCommit: Bool? = nil,
+                    dateFirst: Int? = nil,
+                    dateFormat: String? = nil,
+                    implicitTransactions: Bool? = nil,
+                    language: String? = nil,
+                    numericRoundAbort: Bool? = nil,
+                    quotedIdentifier: Bool? = nil,
+                    textSize: Int? = nil,
+                    isolationLevel: TDSTransactionManagerRequest.IsolationLevel? = nil,
+                    xactAbort: Bool? = nil
+                ) {
+                    self.ansiNulls = ansiNulls
+                    self.ansiNullDefault = ansiNullDefault
+                    self.ansiPadding = ansiPadding
+                    self.ansiWarnings = ansiWarnings
+                    self.arithAbort = arithAbort
+                    self.concatNullYieldsNull = concatNullYieldsNull
+                    self.cursorCloseOnCommit = cursorCloseOnCommit
+                    self.dateFirst = dateFirst
+                    self.dateFormat = dateFormat
+                    self.implicitTransactions = implicitTransactions
+                    self.language = language
+                    self.numericRoundAbort = numericRoundAbort
+                    self.quotedIdentifier = quotedIdentifier
+                    self.textSize = textSize
+                    self.isolationLevel = isolationLevel
+                    self.xactAbort = xactAbort
+                }
+
+                /// Common session defaults emitted by the driver after login.
+                public static var driverDefaults: Self {
+                    .init(
+                        ansiNulls: true,
+                        ansiNullDefault: true,
+                        ansiPadding: true,
+                        ansiWarnings: true,
+                        arithAbort: true,
+                        concatNullYieldsNull: true,
+                        cursorCloseOnCommit: nil,
+                        dateFirst: 7,
+                        dateFormat: "mdy",
+                        implicitTransactions: false,
+                        language: "us_english",
+                        numericRoundAbort: false,
+                        quotedIdentifier: true,
+                        textSize: 2_147_483_647,
+                        isolationLevel: .readCommitted,
+                        xactAbort: false
+                    )
+                }
+
+                var sqlBatch: String {
+                    var options: [String] = []
+                    Self.appendSet("ansi_nulls", self.ansiNulls, to: &options)
+                    Self.appendSet("ansi_null_dflt_on", self.ansiNullDefault, to: &options)
+                    Self.appendSet("ansi_padding", self.ansiPadding, to: &options)
+                    Self.appendSet("ansi_warnings", self.ansiWarnings, to: &options)
+                    Self.appendSet("arithabort", self.arithAbort, to: &options)
+                    Self.appendSet("concat_null_yields_null", self.concatNullYieldsNull, to: &options)
+                    Self.appendSet("cursor_close_on_commit", self.cursorCloseOnCommit, to: &options)
+                    if let dateFirst {
+                        options.append("set datefirst \(dateFirst)")
+                    }
+                    if let dateFormat {
+                        options.append("set dateformat \(dateFormat)")
+                    }
+                    Self.appendSet("implicit_transactions", self.implicitTransactions, to: &options)
+                    if let language {
+                        options.append("set language \(language)")
+                    }
+                    Self.appendSet("numeric_roundabort", self.numericRoundAbort, to: &options)
+                    Self.appendSet("quoted_identifier", self.quotedIdentifier, to: &options)
+                    if let textSize {
+                        options.append("set textsize \(textSize)")
+                    }
+                    if let isolationLevel, isolationLevel != .current {
+                        options.append(
+                            "set transaction isolation level \(Self.sqlText(for: isolationLevel))")
+                    }
+                    Self.appendSet("xact_abort", self.xactAbort, to: &options)
+                    return options.joined(separator: "\n")
+                }
+
+                private static func appendSet(
+                    _ option: String,
+                    _ value: Bool?,
+                    to options: inout [String]
+                ) {
+                    guard let value else {
+                        return
+                    }
+                    options.append("set \(option) \(value ? "on" : "off")")
+                }
+
+                private static func sqlText(
+                    for isolationLevel: TDSTransactionManagerRequest.IsolationLevel
+                ) -> String {
+                    switch isolationLevel {
+                    case .current, .readCommitted:
+                        return "read committed"
+                    case .readUncommitted:
+                        return "read uncommitted"
+                    case .repeatableRead:
+                        return "repeatable read"
+                    case .serializable:
+                        return "serializable"
+                    case .snapshot:
+                        return "snapshot"
+                    }
+                }
+            }
+
             /// A timeout for connection attempts. Defaults to ten seconds.
             public var connectTimeout: TimeAmount
 
@@ -133,11 +271,26 @@ extension TDSConnection {
             /// fail the active request.
             public var infoMessageHandler: (@Sendable (TDSInfoMessage) -> Void)?
 
+            /// Called when SQL Server sends an ERROR token.
+            ///
+            /// The callback is invoked on the connection's event loop. Error messages also fail the
+            /// active request through ``TDSSQLError``.
+            public var errorMessageHandler: (@Sendable (TDSErrorMessage) -> Void)?
+
             /// Called when SQL Server sends an ENVCHANGE token.
             ///
             /// The callback is invoked on the connection's event loop after the driver has applied any
             /// internal state changes such as routing redirects and transaction descriptors.
             public var envChangeHandler: (@Sendable (TDSEnvChangeMessage) -> Void)?
+
+            /// Optional SQL batch sent immediately after login completes and before the connection is
+            /// reported as ready.
+            ///
+            /// This can be used to establish session defaults with a post-login `SET` batch.
+            public var initialSQL: String?
+
+            /// Typed session defaults sent as a post-login `SET` batch when ``initialSQL`` is unset.
+            public var initialSessionSettings: InitialSessionSettings?
 
             /// Called when SQL Server sends a SESSIONSTATE token.
             ///
@@ -152,8 +305,23 @@ extension TDSConnection {
                 self.connectTimeout = .seconds(10)
                 self.routingRedirectLimit = 1
                 self.infoMessageHandler = nil
+                self.errorMessageHandler = nil
                 self.envChangeHandler = nil
+                self.initialSQL = nil
+                self.initialSessionSettings = .init(textSize: 2_147_483_647)
                 self.sessionStateHandler = nil
+            }
+
+            var startupInitialSQL: String? {
+                if let initialSQL, initialSQL.contains(where: { !$0.isWhitespace }) {
+                    return initialSQL
+                }
+                guard let settingsSQL = self.initialSessionSettings?.sqlBatch,
+                    settingsSQL.contains(where: { !$0.isWhitespace })
+                else {
+                    return nil
+                }
+                return settingsSQL
             }
         }
 
@@ -173,6 +341,18 @@ extension TDSConnection {
             case sqlServer
             /// Integrated authentication using an optional initial SSPI/SPNEGO token.
             case sspi(initialToken: [UInt8] = [])
+            /// Federated authentication using the ADAL workflow advertised in LOGIN7.
+            case federatedAuthentication(workflow: FederatedAuthenticationWorkflow = .default)
+            /// Federated authentication using an access token included in LOGIN7.
+            case federatedAuthenticationToken(String)
+        }
+
+        /// Federated authentication workflow advertised in LOGIN7.
+        public enum FederatedAuthenticationWorkflow: UInt8, Sendable, Hashable {
+            /// User/password style ADAL workflow.
+            case `default` = 0x01
+            /// Integrated ADAL workflow.
+            case integrated = 0x02
         }
 
         /// The name or IP address of the machine hosting the database or the database listener.
@@ -367,9 +547,19 @@ extension TDSConnection {
             }
 
             var configuration = self
-            configuration.host = routing.server
+            configuration.host = String(routing.server.split(separator: "\\", maxSplits: 1)[0])
             configuration.port = Int(routing.port)
             return configuration
+        }
+
+        func shouldRetryConnection(after error: Error, remainingRetries: Int) -> Bool {
+            guard remainingRetries > 0 else {
+                return false
+            }
+            guard let sqlError = error as? TDSSQLError else {
+                return false
+            }
+            return sqlError.isTransientLoginError
         }
 
         private static func normalizedClientID(_ clientID: [UInt8]) -> [UInt8] {
@@ -380,6 +570,19 @@ extension TDSConnection {
                 return Array(clientID.prefix(6))
             }
             return clientID + Array(repeating: 0, count: 6 - clientID.count)
+        }
+
+        var requestedFeatureExtAckFeatureIDs: Set<UInt8> {
+            var ids: Set<UInt8> = [
+                Capabilities.FeatureID.utf8Support.rawValue
+            ]
+            switch self.authentication {
+            case .federatedAuthentication, .federatedAuthenticationToken:
+                ids.insert(0x02)
+            case .sqlServer, .sspi:
+                break
+            }
+            return ids
         }
 
         private static func parseConnectionString(_ connectionString: String) -> [String: String] {

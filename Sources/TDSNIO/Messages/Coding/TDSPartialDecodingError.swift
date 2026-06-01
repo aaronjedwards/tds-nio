@@ -53,4 +53,44 @@ struct TDSPartialDecodingError: Error {
             line: line
         )
     }
+
+    static func unknownTokenReceived(
+        token: UInt8,
+        file: String = #fileID,
+        line: Int = #line
+    ) -> Self {
+        TDSPartialDecodingError(
+            description: """
+                Received a token with type '\(token)'. There is no token type \
+                associated with this token identifier.
+                """,
+            file: file,
+            line: line
+        )
+    }
+
+    static func invalidPacketLength(
+        _ length: Int,
+        minimum: Int,
+        file: String = #fileID,
+        line: Int = #line
+    ) -> Self {
+        TDSPartialDecodingError(
+            description: "Received a packet length of '\(length)', expected at least '\(minimum)'.",
+            file: file,
+            line: line
+        )
+    }
+
+    static func unsupportedRoutingProtocol(
+        _ protocolByte: UInt8,
+        file: String = #fileID,
+        line: Int = #line
+    ) -> Self {
+        TDSPartialDecodingError(
+            description: "Unsupported routing ENVCHANGE protocol byte '\(protocolByte)'.",
+            file: file,
+            line: line
+        )
+    }
 }

@@ -28,6 +28,7 @@ enum TDSSQLEvent {
     case readyForQuery
     case routing(TDSBackendMessage.EnvChange.Routing)
     case packetSizeChanged(Int)
+    case resetConnection
     case resetConnectionOnNextRequest
     /// The event that is used to inform state about an ongoing TLS renegotiation.
     case renegotiateTLS

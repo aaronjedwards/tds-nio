@@ -18,6 +18,8 @@ import NIOCore
 
 struct TDSFrontendMessageEncoder {
 
+    private static let defaultCollation: [UInt8] = [0x09, 0x04, 0xD0, 0x00, 0x34]
+
     private enum State {
         case flushed
         case writable
@@ -36,6 +38,8 @@ struct TDSFrontendMessageEncoder {
     private var buffer: ByteBuffer
     private var state: State = .writable
     private var transactionDescriptor: [UInt8] = []
+    private var databaseCollation: [UInt8] = Self.defaultCollation
+    private var federatedAuthenticationEchoRequired = false
     private var resetConnectionOnNextRequest = false
 
     private struct LoginField {
@@ -68,6 +72,8 @@ struct TDSFrontendMessageEncoder {
             (0x02, [0x00]),  // Default instance.
             (0x03, Self.processIDBytes()),
             (0x04, [0x00]),  // MARS off.
+            (0x05, Self.traceIDBytes()),
+            (0x06, [0x01]),  // Federated authentication capable.
         ]
         if let enc = encryption {
             options.insert((0x01, [enc.rawValue]), at: 1)
@@ -95,7 +101,12 @@ struct TDSFrontendMessageEncoder {
 
         let loginStart = self.buffer.writerIndex
         self.buffer.moveWriterIndex(forwardBy: 4)
-        let featureExt = configuration.protocolVersion.supportsFeatureExt ? Self.loginFeatureExtBytes() : []
+        let featureExt =
+            configuration.protocolVersion.supportsFeatureExt
+            ? Self.loginFeatureExtBytes(
+                for: configuration.authentication,
+                federatedAuthenticationEchoRequired: self.federatedAuthenticationEchoRequired
+            ) : []
 
         self.buffer.writeInteger(configuration.protocolVersion.wireValue, endianness: .little)
         self.buffer.writeInteger(UInt32(configuration.packetSize), endianness: .little)
@@ -113,7 +124,7 @@ struct TDSFrontendMessageEncoder {
         let password: String
         let sspiBytes: [UInt8]
         switch configuration.authentication {
-        case .sqlServer:
+        case .sqlServer, .federatedAuthentication, .federatedAuthenticationToken:
             username = configuration.username
             password = configuration.password
             sspiBytes = []
@@ -227,7 +238,7 @@ struct TDSFrontendMessageEncoder {
         self.buffer.writeInteger(0 as UInt16, endianness: .little)  // OptionFlags
 
         for parameter in rpc.parameters {
-            self.bVarchar(parameter.name)
+            self.bVarchar(Self.rpcParameterName(parameter.name))
             self.buffer.writeInteger(parameter.isOutput ? 0x01 : 0x00 as UInt8)
             self.parameterValue(parameter.value)
         }
@@ -287,6 +298,14 @@ struct TDSFrontendMessageEncoder {
 
     mutating func setTransactionDescriptor(_ bytes: [UInt8]) {
         self.transactionDescriptor = bytes
+    }
+
+    mutating func setDatabaseCollation(_ bytes: [UInt8]) {
+        self.databaseCollation = bytes
+    }
+
+    mutating func setFederatedAuthenticationEchoRequired(_ required: Bool) {
+        self.federatedAuthenticationEchoRequired = required
     }
 
     mutating func markResetConnectionOnNextRequest() {
@@ -407,13 +426,29 @@ struct TDSFrontendMessageEncoder {
             self.buffer.writeInteger(bool ? UInt8(1) : UInt8(0))
         case .nVarChar(let maxBytes, _):
             guard case .string(let string) = value else {
-                self.buffer.writeInteger(UInt16.max, endianness: .little)
+                if maxBytes == UInt16.max {
+                    self.buffer.writeInteger(UInt64.max, endianness: .little)
+                } else {
+                    self.buffer.writeInteger(UInt16.max, endianness: .little)
+                }
+                return
+            }
+            if maxBytes == UInt16.max {
+                self.writePLPBytes(Self.utf16Bytes(string))
                 return
             }
             self.writeUSVarCharValue(string, maxBytes: maxBytes)
         case .varBinary(let maxBytes):
             guard case .bytes(let bytes) = value else {
-                self.buffer.writeInteger(UInt16.max, endianness: .little)
+                if maxBytes == UInt16.max {
+                    self.buffer.writeInteger(UInt64.max, endianness: .little)
+                } else {
+                    self.buffer.writeInteger(UInt16.max, endianness: .little)
+                }
+                return
+            }
+            if maxBytes == UInt16.max {
+                self.writePLPBytes(bytes)
                 return
             }
             self.writeUSVarByteValue(bytes, maxBytes: maxBytes)
@@ -485,6 +520,10 @@ struct TDSFrontendMessageEncoder {
         ]
     }
 
+    private static func traceIDBytes() -> [UInt8] {
+        (0..<36).map { _ in UInt8.random(in: UInt8.min...UInt8.max) }
+    }
+
     private static func loginStringField(
         _ value: String,
         password: Bool = false
@@ -520,10 +559,37 @@ struct TDSFrontendMessageEncoder {
         }
     }
 
-    private static func loginFeatureExtBytes() -> [UInt8] {
+    private static func loginFeatureExtBytes(
+        for authentication: TDSConnection.Configuration.Authentication,
+        federatedAuthenticationEchoRequired: Bool
+    ) -> [UInt8] {
         var bytes: [UInt8] = []
-        Self.appendFeatureExt(id: 0x09, data: [0x02], to: &bytes)  // DATACLASSIFICATION v2.
-        Self.appendFeatureExt(id: 0x0D, data: [0x01], to: &bytes)  // JSONSUPPORT v1.
+        switch authentication {
+        case .federatedAuthentication(let workflow):
+            Self.appendFeatureExt(
+                id: 0x02,
+                data: [
+                    Self.federatedAuthenticationLibraryADALAndEchoByte(
+                        echoRequired: federatedAuthenticationEchoRequired
+                    ),
+                    workflow.rawValue,
+                ],
+                to: &bytes
+            )
+        case .federatedAuthenticationToken(let token):
+            let tokenBytes = Self.ucs2Bytes(token)
+            var data = [
+                Self.federatedAuthenticationLibrarySecurityTokenAndEchoByte(
+                    echoRequired: federatedAuthenticationEchoRequired
+                )
+            ]
+            data.append(contentsOf: Self.littleEndianBytes(UInt32(tokenBytes.count)))
+            data.append(contentsOf: tokenBytes)
+            Self.appendFeatureExt(id: 0x02, data: data, to: &bytes)
+        case .sqlServer, .sspi:
+            break
+        }
+        Self.appendFeatureExt(id: 0x0A, data: [0x01], to: &bytes)  // UTF8_SUPPORT.
         bytes.append(0xFF)
         return bytes
     }
@@ -531,11 +597,36 @@ struct TDSFrontendMessageEncoder {
     private static func appendFeatureExt(id: UInt8, data: [UInt8], to bytes: inout [UInt8]) {
         bytes.append(id)
         let length = UInt32(data.count)
-        bytes.append(UInt8(length & 0x0000_00FF))
-        bytes.append(UInt8((length & 0x0000_FF00) >> 8))
-        bytes.append(UInt8((length & 0x00FF_0000) >> 16))
-        bytes.append(UInt8((length & 0xFF00_0000) >> 24))
+        bytes.append(contentsOf: Self.littleEndianBytes(length))
         bytes.append(contentsOf: data)
+    }
+
+    private static func littleEndianBytes(_ value: UInt32) -> [UInt8] {
+        [
+            UInt8(value & 0x0000_00FF),
+            UInt8((value & 0x0000_FF00) >> 8),
+            UInt8((value & 0x00FF_0000) >> 16),
+            UInt8((value & 0xFF00_0000) >> 24),
+        ]
+    }
+
+    private static func ucs2Bytes(_ value: String) -> [UInt8] {
+        value.utf16.flatMap { [UInt8($0 & 0x00FF), UInt8($0 >> 8)] }
+    }
+
+    private static func rpcParameterName(_ name: String) -> String {
+        guard !name.isEmpty, !name.hasPrefix("@") else {
+            return name
+        }
+        return "@\(name)"
+    }
+
+    private static func federatedAuthenticationLibraryADALAndEchoByte(echoRequired: Bool) -> UInt8 {
+        (0x02 << 1) | (echoRequired ? 0x01 : 0x00)
+    }
+
+    private static func federatedAuthenticationLibrarySecurityTokenAndEchoByte(echoRequired: Bool) -> UInt8 {
+        (0x01 << 1) | (echoRequired ? 0x01 : 0x00)
     }
 
     private static func loginTypeFlags(for intent: TDSConnection.Configuration.ApplicationIntent) -> UInt8 {
@@ -550,7 +641,7 @@ struct TDSFrontendMessageEncoder {
     private static func loginOptionFlags2(
         for authentication: TDSConnection.Configuration.Authentication
     ) -> UInt8 {
-        var flags: UInt8 = 0x03
+        var flags: UInt8 = 0x00
         if case .sspi = authentication {
             flags |= 0x80
         }
@@ -665,13 +756,13 @@ struct TDSFrontendMessageEncoder {
             self.buffer.writeInteger(TDSDataType.nVarChar.rawValue)
             if bytes.count > 8_000 {
                 self.buffer.writeInteger(UInt16.max, endianness: .little)
-                self.buffer.writeBytes([0x09, 0x04, 0xD0, 0x00, 0x34])
+                self.buffer.writeBytes(self.databaseCollation)
                 self.writePLPBytes(bytes)
                 return
             }
             let byteLength = UInt16(bytes.count)
             self.buffer.writeInteger(max(byteLength, 2), endianness: .little)
-            self.buffer.writeBytes([0x09, 0x04, 0xD0, 0x00, 0x34])
+            self.buffer.writeBytes(self.databaseCollation)
             self.buffer.writeInteger(byteLength, endianness: .little)
             self.buffer.writeBytes(bytes)
         case .bytes(let value):
@@ -763,13 +854,13 @@ struct TDSFrontendMessageEncoder {
             let maxBytes = TDSSQLType.normalizedFixedSingleByteMaxBytes(maxBytes)
             self.buffer.writeInteger(TDSDataType.bigChar.rawValue)
             self.buffer.writeInteger(maxBytes, endianness: .little)
-            self.buffer.writeBytes([0x09, 0x04, 0xD0, 0x00, 0x34])
+            self.buffer.writeBytes(self.databaseCollation)
             self.buffer.writeInteger(UInt16.max, endianness: .little)
         case .varchar(let maxBytes):
             let maxBytes = TDSSQLType.normalizedVarCharMaxBytes(maxBytes)
             self.buffer.writeInteger(TDSDataType.bigVarChar.rawValue)
             self.buffer.writeInteger(maxBytes, endianness: .little)
-            self.buffer.writeBytes([0x09, 0x04, 0xD0, 0x00, 0x34])
+            self.buffer.writeBytes(self.databaseCollation)
             if maxBytes == UInt16.max {
                 self.buffer.writeInteger(UInt64.max, endianness: .little)
             } else {
@@ -779,13 +870,13 @@ struct TDSFrontendMessageEncoder {
             let maxBytes = TDSSQLType.normalizedFixedNCharMaxBytes(maxBytes)
             self.buffer.writeInteger(TDSDataType.nChar.rawValue)
             self.buffer.writeInteger(maxBytes, endianness: .little)
-            self.buffer.writeBytes([0x09, 0x04, 0xD0, 0x00, 0x34])
+            self.buffer.writeBytes(self.databaseCollation)
             self.buffer.writeInteger(UInt16.max, endianness: .little)
         case .nvarchar(let maxBytes):
             let maxBytes = TDSSQLType.normalizedNVarCharMaxBytes(maxBytes)
             self.buffer.writeInteger(TDSDataType.nVarChar.rawValue)
             self.buffer.writeInteger(maxBytes, endianness: .little)
-            self.buffer.writeBytes([0x09, 0x04, 0xD0, 0x00, 0x34])
+            self.buffer.writeBytes(self.databaseCollation)
             if maxBytes == UInt16.max {
                 self.buffer.writeInteger(UInt64.max, endianness: .little)
             } else {
@@ -1025,7 +1116,7 @@ struct TDSFrontendMessageEncoder {
     }
 
     private mutating func writePLPBytes(_ bytes: [UInt8]) {
-        self.buffer.writeInteger(UInt64(bytes.count), endianness: .little)
+        self.buffer.writeInteger(UInt64.max - 1, endianness: .little)
         if !bytes.isEmpty {
             self.buffer.writeInteger(UInt32(bytes.count), endianness: .little)
             self.buffer.writeBytes(bytes)

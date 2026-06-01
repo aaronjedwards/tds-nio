@@ -48,7 +48,7 @@ public struct TDSTableValuedParameter: Sendable, Hashable {
 
     public init(
         databaseName: String = "",
-        schemaName: String = "dbo",
+        schemaName: String = "",
         typeName: String,
         columns: [Column],
         rows: [[TDSData]]

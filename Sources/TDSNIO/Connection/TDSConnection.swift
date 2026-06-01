@@ -354,9 +354,9 @@ extension TDSConnection {
         id connectionID: ID,
         logger: Logger
     ) async throws -> TDSConnection {
-        var attempts = configuration.retryCount
-        while attempts > 0 {
-            attempts -= 1
+        var remainingRetries = configuration.retryCount
+        while true {
+            try Task.checkCancellation()
             do {
                 return try await self.connect(
                     on: eventLoop,
@@ -368,19 +368,19 @@ extension TDSConnection {
             } catch let error as CancellationError {
                 throw error
             } catch {
-                // only final attempt throws the error
+                guard configuration.shouldRetryConnection(
+                    after: error,
+                    remainingRetries: remainingRetries
+                ) else {
+                    throw error
+                }
+                remainingRetries -= 1
             }
+            try Task.checkCancellation()
             if configuration.retryDelay > 0 {
                 try await Task.sleep(for: .seconds(configuration.retryDelay))
             }
         }
-        return try await self.connect(
-            on: eventLoop,
-            configuration: configuration,
-            id: connectionID,
-            logger: logger,
-            remainingRoutingRedirects: configuration.options.routingRedirectLimit
-        ).get()
     }
 
     /// Closes the connection to the database server.

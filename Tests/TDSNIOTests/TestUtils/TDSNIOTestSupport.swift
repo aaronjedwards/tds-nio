@@ -137,26 +137,43 @@ final class TDSTests: XCTestCase {
     }
 
     static func preloginResponsePayload(
-        encryption: TDSFrontendMessageEncoder.PreloginEncryption
+        encryption: TDSFrontendMessageEncoder.PreloginEncryption,
+        fedAuthRequired: Bool? = nil
     ) -> ByteBuffer {
         var buffer = ByteBufferAllocator().buffer(capacity: 32)
-        buffer.writeBytes([
-            0x00, 0x00, 0x0B, 0x00, 0x06,
-            0x01, 0x00, 0x11, 0x00, 0x01,
-            0xFF,
-            0x0F, 0x00, 0x10, 0x6A, 0x00, 0x00,
-            encryption.rawValue,
-        ])
+        var options: [(UInt8, [UInt8])] = [
+            (0x00, [0x0F, 0x00, 0x10, 0x6A, 0x00, 0x00]),
+            (0x01, [encryption.rawValue]),
+        ]
+        if let fedAuthRequired {
+            options.append((0x06, [fedAuthRequired ? 0x01 : 0x00]))
+        }
+
+        let tableLength = options.count * 5 + 1
+        var offset = tableLength
+        for option in options {
+            buffer.writeInteger(option.0)
+            buffer.writeInteger(UInt16(offset), endianness: .big)
+            buffer.writeInteger(UInt16(option.1.count), endianness: .big)
+            offset += option.1.count
+        }
+        buffer.writeInteger(0xFF as UInt8)
+        for option in options {
+            buffer.writeBytes(option.1)
+        }
         return buffer
     }
 
-    static func loginAckAndDonePayload() -> ByteBuffer {
+    static func loginAckAndDonePayload(
+        interface: UInt8 = 0x01,
+        tdsVersion: UInt32 = 0x7400_0004
+    ) -> ByteBuffer {
         var payload = ByteBufferAllocator().buffer(capacity: 64)
         payload.writeInteger(0xAD as UInt8)
 
         var loginAck = ByteBufferAllocator().buffer(capacity: 32)
-        loginAck.writeInteger(0x01 as UInt8)
-        loginAck.writeInteger(0x7400_0004 as UInt32, endianness: .big)
+        loginAck.writeInteger(interface)
+        loginAck.writeInteger(tdsVersion, endianness: .big)
         loginAck.writeInteger(3 as UInt8)
         loginAck.writeUTF16("SQL")
         loginAck.writeBytes([16, 0, 0x10, 0x6A])
@@ -169,10 +186,12 @@ final class TDSTests: XCTestCase {
         return payload
     }
 
-    static func routingEnvChangePayload() -> ByteBuffer {
-        let server = "redirect.sql.example.test"
+    static func routingEnvChangePayload(
+        protocolByte: UInt8 = 0,
+        server: String = "redirect.sql.example.test"
+    ) -> ByteBuffer {
         var routingData = ByteBufferAllocator().buffer(capacity: 64)
-        routingData.writeInteger(0 as UInt8)
+        routingData.writeInteger(protocolByte)
         routingData.writeInteger(1444 as UInt16, endianness: .little)
         routingData.writeInteger(UInt16(server.utf16.count), endianness: .little)
         routingData.writeUTF16(server)
@@ -202,6 +221,41 @@ final class TDSTests: XCTestCase {
 
         var payload = ByteBufferAllocator().buffer(capacity: 80)
         payload.writeLengthPrefixedToken(0xE3, bytes: Array(envChange.readableBytesView))
+        return payload
+    }
+
+    static func collationEnvChangePayload(
+        new: [UInt8],
+        old: [UInt8] = [0x09, 0x04, 0xD0, 0x00, 0x34]
+    ) -> ByteBuffer {
+        var envChange = ByteBufferAllocator().buffer(capacity: 16)
+        envChange.writeInteger(7 as UInt8)
+        envChange.writeBVarbyte(new)
+        envChange.writeBVarbyte(old)
+
+        var payload = ByteBufferAllocator().buffer(capacity: 32)
+        payload.writeLengthPrefixedToken(0xE3, bytes: Array(envChange.readableBytesView))
+        return payload
+    }
+
+    static func resetConnectionEnvChangePayload() -> ByteBuffer {
+        var envChange = ByteBufferAllocator().buffer(capacity: 4)
+        envChange.writeInteger(18 as UInt8)
+        envChange.writeBVarbyte([])
+        envChange.writeBVarbyte([])
+
+        var payload = ByteBufferAllocator().buffer(capacity: 8)
+        payload.writeLengthPrefixedToken(0xE3, bytes: Array(envChange.readableBytesView))
+        return payload
+    }
+
+    static func featureExtAckPayload(featureID: UInt8, data: [UInt8]) -> ByteBuffer {
+        var payload = ByteBufferAllocator().buffer(capacity: 16 + data.count)
+        payload.writeInteger(0xAE as UInt8)
+        payload.writeInteger(featureID)
+        payload.writeInteger(UInt32(data.count), endianness: .little)
+        payload.writeBytes(data)
+        payload.writeInteger(0xFF as UInt8)
         return payload
     }
 
@@ -944,6 +998,14 @@ final class TDSTests: XCTestCase {
                 type: .preloginLoginOrTablularResponse,
                 payload: Self.loginAckAndDonePayload()
             ))
+        if configuration.options.startupInitialSQL != nil {
+            _ = try channel.readOutbound(as: ByteBuffer.self)
+            try channel.writeInbound(
+                Self.packet(
+                    type: .preloginLoginOrTablularResponse,
+                    payload: Self.donePayload()
+                ))
+        }
         _ = try eventHandler.startupDoneFuture.wait()
         return channel
     }
@@ -951,6 +1013,15 @@ final class TDSTests: XCTestCase {
     static func readyForQueryEventCount(in events: [Any]) -> Int {
         events.filter {
             if case TDSSQLEvent.readyForQuery = $0 {
+                return true
+            }
+            return false
+        }.count
+    }
+
+    static func resetConnectionEventCount(in events: [Any]) -> Int {
+        events.filter {
+            if case TDSSQLEvent.resetConnection = $0 {
                 return true
             }
             return false

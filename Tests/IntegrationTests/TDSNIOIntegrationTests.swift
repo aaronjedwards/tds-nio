@@ -76,33 +76,27 @@ final class TDSNIOIntegrationTests: XCTestCase {
         try await connection?.close()
     }
 
-    func testConnectionAttemptCancels() async throws {
+    func testNonTransientAuthenticationFailureDoesNotRetry() async throws {
         var configuration = try TDSConnection.testConfig()
         configuration.password = "wrong_password"
         configuration.retryCount = 20
         configuration.retryDelay = 10
 
-        let eventLoop = self.eventLoop
-        let logger = Logger.tdsTest
-        let connectTask = Task {
-            try await TDSConnection.connect(
-                on: eventLoop,
+        var connection: TDSConnection?
+        do {
+            connection = try await TDSConnection.connect(
+                on: self.eventLoop,
                 configuration: configuration,
                 id: 1,
-                logger: logger
+                logger: .tdsTest
             )
+            XCTFail("Authentication should fail without retrying")
+        } catch let error as TDSSQLError {
+            XCTAssertEqual(error.code, .server)
+            XCTAssertEqual(error.serverInfo?.number, 18456)
         }
 
-        try await Task.sleep(for: .seconds(2))
-        connectTask.cancel()
-
-        do {
-            let connection = try await connectTask.value
-            try await connection.close()
-            XCTFail("Retrying connection attempt should have been cancelled")
-        } catch is CancellationError {
-            // expected
-        }
+        try await connection?.close()
     }
 
     func testPing() async throws {

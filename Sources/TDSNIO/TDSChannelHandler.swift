@@ -40,6 +40,7 @@ final class TDSChannelHandler: ChannelDuplexHandler {
     private var sslHandler: NIOSSLClientHandler?
     private var session: TDSSessionContext
     private var rowStream: TDSRowStream?
+    private var loginRoutingReceived = false
 
     init(
         configuration: TDSConnection.Configuration,
@@ -110,11 +111,17 @@ final class TDSChannelHandler: ChannelDuplexHandler {
     func channelRead(context: ChannelHandlerContext, data: NIOAny) {
         let containers = self.unwrapInboundIn(data)
         for container in containers {
+            let completeAuthenticationAtMessageEnd = self.state.isWaitingForLoginResponse
             for message in container.messages {
                 self.handleMessage(
                     message,
                     context: context
                 )
+            }
+            if completeAuthenticationAtMessageEnd,
+                TDSPacket.Status(rawValue: container.flags).contains(.eom)
+            {
+                self.run(self.state.backendMessageComplete(), with: context)
             }
         }
     }
@@ -124,10 +131,22 @@ final class TDSChannelHandler: ChannelDuplexHandler {
         context: ChannelHandlerContext
     ) {
         self.logger.trace("Backend message received", metadata: [.message: "\(message)"])
+        if self.state.isWaitingForAttentionAcknowledgement {
+            let action: ConnectionStateMachine.ConnectionAction
+            if case .done(let done) = message {
+                action = self.state.doneReceived(done, tokenKind: .done)
+            } else {
+                action = .wait
+            }
+            self.run(action, with: context)
+            return
+        }
+
         let action: ConnectionStateMachine.ConnectionAction
         switch message {
         case .prelogin(let response):
             if self.configuration.tls.isCompatible(with: response.encryption) {
+                self.encoder.setFederatedAuthenticationEchoRequired(response.fedAuthRequired == true)
                 action = self.state.preloginReceived(
                     response,
                     clientEncryption: self.configuration.tls.preloginEncryption
@@ -143,8 +162,10 @@ final class TDSChannelHandler: ChannelDuplexHandler {
                 )
             }
         case .loginAck(let ack):
-            self.session.receiveLoginAck(ack)
             action = self.state.loginAckReceived(ack)
+            if ack.negotiatedProtocolVersion != nil, ack.hasSupportedInterface {
+                self.session.receiveLoginAck(ack)
+            }
         case .done(let done):
             self.logger.debug(
                 "DONE token received",
@@ -173,6 +194,9 @@ final class TDSChannelHandler: ChannelDuplexHandler {
                 ])
             action = self.state.doneReceived(done, tokenKind: .doneInProc)
         case .error(let error):
+            let message = TDSErrorMessage(error)
+            self.configuration.options.errorMessageHandler?(message)
+            context.fireUserInboundEventTriggered(message)
             action = self.state.backendErrorReceived(error)
         case .info(let info):
             let message = TDSInfoMessage(info)
@@ -181,6 +205,9 @@ final class TDSChannelHandler: ChannelDuplexHandler {
             action = .wait
         case .envChange(let envChange):
             if case .routing(let routing) = envChange.value {
+                if self.state.isWaitingForLoginResponse {
+                    self.loginRoutingReceived = true
+                }
                 context.fireUserInboundEventTriggered(TDSSQLEvent.routing(routing))
             }
             switch self.session.receiveEnvChange(envChange) {
@@ -192,9 +219,18 @@ final class TDSChannelHandler: ChannelDuplexHandler {
                         "tds.envchange.new_length": "\(new.count)",
                     ])
                 self.encoder.setTransactionDescriptor(new)
+            case .databaseCollationChanged(let new):
+                self.logger.debug(
+                    "Database collation ENVCHANGE received",
+                    metadata: [
+                        "tds.envchange.new_length": "\(new.count)"
+                    ])
+                self.encoder.setDatabaseCollation(new)
             case .packetSizeChanged(let packetSize):
                 context.triggerUserOutboundEvent(
                     TDSSQLEvent.packetSizeChanged(packetSize), promise: nil)
+            case .resetConnection:
+                context.fireUserInboundEventTriggered(TDSSQLEvent.resetConnection)
             case .none:
                 break
             }
@@ -203,8 +239,14 @@ final class TDSChannelHandler: ChannelDuplexHandler {
             context.fireUserInboundEventTriggered(message)
             action = .wait
         case .featureExtAck(let featureExtAck):
+            action = self.state.featureExtAckReceived(
+                featureExtAck,
+                requestedFeatureIDs: self.configuration.requestedFeatureExtAckFeatureIDs
+            )
+            if case .closeConnectionAndCleanup = action {
+                break
+            }
             self.session.receiveFeatureExtAck(featureExtAck)
-            action = .wait
         case .colMetadata(let metadata):
             self.logger.debug(
                 "COLMETADATA token received",
@@ -245,8 +287,6 @@ final class TDSChannelHandler: ChannelDuplexHandler {
             action = self.state.returnStatusReceived(status)
         case .returnValue(let returnValue):
             action = self.state.returnValueReceived(returnValue)
-        case .unknownToken:
-            action = .wait
         }
         self.run(action, with: context)
     }
@@ -299,6 +339,7 @@ final class TDSChannelHandler: ChannelDuplexHandler {
     ) {
         switch event {
         case TDSAuthenticationToken.sspi(let bytes):
+            self.run(self.state.authenticationTokenSent(), with: context)
             self.encoder.sspi(bytes)
             context.writeAndFlush(self.wrapOutboundOut(self.encoder.flush()), promise: promise)
         case TDSAuthenticationToken.federated(let token, let nonce):
@@ -309,6 +350,7 @@ final class TDSChannelHandler: ChannelDuplexHandler {
                     ))
                 return
             }
+            self.run(self.state.authenticationTokenSent(), with: context)
             self.encoder.federatedAuthenticationToken(token: token, nonce: nonce)
             context.writeAndFlush(self.wrapOutboundOut(self.encoder.flush()), promise: promise)
         case TDSSQLEvent.resetConnectionOnNextRequest:
@@ -348,9 +390,32 @@ final class TDSChannelHandler: ChannelDuplexHandler {
             if removeTLS {
                 self.removeLoginOnlyTLS(context: context)
             }
+            if !self.loginRoutingReceived,
+                let initialSQL = self.configuration.options.startupInitialSQL
+            {
+                self.run(
+                    self.state.startInitialSQL(initialSQL, loginAck: loginAck, removeTLS: false),
+                    with: context
+                )
+                break
+            }
+            self.loginRoutingReceived = false
             context.fireUserInboundEventTriggered(
                 TDSSQLEvent.startupDone(
-                    version: TDSProtocolVersion(loginAck: loginAck),
+                    version: loginAck.negotiatedProtocolVersion!,
+                    sessionID: 0,
+                    serialNumber: 0
+                )
+            )
+            self.startNextTaskOrFireReady(context: context)
+        case .startupComplete(let loginAck, let removeTLS):
+            if removeTLS {
+                self.removeLoginOnlyTLS(context: context)
+            }
+            self.loginRoutingReceived = false
+            context.fireUserInboundEventTriggered(
+                TDSSQLEvent.startupDone(
+                    version: loginAck.negotiatedProtocolVersion!,
                     sessionID: 0,
                     serialNumber: 0
                 )

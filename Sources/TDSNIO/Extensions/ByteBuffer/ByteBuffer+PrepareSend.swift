@@ -20,7 +20,7 @@ extension ByteBuffer {
         packetType: TDSPacket.MessageType,
         statusFlags: [TDSPacket.StatusFlag] = [.normal],
         payloadLength: UInt16,
-        packetId: UInt8 = 0
+        packetId: UInt8 = 1
     ) {
         var statusByte: UInt8 = 0x00
         for flag in statusFlags {

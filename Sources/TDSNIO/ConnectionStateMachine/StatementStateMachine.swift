@@ -65,7 +65,9 @@ struct StatementStateMachine {
                 + "rowStreamStarted=\(self.activeRowStreamStarted) "
                 + "activeRows=\(self.activeRows.count) activeColumns=\(self.activeColumns.count)"
         )
-        if done.status.contains(.error) || done.status.contains(.serverError) {
+        if tokenKind != .doneInProc
+            && (done.status.contains(.error) || done.status.contains(.serverError))
+        {
             let action = self.recordFailure(
                 .server("Server completed the request with a DONE error status.")
             )
@@ -90,6 +92,14 @@ struct StatementStateMachine {
         }
 
         if self.activeError != nil {
+            if let error = self.activeError {
+                switch self.context.resultMode {
+                case .bufferedQueryResult:
+                    self.context.fail(error)
+                case .rowStream, .void:
+                    break
+                }
+            }
             self.clearActiveResult()
             return .completeFailedQuery
         }
@@ -349,7 +359,10 @@ struct StatementStateMachine {
     }
 
     private mutating func recordFailure(_ error: TDSSQLError) -> Action {
-        guard !self.activeTaskFailed else {
+        if self.activeTaskFailed {
+            if let serverInfo = error.serverInfo {
+                self.activeError?.appendServerError(serverInfo.underlying)
+            }
             return .wait
         }
         var error = error
@@ -357,13 +370,21 @@ struct StatementStateMachine {
         self.activeError = error
         self.activeTaskFailed = true
 
-        if self.context.resultMode == .rowStream, self.activeRowStreamStarted {
+        if self.context.resultMode == .rowStream {
+            let rowStreamStarted = self.activeRowStreamStarted
             self.activeRowStreamStarted = false
             _ = self.rowStreamStateMachine?.fail()
-            return .forwardStreamError(error)
+            if rowStreamStarted {
+                return .forwardStreamError(error)
+            }
+            self.context.fail(error)
+            return .wait
+        }
+        if self.context.resultMode == .void {
+            self.context.fail(error)
+            return .wait
         }
 
-        self.context.fail(error)
         return .wait
     }
 
