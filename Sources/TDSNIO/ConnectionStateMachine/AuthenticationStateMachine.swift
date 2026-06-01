@@ -2,7 +2,7 @@
 //
 // This source file is part of the TDSNIO open source project
 //
-// Copyright (c) 2026 TDSNIO project authors
+// Copyright (c) 2026 Aaron Edwards and the TDSNIO project authors
 // Licensed under Apache License v2.0
 //
 // See LICENSE for license information
@@ -278,7 +278,7 @@ struct AuthenticationStateMachine {
 
     private static let fedAuthFeatureID: UInt8 = 0x02
     private static let defaultFeatureExtAckFeatureIDs: Set<UInt8> = [
-        Capabilities.FeatureID.utf8Support.rawValue,
+        Capabilities.FeatureID.utf8Support.rawValue
     ]
 }
 

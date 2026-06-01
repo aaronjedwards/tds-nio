@@ -1,15 +1,30 @@
+//===----------------------------------------------------------------------===//
+//
+// This source file is part of the TDSNIO open source project
+//
+// Copyright (c) 2026 Aaron Edwards and the TDSNIO project authors
+// Licensed under Apache License v2.0
+//
+// See LICENSE for license information
+// See CONTRIBUTORS.md for the list of TDSNIO project authors
+//
+// SPDX-License-Identifier: Apache-2.0
+//
+//===----------------------------------------------------------------------===//
 import NIOCore
 import NIOPosix
 import TDSNIO
 import Testing
 
 @Suite(
-    .disabled(if: env("TDS_INTEGRATION_TESTS") != "1", "Set TDS_INTEGRATION_TESTS=1 to run SQL Server integration tests."),
+    .disabled(
+        if: env("TDS_INTEGRATION_TESTS") != "1", "Set TDS_INTEGRATION_TESTS=1 to run SQL Server integration tests."),
     .disabled(if: env("SMOKE_TEST_ONLY") == "1", "Skipping integration suite while SMOKE_TEST_ONLY=1."),
     .timeLimit(.minutes(5))
 )
 final class TDSClientIntegrationTests {
     private let group: MultiThreadedEventLoopGroup
+
 
     init() {
         self.group = MultiThreadedEventLoopGroup(numberOfThreads: 2)
@@ -43,12 +58,12 @@ final class TDSClientIntegrationTests {
                 group.addTask {
                     try await client.withConnection { connection in
                         let rows = try await connection.execute(
-                            "SELECT CAST(1 AS int) AS user_id, CAST(N'Timo' AS nvarchar(20)) AS name, CAST(23 AS int) AS age"
+                            "SELECT CAST(1 AS int) AS user_id, CAST(N'AJ' AS nvarchar(20)) AS name, CAST(23 AS int) AS age"
                         ).rows
 
                         expectEqual(rows.count, 1)
                         expectEqual(try rows[0].decode(column: "user_id", as: Int.self), 1)
-                        expectEqual(try rows[0].decode(column: "name", as: String.self), "Timo")
+                        expectEqual(try rows[0].decode(column: "name", as: String.self), "AJ")
                         expectEqual(try rows[0].decode(column: "age", as: Int.self), 23)
                     }
                 }

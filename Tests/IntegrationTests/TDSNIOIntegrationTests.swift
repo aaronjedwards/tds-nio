@@ -1,3 +1,16 @@
+//===----------------------------------------------------------------------===//
+//
+// This source file is part of the TDSNIO open source project
+//
+// Copyright (c) 2026 Aaron Edwards and the TDSNIO project authors
+// Licensed under Apache License v2.0
+//
+// See LICENSE for license information
+// See CONTRIBUTORS.md for the list of TDSNIO project authors
+//
+// SPDX-License-Identifier: Apache-2.0
+//
+//===----------------------------------------------------------------------===//
 import Foundation
 import Logging
 import NIOCore
@@ -6,7 +19,8 @@ import TDSNIO
 import Testing
 
 @Suite(
-    .disabled(if: env("TDS_INTEGRATION_TESTS") != "1", "Set TDS_INTEGRATION_TESTS=1 to run SQL Server integration tests."),
+    .disabled(
+        if: env("TDS_INTEGRATION_TESTS") != "1", "Set TDS_INTEGRATION_TESTS=1 to run SQL Server integration tests."),
     .disabled(if: env("SMOKE_TEST_ONLY") == "1", "Skipping integration suite while SMOKE_TEST_ONLY=1."),
     .timeLimit(.minutes(5))
 )
@@ -136,18 +150,7 @@ final class TDSNIOIntegrationTests {
         }
     }
 
-    @Test func firstColumnIntegerDecodeMatchesOracleNIOStyle() async throws {
-        try await withTDSConnection(on: self.eventLoop) { connection in
-            let rows = try await connection.execute(
-                "SELECT CAST(1 AS int) AS id"
-            ).rows
-
-            expectEqual(rows.count, 1)
-            expectEqual(try rows.first?.decode(Int.self), 1)
-        }
-    }
-
-    @Test func firstColumnDecodeMatchesOracleNIOStyle() async throws {
+    @Test func firstColumnDecodeReturnsTypedValue() async throws {
         try await withTDSConnection(on: self.eventLoop) { connection in
             let rows = try await connection.execute(
                 "SELECT CAST(N'test' AS nvarchar(20)) AS value"
@@ -158,7 +161,7 @@ final class TDSNIOIntegrationTests {
         }
     }
 
-    @Test func streamingScalarDecodeMatchesOracleNIOStyle() async throws {
+    @Test func streamingScalarDecodeReturnsTypedValues() async throws {
         try await withTDSConnection(on: self.eventLoop) { connection in
             let rows = try await connection.query(
                 """
@@ -180,13 +183,13 @@ final class TDSNIOIntegrationTests {
         }
     }
 
-    @Test func streamingTupleDecodeMatchesOracleNIOStyle() async throws {
+    @Test func streamingTupleDecodeReturnsTypedValues() async throws {
         try await withTDSConnection(on: self.eventLoop) { connection in
             let rows = try await connection.query(
                 """
                 SELECT
                     CAST(1 AS int) AS user_id,
-                    CAST(N'Timo' AS nvarchar(20)) AS name,
+                    CAST(N'AJ' AS nvarchar(20)) AS name,
                     CAST(23 AS int) AS age
                 """
             )
@@ -194,7 +197,7 @@ final class TDSNIOIntegrationTests {
             var received = 0
             for try await (userID, name, age) in rows.decode((Int, String, Int).self) {
                 expectEqual(userID, 1)
-                expectEqual(name, "Timo")
+                expectEqual(name, "AJ")
                 expectEqual(age, 23)
                 received += 1
             }

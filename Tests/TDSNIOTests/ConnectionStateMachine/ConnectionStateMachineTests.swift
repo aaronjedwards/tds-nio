@@ -1,3 +1,16 @@
+//===----------------------------------------------------------------------===//
+//
+// This source file is part of the TDSNIO open source project
+//
+// Copyright (c) 2026 Aaron Edwards and the TDSNIO project authors
+// Licensed under Apache License v2.0
+//
+// See LICENSE for license information
+// See CONTRIBUTORS.md for the list of TDSNIO project authors
+//
+// SPDX-License-Identifier: Apache-2.0
+//
+//===----------------------------------------------------------------------===//
 import Foundation
 import Logging
 import NIOConcurrencyHelpers
@@ -26,12 +39,14 @@ extension TDSTests {
                 clientEncryption: .encryptOn
             )
         else {
-            Issue.record("Expected TLS negotiation to start"); return
+            Issue.record("Expected TLS negotiation to start")
+            return
         }
         expectFalse(removeAfterLogin)
 
         guard case .sendLoginRequest = state.tlsEstablished() else {
-            Issue.record("Expected LOGIN7 after TLS handshake"); return
+            Issue.record("Expected LOGIN7 after TLS handshake")
+            return
         }
     }
 
@@ -51,11 +66,13 @@ extension TDSTests {
                 clientEncryption: .encryptOn
             )
         else {
-            Issue.record("Expected login-only TLS negotiation to start"); return
+            Issue.record("Expected login-only TLS negotiation to start")
+            return
         }
         expectTrue(removeAfterLogin)
         guard case .sendLoginRequest = state.tlsEstablished() else {
-            Issue.record("Expected LOGIN7 after TLS handshake"); return
+            Issue.record("Expected LOGIN7 after TLS handshake")
+            return
         }
 
         let ack = TDSBackendMessage.LoginAck(
@@ -65,12 +82,14 @@ extension TDSTests {
             serverVersion: .init(major: 16, minor: 0, buildHigh: 0x10, buildLow: 0x6A)
         )
         guard case .wait = state.loginAckReceived(ack) else {
-            Issue.record("Expected LOGINACK to be stored until DONE"); return
+            Issue.record("Expected LOGINACK to be stored until DONE")
+            return
         }
 
         let done = TDSBackendMessage.Done(status: [], currentCommand: 0, rowCount: 0)
         guard case .authenticated(_, let removeTLS) = state.doneReceived(done) else {
-            Issue.record("Expected authentication completion"); return
+            Issue.record("Expected authentication completion")
+            return
         }
         expectTrue(removeTLS)
     }
@@ -84,18 +103,22 @@ extension TDSTests {
             serverVersion: .init(major: 16, minor: 0, buildHigh: 0x10, buildLow: 0x6A)
         )
 
-        guard case .sendSQLBatch("set ansi_nulls on") = state.startInitialSQL(
-            "set ansi_nulls on",
-            loginAck: ack,
-            removeTLS: false
-        ) else {
-            Issue.record("Expected initial SQL batch to be sent"); return
+        guard
+            case .sendSQLBatch("set ansi_nulls on") = state.startInitialSQL(
+                "set ansi_nulls on",
+                loginAck: ack,
+                removeTLS: false
+            )
+        else {
+            Issue.record("Expected initial SQL batch to be sent")
+            return
         }
 
         let done = TDSBackendMessage.Done(status: [], currentCommand: 0, rowCount: 0)
         guard case .startupComplete(let completedAck, let removeTLS) = state.doneReceived(done)
         else {
-            Issue.record("Expected startup completion after initial SQL DONE"); return
+            Issue.record("Expected startup completion after initial SQL DONE")
+            return
         }
         expectEqual(completedAck.tdsVersion, ack.tdsVersion)
         expectFalse(removeTLS)
@@ -121,12 +144,14 @@ extension TDSTests {
         )
 
         guard case .wait = state.backendErrorReceived(error) else {
-            Issue.record("Expected initial SQL error token to be recorded until DONE"); return
+            Issue.record("Expected initial SQL error token to be recorded until DONE")
+            return
         }
 
         let done = TDSBackendMessage.Done(status: .error, currentCommand: 0, rowCount: 0)
         guard case .closeConnectionAndCleanup(let cleanup) = state.doneReceived(done) else {
-            Issue.record("Expected startup to fail once initial SQL error DONE arrives"); return
+            Issue.record("Expected startup to fail once initial SQL error DONE arrives")
+            return
         }
         expectEqual(cleanup.error.serverInfo?.message, "Initial SQL failed")
     }
@@ -142,7 +167,8 @@ extension TDSTests {
         _ = state.startInitialSQL("exec dbo.startup", loginAck: ack, removeTLS: false)
 
         guard case .wait = state.returnStatusReceived(7) else {
-            Issue.record("Expected initial SQL RETURNSTATUS to be ignored"); return
+            Issue.record("Expected initial SQL RETURNSTATUS to be ignored")
+            return
         }
         guard
             case .wait = state.returnValueReceived(
@@ -165,12 +191,14 @@ extension TDSTests {
                     value: .int32(42)
                 ))
         else {
-            Issue.record("Expected initial SQL RETURNVALUE to be ignored"); return
+            Issue.record("Expected initial SQL RETURNVALUE to be ignored")
+            return
         }
 
         let done = TDSBackendMessage.Done(status: [], currentCommand: 0, rowCount: 0)
         guard case .startupComplete = state.doneReceived(done) else {
-            Issue.record("Expected startup to complete after ignored return tokens"); return
+            Issue.record("Expected startup to complete after ignored return tokens")
+            return
         }
     }
 
@@ -190,7 +218,8 @@ extension TDSTests {
                 clientEncryption: .encryptOff
             )
         else {
-            Issue.record("Expected LOGIN7 without TLS"); return
+            Issue.record("Expected LOGIN7 without TLS")
+            return
         }
 
         let ack = TDSBackendMessage.LoginAck(
@@ -201,10 +230,12 @@ extension TDSTests {
         )
 
         guard case .wait = state.loginAckReceived(ack) else {
-            Issue.record("Expected unsupported TDS version to be recorded until login response completes"); return
+            Issue.record("Expected unsupported TDS version to be recorded until login response completes")
+            return
         }
         guard case .closeConnectionAndCleanup(let cleanup) = state.backendMessageComplete() else {
-            Issue.record("Expected unsupported TDS version to fail authentication on message completion"); return
+            Issue.record("Expected unsupported TDS version to fail authentication on message completion")
+            return
         }
         expectEqual(cleanup.error.code, .connectionError)
     }
@@ -225,7 +256,8 @@ extension TDSTests {
                 clientEncryption: .encryptOff
             )
         else {
-            Issue.record("Expected LOGIN7 without TLS"); return
+            Issue.record("Expected LOGIN7 without TLS")
+            return
         }
 
         let ack = TDSBackendMessage.LoginAck(
@@ -236,10 +268,12 @@ extension TDSTests {
         )
 
         guard case .wait = state.loginAckReceived(ack) else {
-            Issue.record("Expected unsupported interface to be recorded until login response completes"); return
+            Issue.record("Expected unsupported interface to be recorded until login response completes")
+            return
         }
         guard case .closeConnectionAndCleanup(let cleanup) = state.backendMessageComplete() else {
-            Issue.record("Expected unsupported interface to fail authentication on message completion"); return
+            Issue.record("Expected unsupported interface to fail authentication on message completion")
+            return
         }
         expectEqual(cleanup.error.code, .connectionError)
     }
@@ -260,12 +294,14 @@ extension TDSTests {
                 clientEncryption: .encryptOff
             )
         else {
-            Issue.record("Expected LOGIN7 without TLS"); return
+            Issue.record("Expected LOGIN7 without TLS")
+            return
         }
 
         let done = TDSBackendMessage.Done(status: [], currentCommand: 0, rowCount: 0)
         guard case .closeConnectionAndCleanup(let cleanup) = state.doneReceived(done) else {
-            Issue.record("Expected missing LOGINACK to fail authentication"); return
+            Issue.record("Expected missing LOGINACK to fail authentication")
+            return
         }
         expectEqual(cleanup.error.code, .connectionError)
     }
@@ -286,17 +322,20 @@ extension TDSTests {
                 clientEncryption: .encryptOff
             )
         else {
-            Issue.record("Expected LOGIN7 without TLS"); return
+            Issue.record("Expected LOGIN7 without TLS")
+            return
         }
 
         let featureExtAck = TDSBackendMessage.FeatureExtAck(
             options: [.init(featureID: 0x02, data: [])]
         )
         guard case .wait = state.featureExtAckReceived(featureExtAck) else {
-            Issue.record("Expected unexpected FedAuth acknowledgement to be recorded until login response completes"); return
+            Issue.record("Expected unexpected FedAuth acknowledgement to be recorded until login response completes")
+            return
         }
         guard case .closeConnectionAndCleanup(let cleanup) = state.backendMessageComplete() else {
-            Issue.record("Expected unexpected FedAuth acknowledgement to fail authentication on message completion"); return
+            Issue.record("Expected unexpected FedAuth acknowledgement to fail authentication on message completion")
+            return
         }
         expectEqual(cleanup.error.code, .connectionError)
     }
@@ -317,17 +356,20 @@ extension TDSTests {
                 clientEncryption: .encryptOff
             )
         else {
-            Issue.record("Expected LOGIN7 without TLS"); return
+            Issue.record("Expected LOGIN7 without TLS")
+            return
         }
 
         let featureExtAck = TDSBackendMessage.FeatureExtAck(
             options: [.init(featureID: 0x55, data: [])]
         )
         guard case .wait = state.featureExtAckReceived(featureExtAck) else {
-            Issue.record("Expected unrequested feature acknowledgement to be recorded until login response completes"); return
+            Issue.record("Expected unrequested feature acknowledgement to be recorded until login response completes")
+            return
         }
         guard case .closeConnectionAndCleanup(let cleanup) = state.backendMessageComplete() else {
-            Issue.record("Expected unrequested feature acknowledgement to fail authentication on message completion"); return
+            Issue.record("Expected unrequested feature acknowledgement to fail authentication on message completion")
+            return
         }
         expectEqual(cleanup.error.code, .connectionError)
     }
@@ -348,7 +390,8 @@ extension TDSTests {
                 clientEncryption: .encryptOff
             )
         else {
-            Issue.record("Expected LOGIN7 without TLS"); return
+            Issue.record("Expected LOGIN7 without TLS")
+            return
         }
 
         let featureExtAck = TDSBackendMessage.FeatureExtAck(
@@ -358,7 +401,9 @@ extension TDSTests {
             ]
         )
         guard case .wait = state.featureExtAckReceived(featureExtAck) else {
-            Issue.record("Expected UTF8 acknowledgement and ignored extra feature acknowledgements during authentication"); return
+            Issue.record(
+                "Expected UTF8 acknowledgement and ignored extra feature acknowledgements during authentication")
+            return
         }
     }
 
@@ -378,7 +423,8 @@ extension TDSTests {
                 clientEncryption: .encryptOff
             )
         else {
-            Issue.record("Expected LOGIN7 without TLS"); return
+            Issue.record("Expected LOGIN7 without TLS")
+            return
         }
 
         let configuration = TDSConnection.Configuration(
@@ -397,7 +443,8 @@ extension TDSTests {
                 requestedFeatureIDs: configuration.requestedFeatureExtAckFeatureIDs
             )
         else {
-            Issue.record("Expected requested FedAuth acknowledgement to be accepted during authentication"); return
+            Issue.record("Expected requested FedAuth acknowledgement to be accepted during authentication")
+            return
         }
     }
 
@@ -417,7 +464,8 @@ extension TDSTests {
                 clientEncryption: .encryptOff
             )
         else {
-            Issue.record("Expected LOGIN7 without TLS"); return
+            Issue.record("Expected LOGIN7 without TLS")
+            return
         }
 
         let configuration = TDSConnection.Configuration(
@@ -436,10 +484,12 @@ extension TDSTests {
                 requestedFeatureIDs: configuration.requestedFeatureExtAckFeatureIDs
             )
         else {
-            Issue.record("Expected missing FedAuth acknowledgement to be recorded until login response completes"); return
+            Issue.record("Expected missing FedAuth acknowledgement to be recorded until login response completes")
+            return
         }
         guard case .closeConnectionAndCleanup(let cleanup) = state.backendMessageComplete() else {
-            Issue.record("Expected missing FedAuth acknowledgement to fail authentication on message completion"); return
+            Issue.record("Expected missing FedAuth acknowledgement to fail authentication on message completion")
+            return
         }
         expectEqual(cleanup.error.code, .connectionError)
     }
@@ -460,7 +510,8 @@ extension TDSTests {
                 clientEncryption: .encryptOff
             )
         else {
-            Issue.record("Expected LOGIN7 without TLS"); return
+            Issue.record("Expected LOGIN7 without TLS")
+            return
         }
 
         let configuration = TDSConnection.Configuration(
@@ -479,10 +530,12 @@ extension TDSTests {
                 requestedFeatureIDs: configuration.requestedFeatureExtAckFeatureIDs
             )
         else {
-            Issue.record("Expected invalid FedAuth acknowledgement to be recorded until login response completes"); return
+            Issue.record("Expected invalid FedAuth acknowledgement to be recorded until login response completes")
+            return
         }
         guard case .closeConnectionAndCleanup(let cleanup) = state.backendMessageComplete() else {
-            Issue.record("Expected invalid FedAuth acknowledgement to fail authentication on message completion"); return
+            Issue.record("Expected invalid FedAuth acknowledgement to fail authentication on message completion")
+            return
         }
         expectEqual(cleanup.error.code, .connectionError)
     }
@@ -503,19 +556,25 @@ extension TDSTests {
                 clientEncryption: .encryptOff
             )
         else {
-            Issue.record("Expected LOGIN7 without TLS"); return
+            Issue.record("Expected LOGIN7 without TLS")
+            return
         }
 
         let fedAuthInfo = TDSBackendMessage.FedAuthInfo(options: [
-            .init(id: 0x01, data: Array("https://sts.example.test".utf16).flatMap {
-                [$0.littleEndian & 0x00FF, $0.littleEndian >> 8].map(UInt8.init)
-            }),
-            .init(id: 0x02, data: Array("MSSQLSvc/sql.example.test:1433".utf16).flatMap {
-                [$0.littleEndian & 0x00FF, $0.littleEndian >> 8].map(UInt8.init)
-            }),
+            .init(
+                id: 0x01,
+                data: Array("https://sts.example.test".utf16).flatMap {
+                    [$0.littleEndian & 0x00FF, $0.littleEndian >> 8].map(UInt8.init)
+                }),
+            .init(
+                id: 0x02,
+                data: Array("MSSQLSvc/sql.example.test:1433".utf16).flatMap {
+                    [$0.littleEndian & 0x00FF, $0.littleEndian >> 8].map(UInt8.init)
+                }),
         ])
         guard case .fireAuthenticationChallenge = state.fedAuthInfoReceived(fedAuthInfo) else {
-            Issue.record("Expected FEDAUTHINFO to request a token"); return
+            Issue.record("Expected FEDAUTHINFO to request a token")
+            return
         }
 
         let loginError = TDSBackendMessage.InfoError(
@@ -528,16 +587,20 @@ extension TDSTests {
             lineNumber: 1
         )
         guard case .wait = state.backendErrorReceived(loginError) else {
-            Issue.record("Expected login error to be recorded during FedAuth info response"); return
+            Issue.record("Expected login error to be recorded during FedAuth info response")
+            return
         }
         guard case .wait = state.backendMessageComplete() else {
-            Issue.record("Expected FEDAUTHINFO to take precedence over login error until token response"); return
+            Issue.record("Expected FEDAUTHINFO to take precedence over login error until token response")
+            return
         }
         guard case .wait = state.authenticationTokenSent() else {
-            Issue.record("Expected sent FedAuth token to resume normal login response handling"); return
+            Issue.record("Expected sent FedAuth token to resume normal login response handling")
+            return
         }
         guard case .closeConnectionAndCleanup(let cleanup) = state.backendMessageComplete() else {
-            Issue.record("Expected recorded login error to fail after FedAuth token response completes"); return
+            Issue.record("Expected recorded login error to fail after FedAuth token response completes")
+            return
         }
         expectEqual(cleanup.error.code, .server)
     }
@@ -558,11 +621,13 @@ extension TDSTests {
                 clientEncryption: .encryptOff
             )
         else {
-            Issue.record("Expected LOGIN7 without TLS"); return
+            Issue.record("Expected LOGIN7 without TLS")
+            return
         }
 
         guard case .fireAuthenticationChallenge = state.sspiReceived([0xAA, 0xBB]) else {
-            Issue.record("Expected SSPI token to request a continuation token"); return
+            Issue.record("Expected SSPI token to request a continuation token")
+            return
         }
         let loginError = TDSBackendMessage.InfoError(
             number: 18456,
@@ -574,16 +639,20 @@ extension TDSTests {
             lineNumber: 1
         )
         guard case .wait = state.backendErrorReceived(loginError) else {
-            Issue.record("Expected login error to be recorded during SSPI challenge response"); return
+            Issue.record("Expected login error to be recorded during SSPI challenge response")
+            return
         }
         guard case .wait = state.backendMessageComplete() else {
-            Issue.record("Expected SSPI challenge to take precedence over login error until token response"); return
+            Issue.record("Expected SSPI challenge to take precedence over login error until token response")
+            return
         }
         guard case .wait = state.authenticationTokenSent() else {
-            Issue.record("Expected sent SSPI token to resume normal login response handling"); return
+            Issue.record("Expected sent SSPI token to resume normal login response handling")
+            return
         }
         guard case .closeConnectionAndCleanup(let cleanup) = state.backendMessageComplete() else {
-            Issue.record("Expected recorded login error to fail after SSPI token response completes"); return
+            Issue.record("Expected recorded login error to fail after SSPI token response completes")
+            return
         }
         expectEqual(cleanup.error.code, .server)
     }
@@ -592,16 +661,19 @@ extension TDSTests {
         var state = ConnectionStateMachine(.loggedIn)
 
         guard case .closeConnectionAndCleanup(let cleanup) = state.close(nil) else {
-            Issue.record("Expected client close to start connection cleanup"); return
+            Issue.record("Expected client close to start connection cleanup")
+            return
         }
         guard case .close = cleanup.action else {
-            Issue.record("Expected cleanup to close the channel"); return
+            Issue.record("Expected cleanup to close the channel")
+            return
         }
         expectTrue(cleanup.tasks.isEmpty)
         expectNil(cleanup.rowStreamError)
 
         guard case .fireChannelInactive = state.closed() else {
-            Issue.record("Expected channelInactive to be forwarded after close completes"); return
+            Issue.record("Expected channelInactive to be forwarded after close completes")
+            return
         }
     }
 
@@ -619,11 +691,13 @@ extension TDSTests {
                 promise: nil
             )
         else {
-            Issue.record("Expected startup task to be queued"); return
+            Issue.record("Expected startup task to be queued")
+            return
         }
 
         guard case .closeConnectionAndCleanup(let cleanup) = state.close(nil) else {
-            Issue.record("Expected queued startup task to be failed during close"); return
+            Issue.record("Expected queued startup task to be failed during close")
+            return
         }
         expectEqual(cleanup.tasks.count, 1)
         for task in cleanup.tasks {
@@ -640,7 +714,8 @@ extension TDSTests {
         let normalDone = TDSBackendMessage.Done(status: [], currentCommand: 0, rowCount: 0)
 
         guard case .wait = state.doneReceived(normalDone, tokenKind: .done) else {
-            Issue.record("Expected non-attention DONE to be drained"); return
+            Issue.record("Expected non-attention DONE to be drained")
+            return
         }
 
         let promise = channel.eventLoop.makePromise(of: TDSQueryResult.self)
@@ -650,7 +725,8 @@ extension TDSTests {
                 promise: nil
             )
         else {
-            Issue.record("Expected state to keep draining until the attention acknowledgement"); return
+            Issue.record("Expected state to keep draining until the attention acknowledgement")
+            return
         }
         expectThrowsError(try promise.futureResult.wait())
 
@@ -660,7 +736,8 @@ extension TDSTests {
             rowCount: 0
         )
         guard case .wait = state.doneReceived(attentionDone, tokenKind: .done) else {
-            Issue.record("Expected attention acknowledgement to complete cancellation"); return
+            Issue.record("Expected attention acknowledgement to complete cancellation")
+            return
         }
 
         let nextPromise = channel.eventLoop.makePromise(of: TDSQueryResult.self)
@@ -670,10 +747,12 @@ extension TDSTests {
                 promise: nil
             )
         else {
-            Issue.record("Expected connection to accept requests after attention acknowledgement"); return
+            Issue.record("Expected connection to accept requests after attention acknowledgement")
+            return
         }
         guard case .closeConnectionAndCleanup(let cleanup) = state.close(nil) else {
-            Issue.record("Expected close to clean up the started query"); return
+            Issue.record("Expected close to clean up the started query")
+            return
         }
         for task in cleanup.tasks {
             task.fail(cleanup.error)
@@ -685,7 +764,8 @@ extension TDSTests {
 
         guard case .closeConnectionAndCleanup(let cleanup) = state.colMetadataReceived(Self.intMetadata())
         else {
-            Issue.record("Expected COLMETADATA without an active request to close the connection"); return
+            Issue.record("Expected COLMETADATA without an active request to close the connection")
+            return
         }
         expectEqual(cleanup.error.code, .connectionError)
         expectTrue(String(describing: cleanup.error.underlying).contains("COLMETADATA"))
@@ -696,7 +776,8 @@ extension TDSTests {
 
         guard case .closeConnectionAndCleanup(let cleanup) = state.rowReceived(.init(values: [.int32(1)]))
         else {
-            Issue.record("Expected ROW without an active request to close the connection"); return
+            Issue.record("Expected ROW without an active request to close the connection")
+            return
         }
         expectEqual(cleanup.error.code, .connectionError)
         expectTrue(String(describing: cleanup.error.underlying).contains("ROW"))

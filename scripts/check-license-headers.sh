@@ -3,7 +3,7 @@
 ##
 ## This source file is part of the TDSNIO open source project
 ##
-## Copyright (c) 2026 TDSNIO project authors
+## Copyright (c) 2024 Aaron Edwards and the TDSNIO project authors
 ## Licensed under Apache License v2.0
 ##
 ## See LICENSE for license information
@@ -26,7 +26,7 @@ EXPECTED_FILE_HEADER_TEMPLATE="@@===--------------------------------------------
 @@
 @@ This source file is part of the TDSNIO open source project
 @@
-@@ Copyright (c) YEARS TDSNIO project authors
+@@ Copyright (c) YEARS Aaron Edwards and the TDSNIO project authors
 @@ Licensed under Apache License v2.0
 @@
 @@ See LICENSE for license information
@@ -73,15 +73,10 @@ read -ra PATHS_TO_CHECK_FOR_LICENSE <<< "$( \
   ":(exclude)**/*.pb.swift" \
   ":(exclude)**/*.proto" \
   ":(exclude)Tests/IntegrationTests/Data/*" \
-  ":(exclude)Tests/*" \
   | xargs -0 \
 )"
 
 for FILE_PATH in "${PATHS_TO_CHECK_FOR_LICENSE[@]}"; do
-  if ! test -f "${REPO_ROOT}/${FILE_PATH}"; then
-    continue
-  fi
-
   FILE_BASENAME=$(basename -- "${FILE_PATH}")
   FILE_EXTENSION="${FILE_BASENAME##*.}"
 
@@ -108,7 +103,7 @@ for FILE_PATH in "${PATHS_TO_CHECK_FOR_LICENSE[@]}"; do
 done
 
 if [ "${#PATHS_WITH_MISSING_LICENSE[@]}" -gt 0 ]; then
-  fatal " Found missing license header in files: ${PATHS_WITH_MISSING_LICENSE[*]}."
+  fatal "❌ Found missing license header in files: ${PATHS_WITH_MISSING_LICENSE[*]}."
 fi
 
-log " Found no files with missing license header."
+log "✅ Found no files with missing license header."

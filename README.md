@@ -250,7 +250,7 @@ once tags exist.
 
 [Apache 2.0][Apache License]
 
-Copyright (c) 2026 TDSNIO project authors.
+Copyright (c) 2026 Aaron Edwards and TDSNIO project authors.
 
 This project contains code and design work influenced by other open source
 projects. See [NOTICE.txt](NOTICE.txt) for attribution details.

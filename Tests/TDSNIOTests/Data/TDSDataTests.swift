@@ -1,3 +1,16 @@
+//===----------------------------------------------------------------------===//
+//
+// This source file is part of the TDSNIO open source project
+//
+// Copyright (c) 2026 Aaron Edwards and the TDSNIO project authors
+// Licensed under Apache License v2.0
+//
+// See LICENSE for license information
+// See CONTRIBUTORS.md for the list of TDSNIO project authors
+//
+// SPDX-License-Identifier: Apache-2.0
+//
+//===----------------------------------------------------------------------===//
 import Foundation
 import Logging
 import NIOConcurrencyHelpers
@@ -301,7 +314,8 @@ extension TDSTests {
 
         expectThrowsError(try row.decode(as: ItemRow.self)) { error in
             guard let decodingError = error as? TDSDecodingError else {
-                Issue.record("Expected TDSDecodingError, got \(error)"); return
+                Issue.record("Expected TDSDecodingError, got \(error)")
+                return
             }
             expectEqual(decodingError.code, .typeMismatch(expected: "Int", actual: .string("not an integer")))
             expectEqual(decodingError.columnName, "id")
@@ -358,7 +372,7 @@ extension TDSTests {
         expectNil(typedNil)
     }
 
-    @Test func rowCanCreateOracleStyleRandomAccessView() throws {
+    @Test func rowCanCreateRandomAccessView() throws {
         let row = TDSRow(
             columns: [
                 .init(name: "id", dataType: .intN),
@@ -433,7 +447,8 @@ extension TDSTests {
 
         expectThrowsError(try row.decode(column: "label", as: Int.self)) { error in
             guard let decodingError = error as? TDSDecodingError else {
-                Issue.record("Expected TDSDecodingError, got \(error)"); return
+                Issue.record("Expected TDSDecodingError, got \(error)")
+                return
             }
             expectEqual(decodingError.code, .typeMismatch(expected: "Int", actual: .string("not an integer")))
             expectEqual(decodingError.columnName, "label")
@@ -634,15 +649,18 @@ extension TDSTests {
 
         expectEqual(messages.count, 3)
         guard case .colMetadata(let metadata) = messages[0] else {
-            Issue.record("Expected COLMETADATA"); return
+            Issue.record("Expected COLMETADATA")
+            return
         }
         expectEqual(metadata.columns.map(\.name), ["id", "label"])
         guard case .row(let row) = messages[1] else {
-            Issue.record("Expected NBCROW"); return
+            Issue.record("Expected NBCROW")
+            return
         }
         expectEqual(row.values, [.int32(1), .null])
         guard case .done = messages[2] else {
-            Issue.record("Expected DONE"); return
+            Issue.record("Expected DONE")
+            return
         }
     }
 
@@ -665,11 +683,13 @@ extension TDSTests {
 
         expectEqual(messages.count, 5)
         guard case .colMetadata(let metadata) = messages[0] else {
-            Issue.record("Expected COLMETADATA"); return
+            Issue.record("Expected COLMETADATA")
+            return
         }
         expectEqual(metadata.columns.map(\.name), ["amount"])
         guard case .altMetadata(let altMetadata) = messages[1] else {
-            Issue.record("Expected ALTMETADATA"); return
+            Issue.record("Expected ALTMETADATA")
+            return
         }
         expectEqual(altMetadata.count, 1)
         expectEqual(altMetadata.id, 7)
@@ -679,16 +699,19 @@ extension TDSTests {
         expectEqual(altMetadata.columns[0].typeInfo.dataType, .int4)
         expectEqual(altMetadata.columns[0].name, "total")
         guard case .altRow(let altRow) = messages[2] else {
-            Issue.record("Expected ALTROW"); return
+            Issue.record("Expected ALTROW")
+            return
         }
         expectEqual(altRow.id, 7)
         expectEqual(altRow.values, [.int32(42)])
         guard case .row(let row) = messages[3] else {
-            Issue.record("Expected regular ROW after ALTROW"); return
+            Issue.record("Expected regular ROW after ALTROW")
+            return
         }
         expectEqual(row.values, [.int32(1)])
         guard case .done = messages[4] else {
-            Issue.record("Expected DONE"); return
+            Issue.record("Expected DONE")
+            return
         }
     }
 
@@ -711,15 +734,18 @@ extension TDSTests {
 
         expectEqual(messages.count, 3)
         guard case .colMetadata(let metadata) = messages[0] else {
-            Issue.record("Expected COLMETADATA"); return
+            Issue.record("Expected COLMETADATA")
+            return
         }
         expectEqual(metadata.columns.map(\.name), ["date", "time", "dt2", "dto"])
         guard case .row(let row) = messages[1] else {
-            Issue.record("Expected ROW"); return
+            Issue.record("Expected ROW")
+            return
         }
         expectEqual(row.values, Self.temporalValues)
         guard case .done = messages[2] else {
-            Issue.record("Expected DONE"); return
+            Issue.record("Expected DONE")
+            return
         }
     }
 
@@ -742,16 +768,19 @@ extension TDSTests {
 
         expectEqual(messages.count, 3)
         guard case .colMetadata(let metadata) = messages[0] else {
-            Issue.record("Expected COLMETADATA"); return
+            Issue.record("Expected COLMETADATA")
+            return
         }
         expectEqual(
             metadata.columns.map(\.name), ["money", "smallmoney", "nullablemoney", "datetime", "smalldt", "nullabledt"])
         guard case .row(let row) = messages[1] else {
-            Issue.record("Expected ROW"); return
+            Issue.record("Expected ROW")
+            return
         }
         expectEqual(row.values, Self.legacyTemporalMoneyValues)
         guard case .done = messages[2] else {
-            Issue.record("Expected DONE"); return
+            Issue.record("Expected DONE")
+            return
         }
     }
 

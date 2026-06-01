@@ -1,3 +1,16 @@
+//===----------------------------------------------------------------------===//
+//
+// This source file is part of the TDSNIO open source project
+//
+// Copyright (c) 2026 Aaron Edwards and the TDSNIO project authors
+// Licensed under Apache License v2.0
+//
+// See LICENSE for license information
+// See CONTRIBUTORS.md for the list of TDSNIO project authors
+//
+// SPDX-License-Identifier: Apache-2.0
+//
+//===----------------------------------------------------------------------===//
 import Foundation
 import Logging
 import NIOConcurrencyHelpers
@@ -515,7 +528,8 @@ extension TDSTests {
         expectEqual(challenges.count, 2)
         expectEqual(challenges.first, .sspi([0xAA, 0xBB]))
         guard case .federatedInfo(let info) = challenges.last else {
-            Issue.record("Expected federated auth info challenge"); return
+            Issue.record("Expected federated auth info challenge")
+            return
         }
         expectEqual(info.options.map(\.id), [0x01, 0x02])
         expectEqual(info.stsURL, "https://sts.example.test")
@@ -1113,7 +1127,8 @@ extension TDSTests {
                 ))
         ) { error in
             guard let sqlError = error as? TDSSQLError else {
-                Issue.record("Expected TDSSQLError, got \(error)"); return
+                Issue.record("Expected TDSSQLError, got \(error)")
+                return
             }
             expectEqual(sqlError.serverInfo?.message, "Invalid language")
         }

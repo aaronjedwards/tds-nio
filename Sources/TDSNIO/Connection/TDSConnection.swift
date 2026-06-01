@@ -2,7 +2,7 @@
 //
 // This source file is part of the TDSNIO open source project
 //
-// Copyright (c) 2026 TDSNIO project authors
+// Copyright (c) 2026 Aaron Edwards and the TDSNIO project authors
 // Licensed under Apache License v2.0
 //
 // See LICENSE for license information
@@ -368,10 +368,12 @@ extension TDSConnection {
             } catch let error as CancellationError {
                 throw error
             } catch {
-                guard configuration.shouldRetryConnection(
-                    after: error,
-                    remainingRetries: remainingRetries
-                ) else {
+                guard
+                    configuration.shouldRetryConnection(
+                        after: error,
+                        remainingRetries: remainingRetries
+                    )
+                else {
                     throw error
                 }
                 remainingRetries -= 1

@@ -1,3 +1,16 @@
+//===----------------------------------------------------------------------===//
+//
+// This source file is part of the TDSNIO open source project
+//
+// Copyright (c) 2026 Aaron Edwards and the TDSNIO project authors
+// Licensed under Apache License v2.0
+//
+// See LICENSE for license information
+// See CONTRIBUTORS.md for the list of TDSNIO project authors
+//
+// SPDX-License-Identifier: Apache-2.0
+//
+//===----------------------------------------------------------------------===//
 import Foundation
 import Logging
 import NIOConcurrencyHelpers
@@ -10,7 +23,7 @@ import Testing
 @testable import TDSNIO
 
 extension TDSTests {
-    @Test func queryDescriptionMatchesOracleStyleAPI() throws {
+    @Test func queryDescriptionIncludesBoundParameters() throws {
         let query: TDSQuery = "SELECT * FROM dbo.items WHERE id = \(42)"
 
         expectEqual(
@@ -113,9 +126,11 @@ extension TDSTests {
 
         expectEqual(packet.readInteger(endianness: .little, as: UInt16.self), 7)
         expectEqual(packet.readInteger(as: UInt8.self), 10)
-        expectEqual(packet.readBytes(length: 10), [
-            0x6F, 0x00, 0x75, 0x00, 0x74, 0x00, 0x65, 0x00, 0x72, 0x00,
-        ])
+        expectEqual(
+            packet.readBytes(length: 10),
+            [
+                0x6F, 0x00, 0x75, 0x00, 0x74, 0x00, 0x65, 0x00, 0x72, 0x00,
+            ])
         expectEqual(packet.readInteger(as: UInt8.self), 0x01)
         expectEqual(
             packet.readInteger(as: UInt8.self), TDSTransactionManagerRequest.IsolationLevel.readCommitted.rawValue)
@@ -383,19 +398,22 @@ extension TDSTests {
 
         let completedQuery = queryResult.withLockedValue { $0 }
         guard case .failure(let error) = completedQuery else {
-            Issue.record("Expected cancelled query promise, got \(String(describing: completedQuery))"); return
+            Issue.record("Expected cancelled query promise, got \(String(describing: completedQuery))")
+            return
         }
         do {
             throw error
         } catch {
             guard let sqlError = error as? TDSSQLError else {
-                Issue.record("Expected TDSSQLError, got \(error)"); return
+                Issue.record("Expected TDSSQLError, got \(error)")
+                return
             }
             expectEqual(sqlError.code, .requestCancelled)
         }
         let completedCancel = cancelResult.withLockedValue { $0 }
         guard case .success = completedCancel else {
-            Issue.record("Expected successful cancellation promise, got \(String(describing: completedCancel))"); return
+            Issue.record("Expected successful cancellation promise, got \(String(describing: completedCancel))")
+            return
         }
     }
 
@@ -457,12 +475,14 @@ extension TDSTests {
 
         let completedQuery = queryResult.withLockedValue { $0 }
         guard case .failure(let error) = completedQuery else {
-            Issue.record("Expected cancelled query promise, got \(String(describing: completedQuery))"); return
+            Issue.record("Expected cancelled query promise, got \(String(describing: completedQuery))")
+            return
         }
         expectEqual((error as? TDSSQLError)?.code, .requestCancelled)
         let completedCancel = cancelResult.withLockedValue { $0 }
         guard case .success = completedCancel else {
-            Issue.record("Expected successful cancellation promise, got \(String(describing: completedCancel))"); return
+            Issue.record("Expected successful cancellation promise, got \(String(describing: completedCancel))")
+            return
         }
     }
 }
