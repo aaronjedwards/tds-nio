@@ -2,7 +2,7 @@
 
 ## Supported Versions
 
-TDSNIO has not made a tagged release yet. Until there is a stable release line,
+TDSNIO has not yet made a stable release. Until there is a stable release line,
 security fixes will be made on the `main` branch.
 
 ## Reporting a Vulnerability

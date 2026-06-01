@@ -48,11 +48,9 @@ TDSNIO currently requires Swift 6.1 or newer.
 
 ### Adding the Dependency
 
-Before the first tag, depend on `main`:
-
 ```swift
 dependencies: [
-    .package(url: "https://github.com/aaronjedwards/tds-nio.git", branch: "main"),
+    .package(url: "https://github.com/aaronjedwards/tds-nio.git", exact: "0.1.0-alpha.1"),
 ]
 ```
 
