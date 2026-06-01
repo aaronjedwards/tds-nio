@@ -25,18 +25,10 @@ import Testing
     .timeLimit(.minutes(5))
 )
 final class TDSNIOIntegrationTests {
-    private let group: MultiThreadedEventLoopGroup
+    private let group = NIOSingletons.posixEventLoopGroup
 
     private var eventLoop: EventLoop {
         self.group.next()
-    }
-
-    init() {
-        self.group = MultiThreadedEventLoopGroup(numberOfThreads: 1)
-    }
-
-    deinit {
-        try? self.group.syncShutdownGracefully()
     }
 
     @Test func connectionAndClose() async throws {
@@ -53,7 +45,7 @@ final class TDSNIOIntegrationTests {
             connection = try await TDSConnection.connect(
                 on: self.eventLoop,
                 configuration: configuration,
-                id: 1,
+                id: nextTDSConnectionID(),
                 logger: .tdsTest
             )
             Issue.record("Authentication should fail")
@@ -75,7 +67,7 @@ final class TDSNIOIntegrationTests {
             connection = try await TDSConnection.connect(
                 on: self.eventLoop,
                 configuration: configuration,
-                id: 1,
+                id: nextTDSConnectionID(),
                 logger: .tdsTest
             )
             Issue.record("Authentication should fail")
@@ -97,7 +89,7 @@ final class TDSNIOIntegrationTests {
             connection = try await TDSConnection.connect(
                 on: self.eventLoop,
                 configuration: configuration,
-                id: 1,
+                id: nextTDSConnectionID(),
                 logger: .tdsTest
             )
             Issue.record("Authentication should fail without retrying")
@@ -374,11 +366,6 @@ final class TDSNIOIntegrationTests {
         try await withTDSConnection(on: self.eventLoop) { connection in
             let table = uniqueTableName("duplicate")
             let identifier = sqlIdentifier(table)
-            defer {
-                Task {
-                    try? await dropTableIfExists(table, on: connection)
-                }
-            }
 
             _ = try await connection.execute(
                 "CREATE TABLE \(unescaped: identifier) (id int NOT NULL, title nvarchar(150) NOT NULL)"
@@ -414,11 +401,6 @@ final class TDSNIOIntegrationTests {
         try await withTDSConnection(on: self.eventLoop) { connection in
             let table = uniqueTableName("streaming_duplicate")
             let identifier = sqlIdentifier(table)
-            defer {
-                Task {
-                    try? await dropTableIfExists(table, on: connection)
-                }
-            }
 
             _ = try await connection.execute(
                 "CREATE TABLE \(unescaped: identifier) (id int NOT NULL, title nvarchar(150) NOT NULL)"
@@ -456,11 +438,6 @@ final class TDSNIOIntegrationTests {
         try await withTDSConnection(on: self.eventLoop) { connection in
             let table = uniqueTableName("duplicate_every_row")
             let identifier = sqlIdentifier(table)
-            defer {
-                Task {
-                    try? await dropTableIfExists(table, on: connection)
-                }
-            }
 
             _ = try await connection.execute(
                 "CREATE TABLE \(unescaped: identifier) (id int NOT NULL, title nvarchar(150) NOT NULL)"
@@ -495,11 +472,6 @@ final class TDSNIOIntegrationTests {
         try await withTDSConnection(on: self.eventLoop) { connection in
             let table = uniqueTableName("empty")
             let identifier = sqlIdentifier(table)
-            defer {
-                Task {
-                    try? await dropTableIfExists(table, on: connection)
-                }
-            }
 
             _ = try await connection.execute(
                 "CREATE TABLE \(unescaped: identifier) (id int NOT NULL, title nvarchar(150) NOT NULL)"
@@ -517,11 +489,6 @@ final class TDSNIOIntegrationTests {
         try await withTDSConnection(on: self.eventLoop) { connection in
             let table = uniqueTableName("streaming_empty")
             let identifier = sqlIdentifier(table)
-            defer {
-                Task {
-                    try? await dropTableIfExists(table, on: connection)
-                }
-            }
 
             _ = try await connection.execute(
                 "CREATE TABLE \(unescaped: identifier) (id int NOT NULL, title nvarchar(150) NOT NULL)"
@@ -563,11 +530,6 @@ final class TDSNIOIntegrationTests {
         try await withTDSConnection(on: self.eventLoop) { connection in
             let table = uniqueTableName("commit")
             let identifier = sqlIdentifier(table)
-            defer {
-                Task {
-                    try? await dropTableIfExists(table, on: connection)
-                }
-            }
 
             _ = try await connection.execute(
                 "CREATE TABLE \(unescaped: identifier) (id int NOT NULL PRIMARY KEY, label nvarchar(20) NOT NULL)"
@@ -593,11 +555,6 @@ final class TDSNIOIntegrationTests {
         try await withTDSConnection(on: self.eventLoop) { connection in
             let table = uniqueTableName("rollback")
             let identifier = sqlIdentifier(table)
-            defer {
-                Task {
-                    try? await dropTableIfExists(table, on: connection)
-                }
-            }
 
             _ = try await connection.execute(
                 "CREATE TABLE \(unescaped: identifier) (id int NOT NULL PRIMARY KEY, label nvarchar(20) NOT NULL)"

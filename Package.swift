@@ -73,6 +73,7 @@ let package = Package(
             dependencies: [
                 "TDSNIO",
                 .product(name: "Logging", package: "swift-log"),
+                .product(name: "NIOConcurrencyHelpers", package: "swift-nio"),
                 .product(name: "NIOCore", package: "swift-nio"),
                 .product(name: "NIOPosix", package: "swift-nio"),
                 .product(name: "NIOSSL", package: "swift-nio-ssl"),

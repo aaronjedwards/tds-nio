@@ -23,16 +23,7 @@ import Testing
     .timeLimit(.minutes(5))
 )
 final class TDSClientIntegrationTests {
-    private let group: MultiThreadedEventLoopGroup
-
-
-    init() {
-        self.group = MultiThreadedEventLoopGroup(numberOfThreads: 2)
-    }
-
-    deinit {
-        try? self.group.syncShutdownGracefully()
-    }
+    private let group = NIOSingletons.posixEventLoopGroup
 
     @Test func pool() async throws {
         var options = TDSClient.Options()
@@ -45,33 +36,10 @@ final class TDSClientIntegrationTests {
             eventLoopGroup: self.group,
             backgroundLogger: .tdsTest
         )
-        let clientTask = Task {
-            await client.run()
-        }
-        defer {
-            clientTask.cancel()
-        }
-
-        let iterations = env("TDS_CLIENT_POOL_ITERATIONS").flatMap(Int.init) ?? 10_000
-        try await withThrowingTaskGroup(of: Void.self) { group in
-            for _ in 0..<iterations {
-                group.addTask {
-                    try await client.withConnection { connection in
-                        let rows = try await connection.execute(
-                            "SELECT CAST(1 AS int) AS user_id, CAST(N'AJ' AS nvarchar(20)) AS name, CAST(23 AS int) AS age"
-                        ).rows
-
-                        expectEqual(rows.count, 1)
-                        expectEqual(try rows[0].decode(column: "user_id", as: Int.self), 1)
-                        expectEqual(try rows[0].decode(column: "name", as: String.self), "AJ")
-                        expectEqual(try rows[0].decode(column: "age", as: Int.self), 23)
-                    }
-                }
-            }
-
-            for _ in 0..<iterations {
-                try await group.next()
-            }
+        try await withRunningClient(client) {
+            let iterations = env("TDS_CLIENT_POOL_ITERATIONS").flatMap(Int.init) ?? 10_000
+            let concurrency = env("TDS_CLIENT_POOL_CONCURRENCY").flatMap(Int.init) ?? options.maximumConnections * 16
+            try await runPoolIterations(iterations, concurrency: concurrency, client: client)
         }
     }
 
@@ -87,25 +55,82 @@ final class TDSClientIntegrationTests {
             eventLoopGroup: self.group,
             backgroundLogger: .tdsTest
         )
-        let clientTask = Task {
+        try await withRunningClient(client) {
+            let value = try await client.withConnection { connection in
+                let rows = try await connection.execute("SELECT CAST(N'hello' AS nvarchar(20)) AS value").rows
+                return try rows.first?.decode(column: "value", as: String.self)
+            }
+            expectEqual(value, "hello")
+
+            try await Task.sleep(for: .seconds(1))
+
+            let nextValue = try await client.withConnection { connection in
+                let rows = try await connection.execute("SELECT CAST(N'next' AS nvarchar(20)) AS value").rows
+                return try rows.first?.decode(column: "value", as: String.self)
+            }
+            expectEqual(nextValue, "next")
+        }
+    }
+}
+
+private func withRunningClient(
+    _ client: TDSClient,
+    _ body: () async throws -> Void
+) async throws {
+    try await withThrowingTaskGroup(of: Void.self) { group in
+        group.addTask {
             await client.run()
         }
-        defer {
-            clientTask.cancel()
+        await Task.yield()
+
+        do {
+            try await body()
+        } catch {
+            group.cancelAll()
+            throw error
         }
 
-        let value = try await client.withConnection { connection in
-            let rows = try await connection.execute("SELECT CAST(N'hello' AS nvarchar(20)) AS value").rows
-            return try rows.first?.decode(column: "value", as: String.self)
-        }
-        expectEqual(value, "hello")
+        group.cancelAll()
+    }
+}
 
-        try await Task.sleep(for: .seconds(1))
+private func runPoolIterations(
+    _ iterations: Int,
+    concurrency: Int,
+    client: TDSClient
+) async throws {
+    let inFlightLimit = max(1, min(iterations, concurrency))
+    var submitted = 0
+    var completed = 0
 
-        let nextValue = try await client.withConnection { connection in
-            let rows = try await connection.execute("SELECT CAST(N'next' AS nvarchar(20)) AS value").rows
-            return try rows.first?.decode(column: "value", as: String.self)
+    try await withThrowingTaskGroup(of: Void.self) { group in
+        func submitOne() {
+            submitted += 1
+            group.addTask {
+                try await client.withConnection { connection in
+                    let rows = try await connection.execute(
+                        "SELECT CAST(1 AS int) AS user_id, CAST(N'AJ' AS nvarchar(20)) AS name, CAST(23 AS int) AS age"
+                    ).rows
+
+                    expectEqual(rows.count, 1)
+                    expectEqual(try rows[0].decode(column: "user_id", as: Int.self), 1)
+                    expectEqual(try rows[0].decode(column: "name", as: String.self), "AJ")
+                    expectEqual(try rows[0].decode(column: "age", as: Int.self), 23)
+                }
+            }
         }
-        expectEqual(nextValue, "next")
+
+        for _ in 0..<inFlightLimit {
+            submitOne()
+        }
+
+        while completed < iterations {
+            try await group.next()
+            completed += 1
+
+            if submitted < iterations {
+                submitOne()
+            }
+        }
     }
 }

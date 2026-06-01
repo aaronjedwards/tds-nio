@@ -312,6 +312,19 @@ public final class TDSConnection: Sendable {
             self.channel.triggerUserOutboundEvent(TDSSQLEvent.resetConnectionOnNextRequest, promise: nil)
         }
     }
+
+    func writeAndFlush(_ task: TDSTask) {
+        guard !self.isClosed else {
+            task.fail(.connectionError(underlying: ChannelError.ioOnClosedChannel))
+            return
+        }
+
+        let writePromise = self.eventLoop.makePromise(of: Void.self)
+        writePromise.futureResult.whenFailure { error in
+            task.fail(.connectionError(underlying: error))
+        }
+        self.channel.writeAndFlush(task, promise: writePromise)
+    }
 }
 
 // MARK: Async/Await Interface

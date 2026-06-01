@@ -92,7 +92,7 @@ extension TDSConnection {
     ) -> EventLoopFuture<TDSQueryResult> {
         let promise = self.eventLoop.makePromise(of: TDSQueryResult.self)
         self.prepareForNextRequestIfNeeded()
-        self.channel.writeAndFlush(TDSTask.transactionManager(request, promise), promise: nil)
+        self.writeAndFlush(TDSTask.transactionManager(request, promise))
         return promise.futureResult
     }
 

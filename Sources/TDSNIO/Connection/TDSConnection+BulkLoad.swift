@@ -33,7 +33,7 @@ extension TDSConnection {
     func _bulkLoad(_ request: TDSBulkLoadRequest) -> EventLoopFuture<TDSQueryResult> {
         let promise = self.eventLoop.makePromise(of: TDSQueryResult.self)
         self.prepareForNextRequestIfNeeded()
-        self.channel.writeAndFlush(TDSTask.bulkLoad(request, promise), promise: nil)
+        self.writeAndFlush(TDSTask.bulkLoad(request, promise))
         return promise.futureResult
     }
 }

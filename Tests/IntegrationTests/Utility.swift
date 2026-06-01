@@ -13,6 +13,7 @@
 //===----------------------------------------------------------------------===//
 import Foundation
 import Logging
+import NIOConcurrencyHelpers
 import NIOCore
 import NIOSSL
 import TDSNIO
@@ -58,7 +59,7 @@ extension TDSConnection {
         return try await TDSConnection.connect(
             on: eventLoop,
             configuration: config ?? self.testConfig(),
-            id: 0,
+            id: nextTDSConnectionID(),
             logger: logger
         )
     }
@@ -79,7 +80,7 @@ extension Logger {
 
         return env("LOG_LEVEL").flatMap {
             Logger.Level(rawValue: $0)
-        } ?? .debug
+        } ?? .info
     }
 }
 
@@ -96,6 +97,15 @@ enum TestConfigurationError: Error, CustomStringConvertible {
 
 func env(_ name: String) -> String? {
     getenv(name).flatMap { String(cString: $0) }
+}
+
+private let connectionIDGenerator = NIOLockedValueBox<TDSConnection.ID>(0)
+
+func nextTDSConnectionID() -> TDSConnection.ID {
+    connectionIDGenerator.withLockedValue {
+        $0 += 1
+        return $0
+    }
 }
 
 func withTDSConnection(

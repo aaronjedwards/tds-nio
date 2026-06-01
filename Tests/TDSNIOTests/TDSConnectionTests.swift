@@ -23,6 +23,31 @@ import Testing
 @testable import TDSNIO
 
 extension TDSTests {
+    @Test func pingAfterCloseFailsInsteadOfHanging() async throws {
+        let channel = EmbeddedChannel()
+        let connection = TDSConnection(
+            configuration: .init(
+                host: "sql.example.test",
+                username: "sa",
+                password: "Secret123!",
+                tls: .disable
+            ),
+            channel: channel,
+            connectionID: 1,
+            logger: Logger(label: "tds-nio-tests"),
+            protocolVersion: .v7_4
+        )
+
+        try await connection.close()
+
+        do {
+            try await connection.ping()
+            Issue.record("Ping on a closed connection should fail")
+        } catch {
+            // expected
+        }
+    }
+
     @Test func channelQueryTaskStreamsOnlyFirstResultSet() throws {
         let channel = try Self.loggedInChannel()
 

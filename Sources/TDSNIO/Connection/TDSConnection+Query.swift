@@ -115,9 +115,9 @@ extension TDSConnection {
         let promise = self.eventLoop.makePromise(of: TDSRowStream.self)
         self.prepareForNextRequestIfNeeded()
         if query.binds.isEmpty {
-            self.channel.writeAndFlush(TDSTask.sqlBatchRows(query.sql, promise, query), promise: nil)
+            self.writeAndFlush(TDSTask.sqlBatchRows(query.sql, promise, query))
         } else {
-            self.channel.writeAndFlush(TDSTask.rpcRows(query.rpcForExecution(), promise, query), promise: nil)
+            self.writeAndFlush(TDSTask.rpcRows(query.rpcForExecution(), promise, query))
         }
         return promise.futureResult
     }
@@ -128,9 +128,9 @@ extension TDSConnection {
         let promise = self.eventLoop.makePromise(of: TDSQueryResult.self)
         self.prepareForNextRequestIfNeeded()
         if query.binds.isEmpty {
-            self.channel.writeAndFlush(TDSTask.sqlBatch(query.sql, promise, query), promise: nil)
+            self.writeAndFlush(TDSTask.sqlBatch(query.sql, promise, query))
         } else {
-            self.channel.writeAndFlush(TDSTask.rpc(query.rpcForExecution(), promise, query), promise: nil)
+            self.writeAndFlush(TDSTask.rpc(query.rpcForExecution(), promise, query))
         }
         return promise.futureResult
     }
@@ -143,7 +143,7 @@ extension TDSConnection {
     func _ping() -> EventLoopFuture<Void> {
         let promise = self.eventLoop.makePromise(of: Void.self)
         self.prepareForNextRequestIfNeeded()
-        self.channel.writeAndFlush(TDSTask.ping(promise), promise: nil)
+        self.writeAndFlush(TDSTask.ping(promise))
         return promise.futureResult
     }
 
@@ -180,7 +180,7 @@ extension TDSConnection {
     ) -> EventLoopFuture<TDSQueryResult> {
         let promise = self.eventLoop.makePromise(of: TDSQueryResult.self)
         self.prepareForNextRequestIfNeeded()
-        self.channel.writeAndFlush(TDSTask.rpc(rpc, promise), promise: nil)
+        self.writeAndFlush(TDSTask.rpc(rpc, promise))
         return promise.futureResult
     }
 
@@ -191,7 +191,7 @@ extension TDSConnection {
     func _cancelCurrentRequest() -> EventLoopFuture<Void> {
         let promise = self.eventLoop.makePromise(of: Void.self)
         self.logger.debug("Explicit request cancellation requested; enqueueing TDS attention packet.")
-        self.channel.writeAndFlush(TDSTask.attention(promise), promise: nil)
+        self.writeAndFlush(TDSTask.attention(promise))
         return promise.futureResult
     }
 }

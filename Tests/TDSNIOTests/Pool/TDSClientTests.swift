@@ -16,6 +16,7 @@ import Logging
 import NIOConcurrencyHelpers
 import NIOCore
 import NIOEmbedded
+import NIOPosix
 import NIOSSL
 import NIOTestUtils
 import Testing
@@ -62,7 +63,12 @@ extension TDSTests {
         options.connectionIdleTimeout = .seconds(5)
         options.keepAliveBehavior = .init(frequency: .seconds(3))
 
-        let client = TDSClient(configuration: configuration, options: options)
+        let group = MultiThreadedEventLoopGroup(numberOfThreads: 1)
+        defer {
+            try? group.syncShutdownGracefully()
+        }
+
+        let client = TDSClient(configuration: configuration, options: options, eventLoopGroup: group)
 
         expectEqual(client.factory.configuration.host, "pooled.sql.example.test")
         expectEqual(client.factory.configuration.database, "master")
