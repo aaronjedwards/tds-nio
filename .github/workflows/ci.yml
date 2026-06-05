@@ -24,9 +24,18 @@ jobs:
           - swiftlang/swift:nightly-main-noble
         sqlserver-image:
           - mcr.microsoft.com/mssql/server:2022-latest
+        sqlserver-version:
+          - "2022"
         include:
+          - swift-image: swift:6.3-noble
+            sqlserver-image: mcr.microsoft.com/mssql/server:2019-latest
+            sqlserver-version: "2019"
+          - swift-image: swift:6.3-noble
+            sqlserver-image: mcr.microsoft.com/mssql/server:2025-latest
+            sqlserver-version: "2025"
           - swift-image: swiftlang/swift:nightly-main-noble
             experimental: true
+            sqlserver-version: "2022"
     continue-on-error: ${{ matrix.experimental == true }}
     container: ${{ matrix.swift-image }}
     runs-on: ubuntu-latest
@@ -68,15 +77,15 @@ jobs:
         uses: actions/cache/restore@v4
         with:
           path: .build
-          key: "${{ matrix.swift-image }}-swiftpm-tests-build-${{ runner.os }}-${{ github.event.pull_request.base.sha || github.event.after }}"
-          restore-keys: "${{ matrix.swift-image }}-swiftpm-tests-build-${{ runner.os }}-"
+          key: "${{ matrix.swift-image }}-sqlserver-${{ matrix.sqlserver-version }}-swiftpm-tests-build-${{ runner.os }}-${{ github.event.pull_request.base.sha || github.event.after }}"
+          restore-keys: "${{ matrix.swift-image }}-sqlserver-${{ matrix.sqlserver-version }}-swiftpm-tests-build-${{ runner.os }}-"
       - name: Build
         run: swift build --build-tests --traits _IOTracing,DistributedTracingSupport
       - name: Cache .build
         uses: actions/cache/save@v4
         with:
           path: .build
-          key: "${{ matrix.swift-image }}-swiftpm-tests-build-${{ runner.os }}-${{ github.event.pull_request.base.sha || github.event.after }}"
+          key: "${{ matrix.swift-image }}-sqlserver-${{ matrix.sqlserver-version }}-swiftpm-tests-build-${{ runner.os }}-${{ github.event.pull_request.base.sha || github.event.after }}"
       - name: Run tests
         run: swift test --skip-build --traits _IOTracing,DistributedTracingSupport
         env:

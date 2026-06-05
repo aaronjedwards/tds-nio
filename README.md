@@ -33,12 +33,15 @@ TDSNIO targets TDS 7.4 and TDS 8.0 capable SQL Server deployments.
 
 | Version | Tested |
 | --- | --- |
-| SQL Server 2019 | Not yet part of CI |
+| SQL Server 2019 | Yes, in GitHub Actions |
 | SQL Server 2022 | Yes, in GitHub Actions |
+| SQL Server 2025 | Yes, in GitHub Actions |
 | Azure SQL Database | Not yet part of CI |
 
 The current CI suite runs integration tests against
-`mcr.microsoft.com/mssql/server:2022-latest`.
+`mcr.microsoft.com/mssql/server:2019-latest`,
+`mcr.microsoft.com/mssql/server:2022-latest`, and
+`mcr.microsoft.com/mssql/server:2025-latest`.
 
 ## Language and Platform Support
 
