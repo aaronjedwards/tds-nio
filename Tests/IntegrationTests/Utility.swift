@@ -20,6 +20,12 @@ import TDSNIO
 
 extension TDSConnection {
     static func testConfig() throws -> TDSConnection.Configuration {
+        if let connectionString = env("TDS_CONNECTION_STRING"), !connectionString.isEmpty {
+            var configuration = try TDSConnection.Configuration(connectionString: connectionString)
+            configuration.options.connectTimeout = .seconds(env("TDS_CONNECT_TIMEOUT").flatMap(Int64.init) ?? 10)
+            return configuration
+        }
+
         let tls: TDSConnection.Configuration.TLS
         switch env("TDS_TLS")?.lowercased() {
         case nil, "disable", "disabled", "false", "no":

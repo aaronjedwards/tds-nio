@@ -5,6 +5,7 @@ on:
     branches: [ "main" ]
   pull_request:
     branches: [ "main" ]
+  workflow_dispatch:
   schedule:
     - cron: "0 15 * * 1"
 
@@ -95,3 +96,63 @@ jobs:
           TDS_USERNAME: sa
           TDS_PASSWORD: TDSNio_Strong_Password_123
           TDS_TLS: disable
+
+  azure-sql-integration:
+    name: Azure SQL integration
+    if: github.event_name != 'pull_request'
+    runs-on: ubuntu-latest
+    container: swift:6.3-noble
+    env:
+      TDS_CONNECTION_STRING: ${{ secrets.AZURE_SQL_CONNECTION_STRING }}
+
+    steps:
+      - name: Display OS and Swift versions
+        shell: bash
+        run: |
+          [[ -z "${SWIFT_PLATFORM}" ]] && SWIFT_PLATFORM="$(. /etc/os-release && echo "${ID}${VERSION_ID}")"
+          [[ -z "${SWIFT_VERSION}" ]] && SWIFT_VERSION="$(cat /.swift_tag 2>/dev/null || true)"
+          printf 'OS:  %s\nTag: %s\nVersion:\n' "${SWIFT_PLATFORM}-${RUNNER_ARCH}" "${SWIFT_VERSION}"
+          swift --version
+      - uses: actions/checkout@v5
+      - name: Check Azure SQL configuration
+        id: azure-sql
+        shell: bash
+        run: |
+          if [[ -z "${TDS_CONNECTION_STRING}" ]]; then
+            echo "enabled=false" >> "$GITHUB_OUTPUT"
+            echo "::notice::Skipping Azure SQL integration tests because AZURE_SQL_CONNECTION_STRING is not configured."
+          else
+            echo "enabled=true" >> "$GITHUB_OUTPUT"
+          fi
+      - name: Set DEBUG specific environment variables
+        if: runner.debug == '1' && steps.azure-sql.outputs.enabled == 'true'
+        run: |
+          echo "LOG_LEVEL=trace" >> "$GITHUB_ENV"
+      - name: Install zstd
+        if: steps.azure-sql.outputs.enabled == 'true'
+        run: |
+          apt-get update -y
+          apt-get install -y zstd
+      - name: Restore .build
+        if: steps.azure-sql.outputs.enabled == 'true'
+        id: "restore-azure-sql-build"
+        uses: actions/cache/restore@v4
+        with:
+          path: .build
+          key: "swift:6.3-noble-azure-sql-swiftpm-tests-build-${{ runner.os }}-${{ github.event.pull_request.base.sha || github.event.after || github.sha }}"
+          restore-keys: "swift:6.3-noble-azure-sql-swiftpm-tests-build-${{ runner.os }}-"
+      - name: Build
+        if: steps.azure-sql.outputs.enabled == 'true'
+        run: swift build --build-tests --traits _IOTracing,DistributedTracingSupport
+      - name: Cache .build
+        if: steps.azure-sql.outputs.enabled == 'true'
+        uses: actions/cache/save@v4
+        with:
+          path: .build
+          key: "swift:6.3-noble-azure-sql-swiftpm-tests-build-${{ runner.os }}-${{ github.event.pull_request.base.sha || github.event.after || github.sha }}"
+      - name: Run Azure SQL integration tests
+        if: steps.azure-sql.outputs.enabled == 'true'
+        run: swift test --skip-build --filter IntegrationTests --traits _IOTracing,DistributedTracingSupport
+        env:
+          TDS_INTEGRATION_TESTS: "1"
+          TDS_CONNECT_TIMEOUT: 30

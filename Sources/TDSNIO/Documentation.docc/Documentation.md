@@ -23,8 +23,7 @@ TDSNIO is currently pre-release software and public APIs may change substantiall
 
 ### Supported SQL Server Versions
 
-TDSNIO targets TDS 7.4 and TDS 8.0 capable SQL Server deployments. The current
-CI suite runs integration tests against SQL Server 2019, 2022, and 2025.
+TDSNIO targets TDS 7.4 and TDS 8.0 capable SQL Server deployments.
 
 ## Topics
 
